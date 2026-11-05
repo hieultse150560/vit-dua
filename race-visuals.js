@@ -108,13 +108,15 @@
         }
       }
     }
-    function event(event, sample, elapsed) {
+    function event(event, sample, elapsed, pre = sample) {
       if (destroyed || reduced() || elapsed - event.time > .3 || event.type === 'rune-spawn') return;
       const origin = point(event.actorId, sample), target = point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, sample);
       const kind = kindOf(event);
       bursts.push({ time: elapsed, kind, origin, target, blocked: ['shielded', 'immune', 'resisted'].includes(event.outcome), id: event.id.length + event.actorId * 7,
         affected: (event.affectedIds || []).map(id => point(id, sample)), atActor: AT_ACTOR.has(kind) || event.outcome === 'dropped', life: TWIST[kind] ? TWIST_LIFE : BURST_LIFE,
-        outcome: event.outcome, reflected: event.outcome === 'reflected' });
+        outcome: event.outcome, reflected: event.outcome === 'reflected',
+        // Positions just before the jump, so painters move with the ducks' on-screen glide.
+        pre: { origin: point(event.actorId, pre), target: point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, pre), affected: (event.affectedIds || []).map(id => point(id, pre)) } });
       if (bursts.length > 24) bursts = bursts.slice(-24);
     }
     function particles(point, progress, color, count = 11, radius = 34, tag = 0) {
@@ -229,6 +231,7 @@
     }
     // ---- chaos-v2 twist painters: physical-looking water, glass, fire and animals ----
     const clamp01 = v => Math.max(0, Math.min(1, v));
+    const ease = t => 1 - (1 - clamp01(t)) ** 3; // matches the app's duck glide
     function line(a, b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
     // Droplets thrown up and pulled down by gravity; t runs 0 → ~1.4.
     function splash(spot, t, alpha, tag, color = '#effcff', count = 26) {
@@ -331,35 +334,45 @@
         }
         pop(f.icon, spot, f.m, f.alpha, 52);
       },
-      // A wall of water rolls back over every duck it sweeps.
+      // Each swept duck rides its own curling wave from where it was to where it lands.
       wave(b, f) {
-        const spots = b.affected.length ? b.affected : [b.target], ys = spots.map(s => s.y);
-        const top = Math.min(...ys) - 80, bottom = Math.max(...ys) + 26;
-        const fromX = Math.max(...spots.map(s => s.x)) + 150, toX = Math.min(b.origin.x, ...spots.map(s => s.x)) - 40;
-        const x = fromX + (toX - fromX) * clamp01(f.m * 1.15);
-        const g = ctx.createLinearGradient(x, top, x + 140, bottom);
-        g.addColorStop(0, '#f2fdff'); g.addColorStop(.3, '#4fb8e8'); g.addColorStop(1, '#0f5c8c');
-        ctx.globalAlpha = f.alpha * .88; ctx.fillStyle = g;
-        ctx.beginPath(); ctx.moveTo(x + 170, bottom); ctx.lineTo(x + 10, bottom);
-        ctx.quadraticCurveTo(x - 48, (top + bottom) / 2, x - 14, top + 18);
-        ctx.quadraticCurveTo(x + 30, top - 26, x + 84, top + 12);
-        ctx.quadraticCurveTo(x + 150, top + 50, x + 170, bottom); ctx.fill();
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 7; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(x - 16, top + 22); ctx.quadraticCurveTo(x + 30, top - 22, x + 86, top + 14); ctx.stroke(); ctx.lineCap = 'butt';
-        splash({ x: x - 8, y: top + 24 }, (f.m * 2.4) % 1.1, f.alpha, b.id, '#ffffff', 22);
-        for (const spot of spots) ripples(spot, f.m + f.fade, f.alpha);
-        pop(f.icon, { x: x + 40, y: top + 70 }, f.m, f.alpha, 66);
+        const after = b.affected.length ? b.affected : [b.target], before = b.pre.affected.length ? b.pre.affected : [b.pre.target];
+        const k = ease(f.m / .93), lift = Math.sin(clamp01(f.m / .93) * Math.PI);
+        before.forEach((p, i) => {
+          const x = p.x + (after[i].x - p.x) * k + 40, y = p.y + 10, h = 70 + 50 * lift * (1 - f.fade);
+          const g = ctx.createLinearGradient(x, y - h, x + 90, y);
+          g.addColorStop(0, '#f2fdff'); g.addColorStop(.35, '#4fb8e8'); g.addColorStop(1, '#0f5c8c');
+          ctx.globalAlpha = f.alpha * .92; ctx.fillStyle = g;
+          ctx.beginPath(); ctx.moveTo(x + 120, y); ctx.lineTo(x - 6, y);
+          ctx.quadraticCurveTo(x - 34, y - h * .5, x - 8, y - h + 8);
+          ctx.quadraticCurveTo(x + 22, y - h - 22, x + 60, y - h + 6);
+          ctx.quadraticCurveTo(x + 110, y - h * .35, x + 120, y); ctx.fill();
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(x - 10, y - h + 12); ctx.quadraticCurveTo(x + 18, y - h - 20, x + 58, y - h + 8); ctx.stroke(); ctx.lineCap = 'butt';
+          splash({ x: x - 8, y: y - h + 14 }, (f.m * 2.2 + i * .3) % 1.1, f.alpha, b.id + i * 5, '#ffffff', 14);
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+          for (let s = 0; s < 4; s++) { ctx.globalAlpha = f.alpha * .55 * (1 - k * .6); line({ x: x + 130 + s * 14, y: y - 18 - s * 10 }, { x: x + 190 + s * 22, y: y - 18 - s * 10 }); }
+          ripples({ x: after[i].x, y: p.y }, f.m + f.fade, f.alpha * .8);
+        });
+        pop(f.icon, b.origin, f.m, f.alpha, 58);
       },
-      // Rod at the caster; the hook flies to the leader, then reels it back.
+      // The rod casts to the leader's spot, then the taut line reels it in (in step with its glide).
       hook(b, f) {
-        const reach = clamp01(f.m / .4), back = clamp01((f.m - .4) / .6);
-        const tip = back > 0 ? { x: b.target.x + (b.origin.x - 40 - b.target.x) * back, y: b.target.y + (b.origin.y - b.target.y) * back } : flight(b.origin, b.target, reach, 60);
-        ctx.globalAlpha = f.alpha; ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.moveTo(b.origin.x + 18, b.origin.y - 58);
-        ctx.quadraticCurveTo((b.origin.x + tip.x) / 2, Math.min(b.origin.y, tip.y) - (back > 0 ? 18 : 80), tip.x, tip.y - 12); ctx.stroke();
-        emoji(f.icon, b.origin.x + 12, b.origin.y - 44, 40, f.alpha);
-        emoji('🪝', tip.x, tip.y - 2, 28, f.alpha);
-        if (back > 0) { splash(tip, back * .9, f.alpha, b.id, '#e9fbff', 16); ripples(tip, back + f.fade, f.alpha); }
+        const rod = { x: b.origin.x + 16, y: b.origin.y - 60 }, from = b.pre.target, to = b.target;
+        const cast = clamp01(f.m / .37), reel = ease((f.m - .37) / .63);
+        const tip = f.m < .37 ? flight(rod, { x: from.x, y: from.y - 20 }, cast, 70) : { x: from.x + (to.x - from.x) * reel, y: from.y - 20 + (to.y - from.y) * reel };
+        ctx.globalAlpha = f.alpha; ctx.strokeStyle = '#1f1f1f'; ctx.lineWidth = f.m < .37 ? 2 : 3;
+        ctx.beginPath(); ctx.moveTo(rod.x, rod.y);
+        ctx.quadraticCurveTo((rod.x + tip.x) / 2, Math.min(rod.y, tip.y) - (f.m < .37 ? 70 : 8 * (1 - reel)), tip.x, tip.y); ctx.stroke();
+        emoji(f.icon, b.origin.x + 10, b.origin.y - 46, 46, f.alpha);
+        ring(rod.x - 6, rod.y + 18, 7, 7, '#ffd166', f.alpha, 3);
+        ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2; const sp = (f.m + f.fade) * TAU * 6;
+        line({ x: rod.x - 6, y: rod.y + 18 }, { x: rod.x - 6 + Math.cos(sp) * 7, y: rod.y + 18 + Math.sin(sp) * 7 });
+        emoji('🪝', tip.x, tip.y + 4, 30, f.alpha);
+        if (f.m >= .37) {
+          for (let i = 1; i <= 6; i++) { const u = Math.max(0, reel - i * .06), x = from.x + (to.x - from.x) * u; ctx.globalAlpha = f.alpha * (1 - i / 7) * .7; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x + 20, from.y + 6, 5 - i * .5, 0, TAU); ctx.fill(); }
+          splash({ x: tip.x, y: from.y + 4 }, reel * .8, f.alpha, b.id, '#e9fbff', 16);
+        } else ripples({ x: from.x, y: from.y }, cast, f.alpha * .6);
       },
       tornado(b, f) {
         const spots = b.affected.length ? b.affected : [b.target];
@@ -617,19 +630,33 @@
         });
         pop(f.icon, { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 }, f.m, f.alpha, 70);
       },
+      // VHS rewind: tint, scanlines, a blinking ◀◀ label, and each duck's tape trail back to its old spot.
       rewind(b, f) {
-        ctx.globalAlpha = f.alpha * .2; ctx.fillStyle = '#c9a46a'; ctx.fillRect(0, 0, width, height);
-        ctx.fillStyle = '#ffffff';
-        for (let i = 0; i < 9; i++) { ctx.globalAlpha = f.alpha * .3; ctx.fillRect(noise(b.id + i + Math.floor(f.m * 24)) * width, 0, 1.6, height); }
-        ctx.strokeStyle = '#ffe2a8'; ctx.lineWidth = 4;
-        for (const spot of b.affected) for (let k = 0; k < 3; k++) {
-          const x = spot.x - 24 - k * 22 - (f.m * 40) % 22;
-          ctx.globalAlpha = f.alpha * (1 - k * .3); ctx.beginPath(); ctx.moveTo(x + 10, spot.y - 36); ctx.lineTo(x, spot.y - 26); ctx.lineTo(x + 10, spot.y - 16); ctx.stroke();
-        }
-        const s = b.origin, ang = -(f.m + f.fade) * TAU * 3;
+        const k = ease(f.m / .93), blink = Math.floor((f.m + f.fade) * 8) % 2 === 0;
+        ctx.globalAlpha = f.alpha * .22; ctx.fillStyle = '#b8955a'; ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#000000';
+        for (let y = (f.m * 60) % 4; y < height; y += 4) { ctx.globalAlpha = f.alpha * .07; ctx.fillRect(0, y, width, 1.4); }
+        const band = ((f.m + f.fade) * 1.6 % 1) * height;
+        ctx.globalAlpha = f.alpha * .18; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, band, width, 10);
+        if (blink) { ctx.globalAlpha = f.alpha; ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'left'; ctx.fillText('◀◀ TUA NGƯỢC', 18, 34); }
+        b.pre.affected.forEach((p, i) => {
+          const end = b.affected[i]; if (!end || Math.abs(end.x - p.x) < 2) return;
+          const x = p.x + (end.x - p.x) * k;
+          ctx.globalAlpha = f.alpha * .8; ctx.strokeStyle = '#ffe2a8'; ctx.lineWidth = 4; ctx.setLineDash([8, 6]);
+          line({ x: p.x, y: p.y - 24 }, { x, y: p.y - 24 }); ctx.setLineDash([]);
+          ring(p.x, p.y - 24, 14, 14, '#ffe2a8', f.alpha * .6 * (1 - k), 2);
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+          for (let c = 0; c < 3; c++) {
+            const cx = x + 18 + c * 16 + ((f.m * 60) % 16);
+            ctx.globalAlpha = f.alpha * (1 - c * .3); ctx.beginPath(); ctx.moveTo(cx + 8, p.y - 34); ctx.lineTo(cx, p.y - 24); ctx.lineTo(cx + 8, p.y - 14); ctx.stroke();
+          }
+        });
+        const s = b.origin, ang = -(f.m + f.fade) * TAU * 4;
+        glow({ x: s.x, y: s.y - 20 }, 60, '#ffe2a8', f.alpha * .6);
         ring(s.x, s.y - 34, 36, 36, '#ffe2a8', f.alpha, 4);
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.globalAlpha = f.alpha;
         line({ x: s.x, y: s.y - 34 }, { x: s.x + Math.cos(ang) * 28, y: s.y - 34 + Math.sin(ang) * 28 });
+        line({ x: s.x, y: s.y - 34 }, { x: s.x + Math.cos(ang / 12) * 18, y: s.y - 34 + Math.sin(ang / 12) * 18 });
         pop(f.icon, s, f.m, f.alpha, 58);
       },
       reverse(b, f) {
