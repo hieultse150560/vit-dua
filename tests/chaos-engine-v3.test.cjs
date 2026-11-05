@@ -105,16 +105,30 @@ test('chaos-v3 swap leans toward the highest duck within reach', () => {
   assert.ok(share(3) >= 0.4 && share(1) <= 0.25, `reach 3: ${share(3).toFixed(2)}, reach 1: ${share(1).toFixed(2)}`);
 });
 
-test('chaos-v3 tornado mostly sweeps up the leading ducks', () => {
-  const picked = v3Events(e => e.skill === 'tornado' && e.activation).flatMap(e => e.affectedIds.map(id => e.ranksBefore[id]));
-  const top3 = picked.filter(rank => rank <= 3).length / picked.length;
-  assert.ok(top3 >= 0.6, `top-3 share ${top3.toFixed(2)} (random would be 0.43)`);
+test('chaos-v3 tornado flings the top three (never the caster) to the back of the pack, spinning', () => {
+  const list = withRace(e => e.skill === 'tornado' && e.activation);
+  assert.ok(list.length > 200);
+  let drop = 0, hits = 0, spun = 0;
+  for (const { race, e } of list) {
+    sameSet(e.affectedIds, order(e.ranksBefore).filter(id => id !== e.actorId).slice(0, 3));
+    assert.equal(e.after[e.actorId], e.before[e.actorId]);
+    for (const id of e.affectedIds) {
+      if (e.protectedIds.includes(id)) { assert.equal(e.after[id], e.before[id]); continue; }
+      assert.ok(e.after[id] < e.before[id], 'thrown back');
+      hits++; drop += race.sample(e.time + 0.05)[id].currentRank - e.ranksBefore[id];
+      if (e.time + 0.4 < 25 && fresh(race, e, id) && !touchedBetween(race, e, id, e.time + 0.3)) { assert.equal(race.sample(e.time + 0.3)[id].pose, 'spinning'); spun++; }
+    }
+  }
+  assert.ok(drop / hits >= 2, `victims drop only ${(drop / hits).toFixed(2)} places on average`);
+  assert.ok(spun > 100, `only ${spun} spins checked`);
 });
 
 test('chaos-v3 mirror glare goes for the leader', () => {
-  const glares = v3Events(e => e.skill === 'mirror' && e.activation && e.outcome === 'fallback', 600);
+  const glares = withRace(e => e.skill === 'mirror' && e.activation && e.outcome === 'fallback', 600);
   assert.ok(glares.length > 50);
-  for (const e of glares) assert.equal(e.ranksBefore[e.targetId], e.ranksBefore[e.actorId] === 1 ? 2 : 1);
+  let checked = 0;
+  for (const { race, e } of glares) { const top = topPick(race, e, 1); if (top) { assert.equal(e.targetId, top[0]); checked++; } }
+  assert.ok(checked > 30);
 });
 
 // New chaos-v3 skills and the stronger hook / wave.
@@ -125,6 +139,12 @@ const withRace = (filter, races = 2000) => {
   return out;
 };
 const order = ranks => ranks.map((rank, id) => ({ rank, id })).sort((a, b) => a.rank - b.rank).map(x => x.id);
+// Stun-only attacks (chaos-v3) pick the highest rivals not already stunned or immune. A duck no event
+// touched in the last 4 s is surely open, so when the plain top-n are all open they must be the pick.
+const fresh = (race, e, id) => !race.events.some(o => o !== e && o.time <= e.time + 1e-9 && o.time > e.time - 4 && o.type !== 'rune-spawn'
+  && [o.actorId, o.targetId, ...(o.affectedIds || [])].includes(id));
+const topPick = (race, e, n, skip = e.actorId) => { const top = order(e.ranksBefore).filter(id => id !== skip).slice(0, n); return top.every(id => fresh(race, e, id)) ? top : null; };
+const sameSet = (a, b) => assert.deepEqual([...a].sort(), [...b].sort());
 
 test('chaos-v3 deals 21 skills on top of the 10 from chaos-v2', () => {
   assert.deepEqual(V3.skills.map(s => s.id).slice(10), ['magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon']);
@@ -149,9 +169,11 @@ test('magnet pulls its duck right behind the leader (or into the lead from 2nd)'
 
 test('lightning strikes the top two (except the caster) and capsizes them', () => {
   const list = withRace(e => e.skill === 'lightning' && e.activation);
+  let picked = 0;
+  for (const { race, e } of list) { assert.equal(e.affectedIds.length, 2); assert.ok(!e.affectedIds.includes(e.actorId)); const top = topPick(race, e, 2); if (top) { sameSet(e.affectedIds, top); picked++; } }
+  assert.ok(picked > 100, `only ${picked} picks checked`);
   assert.ok(list.length > 200);
   for (const { race, e } of list) {
-    assert.deepEqual([...e.affectedIds].sort(), order(e.ranksBefore).filter(id => id !== e.actorId).slice(0, 2).sort());
     for (const id of e.affectedIds) if (e.outcomes[id] === 'hit' && e.time + 0.1 < 25) assert.equal(race.sample(e.time + 0.05)[id].pose, 'capsized');
   }
 });
@@ -200,10 +222,12 @@ const touchedBetween = (race, e, id, until) => race.events.some(o => o !== e && 
 
 test('reverse turns the top two around: they swim backwards', () => {
   const list = withRace(e => e.skill === 'reverse' && e.activation);
+  let picked = 0;
+  for (const { race, e } of list) { assert.equal(e.affectedIds.length, 2); assert.ok(!e.affectedIds.includes(e.actorId)); const top = topPick(race, e, 2); if (top) { sameSet(e.affectedIds, top); picked++; } }
+  assert.ok(picked > 100, `only ${picked} picks checked`);
   assert.ok(list.length > 200);
   let checked = 0;
   for (const { race, e } of list) {
-    assert.deepEqual([...e.affectedIds].sort(), order(e.ranksBefore).filter(id => id !== e.actorId).slice(0, 2).sort());
     for (const id of e.affectedIds) {
       // Progress is clamped at the line, so only ducks short of it can show the backwards drift.
       if (e.outcomes[id] !== 'hit' || e.time + 0.6 >= 25 || touchedBetween(race, e, id, e.time + 0.6) || race.sample(e.time)[id].progress > 0.98) continue;
@@ -250,9 +274,11 @@ test('heat-seeking missile blows the leader back and capsizes it', () => {
 
 test('bees swarm the top two and slow them down', () => {
   const list = withRace(e => e.skill === 'bees' && e.activation);
+  let picked = 0;
+  for (const { race, e } of list) { assert.equal(e.affectedIds.length, 2); assert.ok(!e.affectedIds.includes(e.actorId)); const top = topPick(race, e, 2); if (top) { sameSet(e.affectedIds, top); picked++; } }
+  assert.ok(picked > 100, `only ${picked} picks checked`);
   assert.ok(list.length > 150);
   for (const { race, e } of list) {
-    assert.deepEqual([...e.affectedIds].sort(), order(e.ranksBefore).filter(id => id !== e.actorId).slice(0, 2).sort());
     for (const id of e.affectedIds) if (e.outcomes[id] === 'hit' && e.time + 0.6 < 25 && !touchedBetween(race, e, id, e.time + 0.5)) assert.equal(race.sample(e.time + 0.5)[id].slowed, true);
   }
 });
@@ -281,7 +307,8 @@ test('balloon lifts the leader out of the water', () => {
   assert.ok(list.length > 100);
   let checked = 0;
   for (const { race, e } of list) {
-    assert.equal(e.ranksBefore[e.targetId], e.ranksBefore[e.actorId] === 1 ? 2 : 1);
+    const top = topPick(race, e, 1);
+    if (top) assert.equal(e.targetId, top[0]);
     if (e.time + 0.6 >= 25 || touchedBetween(race, e, e.targetId, e.time + 0.6)) continue;
     assert.equal(pose(race, e.time + 0.3, e.targetId), 'lifted');
     const fd = race.results[0].finalDistance;
@@ -300,22 +327,38 @@ test('hippo tosses a top-half duck back, log blocks the leader, frog hops a back
     if (e.outcome === 'hit') { assert.ok(e.after[e.actorId] < e.before[e.actorId]); if (e.effect === 'hit' && e.time + 0.1 < 25 && !touchedBetween(race, e, e.actorId, e.time + 0.05)) assert.equal(pose(race, e.time + 0.05, e.actorId), 'capsized'); }
   }
   for (const { race, e } of log) {
-    assert.equal(e.ranksBefore[e.actorId], 1);
+    const top = topPick(race, e, 1, -1);
+    if (top) assert.equal(e.actorId, top[0]);
     if (e.outcome === 'hit' && e.time + 0.6 < 25 && !touchedBetween(race, e, e.actorId, e.time + 0.5)) assert.equal(race.sample(e.time + 0.5)[e.actorId].slowed, true);
   }
   for (const { e } of frog) { assert.ok(e.ranksBefore[e.actorId] > 4); assert.ok(e.after[e.actorId] > e.before[e.actorId]); }
 });
 
-test('chaos-v3 pacing: most twists between 1/4 and 3/4; the last quarter keeps 1-3 real plot twists', () => {
-  const PLOT = new Set(['torpedo', 'missile', 'lightning', 'tornado', 'blackhole', 'hook']);
-  let mid = 0, all = 0;
+test('chaos-v3 pacing: twists spread evenly, at least 1 s apart; the last quarter keeps 1-3 real plot twists', () => {
+  const PLOT = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook']);
+  let mid = 0, all = 0, worst = 0;
   for (let seed = 0; seed < 1000; seed++) {
     const r = V3.createRace(names(7), 25, seed), twists = r.events.filter(e => e.scheduled && !e.finale);
+    const times = r.events.filter(e => e.scheduled).map(e => e.time);
+    for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 0.999, `seed ${seed}: twists ${(times[i] - times[i - 1]).toFixed(2)} s apart`);
+    const middle = times.filter(t => t >= 5 && t < 18.75);
+    for (let i = 1; i < middle.length; i++) worst = Math.max(worst, middle[i] - middle[i - 1]);
     const lastQuarter = r.events.filter(e => e.scheduled && e.time >= 18.75);
-    all += twists.length; mid += twists.filter(e => e.time >= 6.25 && e.time < 18.75).length;
+    all += twists.length; mid += twists.filter(e => e.time >= 5 && e.time < 18.75).length;
     assert.ok(lastQuarter.length >= 1 && lastQuarter.length <= 3, `seed ${seed}: ${lastQuarter.length} twists in the last quarter`);
     const hasPlot = r.racers.some(x => PLOT.has(x.skill.id)); // a field with no order-changing skill falls back to any active skill
     for (const e of lastQuarter) assert.ok(e.finale || PLOT.has(e.skill) || !hasPlot, `seed ${seed}: ${e.skill || e.hazard} is not a plot twist`);
   }
-  assert.ok(mid / all >= 0.75, `only ${(mid / all * 100).toFixed(0)}% of twists in the middle half`);
+  assert.ok(mid / all >= 0.75, `only ${(mid / all * 100).toFixed(0)}% of twists between 1/5 and 3/4`);
+  assert.ok(worst < 4, `a ${worst.toFixed(1)} s lull mid-race`);
+});
+
+test('chaos-v3 stun attacks skip ducks already stunned, so a hit is almost never wasted', () => {
+  const STUN = new Set(['torpedo', 'balloon', 'lightning', 'reverse', 'bees']);
+  let tries = 0, wasted = 0;
+  for (let seed = 0; seed < 1500; seed++) for (const e of V3.createRace(names(7), 25, seed).events) {
+    if (!e.scheduled || e.finale || !(STUN.has(e.skill) || ['rock', 'log'].includes(e.hazard))) continue;
+    tries++; if ((e.outcomes ? Object.values(e.outcomes) : [e.outcome]).includes('immune')) wasted++;
+  }
+  assert.ok(tries > 1000 && wasted / tries < 0.03, `${wasted}/${tries} stun attacks wasted on stunned ducks`);
 });

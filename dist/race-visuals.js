@@ -374,17 +374,43 @@
           splash({ x: tip.x, y: from.y + 4 }, reel * .8, f.alpha, b.id, '#e9fbff', 16);
         } else ripples({ x: from.x, y: from.y }, cast, f.alpha * .6);
       },
+      // Each swept duck gets its own dark twister: it touches down on the duck, then carries it
+      // back down the river in step with the app's tornado glide (delay .07, length .2 race-s → m .26 to 1).
       tornado(b, f) {
-        const spots = b.affected.length ? b.affected : [b.target];
-        for (const spot of spots) {
-          for (let arm = 0; arm < 4; arm++) {
-            const start = arm / 4 * TAU + (f.m + f.fade) * TAU * 3;
-            ctx.globalAlpha = f.alpha * .8; ctx.strokeStyle = arm % 2 ? '#e8eefc' : '#9fb3d9'; ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.ellipse(spot.x, spot.y - 20 - arm * 6, 34 - arm * 5, 12 - arm * 2, 0, start, start + Math.PI * 1.1); ctx.stroke();
+        const before = b.pre.affected.length ? b.pre.affected : [b.pre.target], after = b.affected.length ? b.affected : [b.target];
+        const grow = ease(f.m / .2), k = ease((f.m - .26) / .74), spin = (f.m * 2.5 + f.fade) * TAU * 2;
+        const H = 150 * grow * (1 - f.fade * .7), wide = t => (9 + 48 * t * t) * (.5 + .5 * grow);
+        let crown = null;
+        before.forEach((p, i) => {
+          const q = after[i]; if (!q) return;
+          const x = p.x + (q.x - p.x) * k, base = p.y + 6, sway = t => Math.sin(spin * .35 + t * 4 + i) * 10 * t;
+          ctx.globalAlpha = f.alpha * .4; ctx.fillStyle = '#16354a';
+          ctx.beginPath(); ctx.ellipse(x, base, 36, 9, 0, 0, TAU); ctx.fill();
+          const body = ctx.createLinearGradient(0, base - H, 0, base);
+          body.addColorStop(0, 'rgba(214,224,244,.6)'); body.addColorStop(.5, 'rgba(92,108,142,.78)'); body.addColorStop(1, 'rgba(44,56,84,.9)');
+          ctx.globalAlpha = f.alpha; ctx.fillStyle = body; ctx.beginPath();
+          for (let j = 0; j <= 10; j++) { const t = j / 10, px = x + sway(t) - wide(t), py = base - H * t; if (j) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+          for (let j = 10; j >= 0; j--) { const t = j / 10; ctx.lineTo(x + sway(t) + wide(t), base - H * t); }
+          ctx.fill();
+          for (let j = 0; j < 10; j++) {
+            const t = j / 9, st = spin * 1.2 + t * 5 + i;
+            ctx.globalAlpha = f.alpha * (.5 + .5 * t); ctx.strokeStyle = j % 2 ? '#ffffff' : '#c8d3ea'; ctx.lineWidth = 1.5 + t * 2.5;
+            ctx.beginPath(); ctx.ellipse(x + sway(t), base - H * t, wide(t), wide(t) * .28, 0, st, st + Math.PI * 1.2); ctx.stroke();
           }
-          particles(spot, clamp01(f.m + f.fade * .5), '#cfd8ea', 10, 60, b.id);
-        }
-        pop(f.icon, spots[0], f.m, f.alpha, 52);
+          for (let j = 0; j < 12; j++) {
+            const t = (noise(j + b.id + i * 13) + f.m * .8 + f.fade * .3) % 1, ang = spin * 1.6 + j * 2.4, r = wide(t) * 1.15;
+            ctx.globalAlpha = f.alpha * (Math.sin(ang) > 0 ? 1 : .45); ctx.fillStyle = j % 3 ? '#ffffff' : '#5f8f43';
+            ctx.beginPath(); ctx.ellipse(x + sway(t) + Math.cos(ang) * r, base - H * t + Math.sin(ang) * r * .28, j % 3 ? 2.6 : 5, j % 3 ? 2.6 : 2.2, ang, 0, TAU); ctx.fill();
+          }
+          if (k > 0 && f.m < 1) for (let s = 1; s <= 6; s++) {
+            const u = Math.max(0, k - s * .07), tx = p.x + (q.x - p.x) * u;
+            ctx.globalAlpha = f.alpha * (1 - s / 7) * .6; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.ellipse(tx + 30, base - 20, 14, 5, 0, spin + s, spin + s + 4); ctx.stroke();
+          }
+          if (f.m >= 1) { splash({ x: q.x, y: q.y }, f.fade * 1.3, f.alpha, b.id + i * 7, '#effcff', 18); ripples({ x: q.x, y: q.y }, f.fade, f.alpha * .8); }
+          if (!crown || base - H < crown.y) crown = { x: x + sway(1), y: base - H };
+        });
+        if (crown) pop(f.icon, { x: crown.x, y: crown.y + 30 }, f.m, f.alpha, 52);
       },
       banana(b, f) {
         const spot = b.atActor ? b.origin : b.target, spin = (f.m + f.fade) * TAU * 3;

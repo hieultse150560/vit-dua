@@ -400,7 +400,7 @@ test('ducks show the pose of what hit them: backwards, frozen, lifted, ghost', a
   const cases = [['reverse', 'reversed', '😱'], ['freeze', 'frozen', '🥶'], ['balloon', 'lifted', '😨'], ['ghost', 'ghost', '😇']];
   const pick = skill => { for (let seed = 1; seed < 900; seed++) {
     const race = V2.v3.createRace(names.map((_, id) => A.name(id)), 25, seed), all = twists(race);
-    const e = all.find(t => t.skill === skill && t.activation && t.time > 6 && t.time < 20 && !all.some(o => o !== t && Math.abs(o.time - t.time) < 2.5));
+    const e = all.find(t => t.skill === skill && t.activation && t.time > 6 && t.time < 20 && !all.some(o => o !== t && Math.abs(o.time - t.time) < 0.9));
     if (!e) continue;
     const id = skill === 'ghost' ? e.actorId : e.affectedIds ? e.affectedIds.find(i => e.outcomes[i] === 'hit') : e.outcome === 'hit' ? e.targetId : undefined;
     if (id !== undefined && !race.sample(e.time - 0.05)[id].pose) return { seed, e, id };

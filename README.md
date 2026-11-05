@@ -48,7 +48,7 @@ Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ 
 | 🚀 Tên lửa | 70% phóng +150% tốc độ trong 1,5 giây, 30% nổ máy tự lật 2 giây. |
 | 🪞 Gương phản đòn | Đòn đầu tiên từ skill vịt khác bị dội ngược: kẻ tấn công lãnh đúng cái hại đó. Không ai đánh thì đến giờ chiếu chói con ngay trên mình (chậm 50% trong 1,5 giây). |
 | 🎣 Cần câu | Kéo con ngay trên mình lùi về chỗ mình rồi vượt lên ngay trước nó. Bản `chaos-v3`: móc con dẫn đầu, giật nó tụt về ngay sau mình. Đang dẫn thì móc bờ kéo mình lên 3%. |
-| 🌪️ Lốc xoáy | Xáo trộn vị trí của 3 con ngẫu nhiên, có thể gồm cả mình; con nào cũng đổi chỗ. |
+| 🌪️ Lốc xoáy | `chaos-v2`: xáo trộn vị trí của 3 con ngẫu nhiên, có thể gồm cả mình. `chaos-v3`: cuốn 3 con dẫn đầu (trừ mình) lên trời, quăng mỗi con về khoảng cuối đoàn (có thể ra sau cả con chót 2%), rồi quay mòng mòng 0,8 giây; trung bình mỗi con tụt gần 3 bậc. |
 | 🍌 Vỏ chuối | Thả tại chỗ; con bám ngay sau chạm tới thì trượt quay vòng 1,5 giây. Đang bét thì ném lên trúng con ngay trên. |
 | 🛟 Phao thần | Chặn đòn đầu tiên (skill hoặc sự kiện sông nước) rồi bật lên vượt 1 con. Không ai đánh thì đến giờ phao bơm hơi đẩy lên vượt 1 con. |
 | 🧲 Nam châm (`chaos-v3`) | Hút mình lên ngay sau con dẫn đầu; đang nhì thì vọt lên dẫn. |
@@ -76,11 +76,11 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 
 **Lịch lật kèo:** pha lật kèo (skill hoặc sự kiện) rải từ giây thứ 2 đến cuối trận, càng về cuối càng dày, và vòng nào cũng có ít nhất một pha ở 1/3 đầu và một pha trong 2 giây cuối. Hai pha cách nhau ít nhất 0,4 giây; khi quá đông vịt khoảng cách co lại và banner gộp "N pha liên tiếp!".
 
-**Nhịp trận `chaos-v3`:** skill và sự kiện rải đều trong khoảng 1/4 đến 3/4 chặng đua. 1/4 cuối chỉ có 1–2 pha lật kèo, lấy từ các skill đánh vào con dẫn đầu hoặc đảo cả đoàn (Thủy lôi, Tên lửa tầm nhiệt, Sét đánh, Lốc xoáy, Hố đen, Cần câu), cộng cú vấp đá sát đích ở khoảng 40% số trận. Các skill tự đẩy mình lên (Cánh vàng, Đổi đời, Nam châm, Tua ngược, Sóng thần, Lộn đầu đuôi) chỉ bung giữa trận, vì để cuối trận thì gần như quyết định luôn người thắng. Sóng thần hất lùi ít nhất 7%, Cần câu giật con dẫn đầu lùi ít nhất 6%.
+**Nhịp trận `chaos-v3`:** skill và sự kiện rải đều từ 1/5 đến khoảng 3/4 chặng đua: mỗi pha một ô thời gian bằng nhau (thứ tự ngẫu nhiên, lệch nhẹ), và hai pha luôn cách nhau ít nhất 1 giây nên hiệu ứng không đè lên nhau. Ô của Gương và Phao xếp đầu tiên, vì hai skill này hay đã phản ứng sớm hơn; ô trống khi đó là khúc dạo đầu yên ả chứ không phải khoảng lặng giữa trận. 1/4 cuối chỉ có 1–2 pha lật kèo, lấy từ các skill đánh vào con dẫn đầu (Thủy lôi, Tên lửa tầm nhiệt, Sét đánh, Hố đen, Cần câu), cộng cú vấp đá sát đích ở khoảng 40% số trận. Các skill tự đẩy mình lên hoặc đảo cả tốp đầu (Cánh vàng, Đổi đời, Nam châm, Tua ngược, Sóng thần, Lộn đầu đuôi, Lốc xoáy) chỉ bung giữa trận, vì để cuối trận thì gần như quyết định luôn người thắng. Sóng thần hất lùi ít nhất 7%, Cần câu giật con dẫn đầu lùi ít nhất 6%.
 
 **Vịt trượt theo hiệu ứng:** trong mô phỏng, các cú dịch chuyển (sóng, câu, tua, đổi chỗ, bay…) là tức thì; trên màn hình vịt trượt mượt tới vị trí mới trong lúc slow motion, nên thấy rõ bị sóng cuốn, bị dây câu kéo về, bị tua ngược. Kết quả không đổi.
 
-Vịt đang bị lật hay quay tròn không bị cộng dồn; hết hiệu ứng có 1 giây miễn nhiễm, nhưng vẫn có thể bị đổi chỗ. Phao và bong bóng chặn được cả sự kiện sông nước; gương chỉ dội đòn từ skill vịt khác, không dội Lốc xoáy hay sự kiện. Vịt có phao hoặc bong bóng đứng ngoài Lốc xoáy.
+Vịt đang bị lật hay quay tròn không bị cộng dồn; hết hiệu ứng có 1 giây miễn nhiễm, nhưng vẫn có thể bị đổi chỗ. Ở `chaos-v3`, đòn chỉ làm choáng (Thủy lôi, Sét đánh, Bóng bay, Đàn ong, Bơi ngược, gương chiếu chói, vấp đá, khúc gỗ) bỏ qua con đang choáng hoặc đang miễn nhiễm và nhắm con cao nhất còn đánh được, nên gần như không đòn nào rơi vào khoảng trống. Phao và bong bóng chặn được cả sự kiện sông nước; gương chỉ dội đòn từ skill vịt khác, không dội Lốc xoáy hay sự kiện. Vịt có phao hoặc bong bóng đứng ngoài Lốc xoáy.
 
 Rune xuất hiện ở các làn ngẫu nhiên, không ưu tiên vịt dẫn đầu. Có ít nhất 3 rune mỗi trận: **Nước tăng lực** (+40% trong 1,5 giây), **Bong bóng bảo vệ** (một lần chặn) và **Hộp hên xui** (50% tăng tốc, 50% chậm 40%).
 
@@ -105,7 +105,7 @@ Mặt sông đổi màu theo thời tiết, có mưa rơi, gió thổi và chớ
 
 `chaos-v3` còn chỉnh hai điểm so với `chaos-v2`:
 
-- **Skill thông minh:** vẫn ngẫu nhiên nhưng nghiêng về con đang dẫn: Đổi đời ưu tiên con cao nhất trong tầm 1–3 bậc (nhất là con đang dẫn), Lốc xoáy thường cuốn nhóm đầu, Gương không bị đánh thì chiếu chói thẳng con đang dẫn.
+- **Skill thông minh:** vẫn ngẫu nhiên nhưng nghiêng về con đang dẫn: Đổi đời ưu tiên con cao nhất trong tầm 1–3 bậc (nhất là con đang dẫn), Lốc xoáy luôn cuốn 3 con dẫn đầu, Gương không bị đánh thì chiếu chói thẳng con đang dẫn (con cao nhất chưa bị choáng).
 - **Vấp đá sát đích quyết định:** khoảng 40% số trận kết thúc bằng một cú vấp đá trong 2 giây cuối. Đó luôn là pha cuối cùng trong lịch, không chặn được: con đang dẫn ngã ra sau con nhì và nằm lật đến hết giờ, nên chắc chắn không thắng. Các cú vấp đá thường chỉ xảy ra trước 3 giây cuối.
 
 ### Slow motion, camera và photo finish

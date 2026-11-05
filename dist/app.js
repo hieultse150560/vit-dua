@@ -269,8 +269,14 @@
   }
   // Jumps are instant in the simulation; on screen the ducks glide there (eased) so a wave
   // visibly sweeps them back and a hook visibly reels the leader in. Results are untouched.
-  const GLIDE={hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25}};let glides={};
+  const GLIDE={hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25},tornado:{delay:.07,dur:.2}};let glides={};
+  // Tornado victims are lifted, twirled and dropped (CSS, real time; matches the 1.8 s slow motion).
+  function sweep(event){
+    if(event.skill!=='tornado'||reduced.matches)return;
+    for(const id of event.affectedIds||[])if(!(event.protectedIds||[]).includes(id)&&nodes[id]){const n=nodes[id];n.classList.remove('swept');void n.offsetWidth;n.classList.add('swept');setTimeout(()=>n.classList.remove('swept'),SLOWMO_MS+100);}
+  }
   function startGlides(event,pre){
+    sweep(event);
     if(!event.before||!event.after)return;
     const g=GLIDE[event.skill]||{delay:0,dur:.18};
     for(const [id,d] of Object.entries(event.after))if(Math.abs(d-event.before[id])>1e-9&&pre[id])glides[id]={from:pre[id].progress,start:event.time+g.delay,end:event.time+g.delay+g.dur};
