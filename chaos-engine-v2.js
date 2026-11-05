@@ -60,7 +60,7 @@
     { id: 'sunny', name: 'Nắng đẹp', icon: '☀️', chance: 40, extra: 0, weights: {} },
     { id: 'rain', name: 'Mưa rào', icon: '🌧️', chance: 25, extra: 1, weights: { whirlpool: 2, croc: 2 } },
     { id: 'wind', name: 'Gió lớn', icon: '💨', chance: 20, extra: 1, weights: { wind: 5 } },
-    { id: 'storm', name: 'Bão sông', icon: '⛈️', chance: 15, extra: 2, weights: { rock: 2, whirlpool: 2 } }
+    { id: 'storm', name: 'Bão sông', icon: '⛈️', chance: 15, extra: 2, weights: { whirlpool: 2, croc: 2 } }
   ]);
   function weighted(list, weightOf, rng) {
     const total = list.reduce((sum, item) => sum + weightOf(item), 0);
@@ -122,7 +122,8 @@
 
   // Twist slots: one per duck skill plus hazards, spread over the race with
   // density rising toward the finish, then spaced in whole ticks.
-  function planSlots(racers, duration, hazardRng, scheduleRng, weather) {
+  // rules: chaos-v2 = V2_RULES (frozen by golden hashes); chaos-v3 makes last-second rock trips rarer.
+  function planSlots(racers, duration, hazardRng, scheduleRng, weather, rules) {
     const H = tuning.hazard, count = racers.length;
     const slots = racers.map(r => ({ kind: 'skill', actorId: r.id, passive: PASSIVE.has(r.skill.id) }));
     const hazardCount = (H.countMin + hazardRng.integer(H.countMax - H.countMin + 1) + (weather?.extra || 0)) * Math.ceil(count / 7);
@@ -130,7 +131,7 @@
     for (let i = 0; i < hazardCount; i++) slots.push({ kind: 'hazard', hazard: pickHazard() });
     const first = tuning.firstPhase, last = duration - 0.2;
     for (const slot of slots) {
-      const lateRock = slot.hazard?.id === 'rock' && scheduleRng.unit() < H.rockLateChance;
+      const lateRock = slot.hazard?.id === 'rock' && scheduleRng.unit() < rules.rockLateChance;
       slot.time = lateRock
         ? duration - H.rockLateWindow + scheduleRng.unit() * (H.rockLateWindow - 0.3)
         : first + (duration - first) * scheduleRng.unit() ** TIME_EXPONENT;
@@ -141,7 +142,8 @@
     // Late guarantee first: it may pull an early slot, which the early guarantee then refills.
     if (!slots.some(s => visible(s) && s.time >= duration - 2)) {
       const late = [...slots].reverse();
-      const pick = late.find(s => s.hazard?.id === 'rock') || late.find(s => s.kind === 'hazard') || late.find(visible);
+      const pick = (rules.lateGuaranteePrefersRock ? late.find(s => s.hazard?.id === 'rock') : late.find(s => s.kind === 'hazard' && s.hazard.id !== 'rock'))
+        || late.find(s => s.kind === 'hazard') || late.find(visible);
       pick.time = duration - 2 + scheduleRng.unit() * 1.7;
       byTime();
     }
@@ -162,7 +164,10 @@
     return slots;
   }
 
-  function createRaceFor(version, hasWeather, names, durationSeconds = 25, seed = newSeed()) {
+  // smartTargets (chaos-v3): random picks lean toward the leading ducks.
+  const V2_RULES = freeze({ weather: false, rockLateChance: tuning.hazard.rockLateChance, lateGuaranteePrefersRock: true, smartTargets: false });
+  const V3_RULES = freeze({ weather: true, rockLateChance: .25, lateGuaranteePrefersRock: false, smartTargets: true });
+  function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed()) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;
     const ids = Array.from({ length: count }, (_, id) => id);
@@ -170,7 +175,7 @@
     const skillRng = randomFor(seed, 0x534b4932);
     const scheduleRng = randomFor(seed, 0x53434832);
     const hazardRng = randomFor(seed, 0x48415a32);
-    const weather = hasWeather ? weighted(weathers, w => w.chance, randomFor(seed, 0x57544852)) : null;
+    const weather = rules.weather ? weighted(weathers, w => w.chance, randomFor(seed, 0x57544852)) : null;
     const runeRng = randomFor(seed, 0x52554e32);
     const effectRng = randomFor(seed, 0x45464632);
     const pct = value => value / 100 * duration;
@@ -204,7 +209,7 @@
       if (racer.skill.id === 'buoy') racer.guard = 'buoy';
     });
 
-    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather).map((slot, index) => ({ ...slot, index }));
+    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, rules).map((slot, index) => ({ ...slot, index }));
     const runeCount = Math.max(3, Math.ceil(count / 3));
     for (let i = 0; i < runeCount; i++) {
       const actorId = runeRng.integer(count), rune = runeTypes[runeRng.integer(runeTypes.length)];
@@ -340,7 +345,9 @@
         const S = tuning.swap, rank = ranks[actor.id];
         const lo = rank === 1 ? rank + S.reachMin : Math.max(1, rank - S.reachMax);
         const hi = rank === 1 ? Math.min(count, rank + S.reachMax) : rank - S.reachMin;
-        const target = atRank(lo + effectRng.integer(hi - lo + 1));
+        // Smart: the farther up (and the leader most of all), the likelier the target.
+        const reach = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+        const target = atRank(rules.smartTargets && rank !== 1 ? weighted(reach, r => rank - r + (r === 1 ? 2 : 0), effectRng) : lo + effectRng.integer(hi - lo + 1));
         const harmed = rank === 1 ? actor : target, before = snapshot([actor, target]);
         const defense = defend(harmed, actor, harmed !== actor);
         let result;
@@ -368,7 +375,7 @@
       mirror(actor, ranks) {
         const M = tuning.mirror, rank = ranks[actor.id];
         actor.mirror = false;
-        const target = rank === 1 ? atRank(2) : atRank(rank - 1);
+        const target = rank === 1 ? atRank(2) : atRank(rules.smartTargets ? 1 : rank - 1);
         const result = strike(actor, target,
           () => ({ outcome: 'fallback', effect: impair(target, 'slow', M.glareTime, M.glareSlow), label: 'GƯƠNG CHIẾU CHÓI!' }),
           () => impair(actor, 'slow', M.glareTime, M.glareSlow));
@@ -387,8 +394,12 @@
           () => impair(actor, 'capsized', tuning.mirror.reflectStun));
         return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
       },
-      tornado() {
-        const picked = shuffled(ids, effectRng).slice(0, 3).map(id => racers[id]);
+      tornado(actor, ranks) {
+        // Smart: weight (count - rank + 1)^2 makes the leaders the likeliest to be swept up.
+        const pickTop = () => { const pool = [...racers], out = [];
+          while (out.length < Math.min(3, count)) { const pick = weighted(pool, r => (count - ranks[r.id] + 1) ** 2, effectRng); out.push(pick); pool.splice(pool.indexOf(pick), 1); }
+          return out; };
+        const picked = rules.smartTargets ? pickTop() : shuffled(ids, effectRng).slice(0, 3).map(id => racers[id]);
         const movers = picked.filter(r => !r.guard), before = snapshot(picked);
         if (movers.length >= 2) {
           const values = movers.map(r => r.distance), shift = movers.length === 2 ? 1 : 1 + effectRng.integer(2);
@@ -560,9 +571,9 @@
   }
 
   const v3 = Object.freeze({ version: 'chaos-v3', skills, hazards, runeTypes, tuning, weathers,
-    createRace: (names, duration, seed) => createRaceFor('chaos-v3', true, names, duration, seed) });
+    createRace: (names, duration, seed) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed) });
   const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3,
-    createRace: (names, duration, seed) => createRaceFor(VERSION, false, names, duration, seed) });
+    createRace: (names, duration, seed) => createRaceFor(VERSION, V2_RULES, names, duration, seed) });
   root.DuckChaosEngineV2 = api;
   root.DuckChaosEngineV3 = v3;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

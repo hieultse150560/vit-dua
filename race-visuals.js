@@ -13,9 +13,11 @@
   };
   const V2_KIND = { wings: 'fly', torpedo: 'torpedo', wave: 'wave', rocket: 'rocket', mirror: 'mirror', hook: 'hook', tornado: 'tornado', banana: 'banana', buoy: 'guard',
     rock: 'rock', croc: 'croc', wind: 'wind', whirlpool: 'whirlpool', dolphin: 'dolphin' };
-  // Race seconds. TWIST_MAIN matches the app's slow-motion window (0.2x for 1.4 s = 0.28 race-s),
-  // so each twist's main action plays in slow motion; the rest is a short fade.
-  const BURST_LIFE = .85, TWIST_LIFE = 1.1, TWIST_MAIN = .3;
+  // Race seconds. TWIST_MAIN matches the app's slow-motion window (0.15x for 1.8 s = 0.27 race-s),
+  // so each twist's main action plays in slow motion; the rest is a slow fade.
+  const BURST_LIFE = .85, TWIST_LIFE = 1.7, TWIST_MAIN = .27;
+  // The app's camera zooms the canvas by CAMERA_ZOOM (CSS scale), so draw at that much extra resolution.
+  const CAMERA_ZOOM = 1.35;
   const THROWN = new Set(['torpedo', 'hook']), SPREAD = new Set(['wave', 'tornado']), AT_ACTOR = new Set(['fly', 'rocket', 'boom', 'guard']);
   function kindOf(event) {
     const v2 = V2_KIND[event.skill || event.hazard];
@@ -40,7 +42,7 @@
       if (destroyed) return;
       const rect = container.getBoundingClientRect();
       width = Math.max(1, Math.round(rect.width)); height = Math.max(1, Math.round(rect.height));
-      const dpr = Math.min(1.5, root.devicePixelRatio || 1);
+      const dpr = Math.min(2.5, (root.devicePixelRatio || 1) * CAMERA_ZOOM);
       canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       metrics = nodes.map(node => {
@@ -150,7 +152,10 @@
       else particles(burst.origin, p, burst.kind === 'rune' ? '#fff2a2' : '#ffe87f', 12, 44, burst.id);
     }
     function emoji(icon, x, y, size, alpha) {
-      ctx.globalAlpha = Math.max(0, alpha); ctx.font = `${size}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText(icon, x, y);
+      ctx.globalAlpha = Math.max(0, alpha); ctx.font = `${size}px sans-serif`; ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3; // lifts icons off the water
+      ctx.fillText(icon, x, y);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     }
     // Weather ambience (chaos-v3): rain streaks, gusts, storm lightning, sun glints.
     function drawWeather(time) {
@@ -190,24 +195,24 @@
     const clamp01 = v => Math.max(0, Math.min(1, v));
     function line(a, b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
     // Droplets thrown up and pulled down by gravity; t runs 0 → ~1.4.
-    function splash(spot, t, alpha, tag, color = '#effcff', count = 18) {
+    function splash(spot, t, alpha, tag, color = '#effcff', count = 26) {
       ctx.fillStyle = color;
       for (let i = 0; i < count; i++) {
         const vx = (noise(tag + i) - .5) * 150, vy = -(110 + noise(tag + i + 9) * 140), tt = t * .85;
         const y = Math.min(spot.y + 4, spot.y - 4 + vy * tt + 300 * tt * tt);
         ctx.globalAlpha = Math.max(0, alpha) * (.55 + noise(i + tag) * .45);
-        ctx.beginPath(); ctx.arc(spot.x + vx * tt, y, 1.8 + noise(tag + i + 3) * 3.4, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(spot.x + vx * tt, y, 2.6 + noise(tag + i + 3) * 4.4, 0, TAU); ctx.fill();
       }
     }
     // Flat rings spreading on the water surface.
     function ripples(spot, t, alpha, color = '#ffffff') {
       for (let k = 0; k < 3; k++) {
         const r = t * 1.3 - k * .2;
-        if (r > 0 && r < 1) ring(spot.x, spot.y + 8, 18 + r * 80, 4 + r * 17, color, alpha * (1 - r) * .9, 2.2);
+        if (r > 0 && r < 1) ring(spot.x, spot.y + 8, 18 + r * 90, 4 + r * 20, color, alpha * (1 - r), 3.2);
       }
     }
     // Icon that springs up above a duck.
-    function pop(icon, spot, m, alpha, size = 46) {
+    function pop(icon, spot, m, alpha, size = 58) {
       const k = clamp01(m * 2.4), bounce = k < 1 ? Math.sin(k * Math.PI * .5) * 1.15 : 1;
       emoji(icon, spot.x, spot.y - 46 - (1 - alpha) * 14, size * Math.max(.3, bounce), alpha);
     }
