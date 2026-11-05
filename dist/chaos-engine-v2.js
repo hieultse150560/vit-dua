@@ -27,10 +27,10 @@
     banana: { stun: 1.5 },
     buoy: { lead: 0.3, leaderHop: 2 },
     // chaos-v3 only
-    magnet: { lead: 0.3, leaderHop: 2 }, lightning: { stun: 1.5 }, rewind: { seconds: 1 },
+    magnet: { lead: 0.3, leaderHop: 2 }, lightning: { stun: 1.5 }, rewind: { seconds: 1.2 },
     reverse: { time: 1.5, factor: -0.7 }, freeze: { time: 1 },
     missile: { knock: 4, stun: 1 }, bees: { time: 2, slow: 0.4 }, blackhole: { pull: 0.6 }, ghost: { time: 2, boost: 0.2 }, balloon: { time: 1.5 },
-    epic: { hookGap: 0.4, waveGap: 0.4 },
+    epic: { hookGap: 0.4, waveGap: 0.4, wavePush: 7, hookPull: 6 }, // minimum knockback, % of the course
     rune: { boost: 0.4, time: 1.5, slow: 0.6 },
     hazard: { countMin: 2, countMax: 4, rockStun: 1.5, rockLateWindow: 3, rockLateChance: 0.7, crocPull: 5, windPush: 6, whirlStun: 1.5, dolphinPush: 5, surgeTime: 1, finaleKnock: 0.6,
       hippoKnock: 3, hippoStun: 1, logTime: 1.5, logSlow: 0.1, frogHop: 3 }
@@ -51,7 +51,7 @@
     { id: 'magnet', name: 'Nam châm', icon: '🧲', description: 'Hút mình lên ngay sau con dẫn đầu; đang nhì thì vọt lên dẫn luôn.' },
     { id: 'lightning', name: 'Sét đánh', icon: '⚡', description: 'Sét đánh trúng 2 con dẫn đầu, lật thuyền 1,5 giây.' },
     { id: 'flip', name: 'Lộn đầu đuôi', icon: '🔃', description: 'Con dẫn đầu và con chót đổi chỗ cho nhau.' },
-    { id: 'rewind', name: 'Tua ngược', icon: '⏪', description: 'Mọi con khác bị tua lùi về chỗ của 1 giây trước.' },
+    { id: 'rewind', name: 'Tua ngược', icon: '⏪', description: 'Mọi con khác bị tua lùi về chỗ của 1,2 giây trước.' },
     { id: 'reverse', name: 'Bơi ngược', icon: '↩️', description: 'Hai con dẫn đầu quay đầu bơi ngược chiều 1,5 giây.' },
     { id: 'freeze', name: 'Đóng băng', icon: '🧊', description: 'Cả sông đóng băng 1 giây, chỉ mình bơi.' },
     { id: 'missile', name: 'Tên lửa tầm nhiệt', icon: '🎯', description: 'Tên lửa bám đuôi con dẫn đầu, nổ tung hất nó lùi và lật thuyền.' },
@@ -73,6 +73,9 @@
     { id: 'mystery', icon: '🎁', name: 'Hộp hên xui' }
   ]);
   const PASSIVE = new Set(['mirror', 'buoy']);
+  // Skills that hit the leader or scramble the order: the only ones chaos-v3 saves for the last quarter.
+  // Self-boosting skills (wings, swap, magnet, rewind, wave, flip) stay mid-race: late, they would all but decide the winner.
+  const PLOT_TWISTS = new Set(['torpedo', 'missile', 'lightning', 'tornado', 'blackhole', 'hook']);
   // chaos-v3 = chaos-v2 + one weather per race. Weather adds hazards and reweights them.
   // chaos-v2 never touches this table, so its replays stay identical.
   const v3Hazards = freeze([
@@ -162,7 +165,14 @@
       const end = rules.finaleChance && slot.hazard?.id === 'rock' ? duration - H.rockLateWindow : duration;
       slot.time = lateRock
         ? duration - H.rockLateWindow + scheduleRng.unit() * (H.rockLateWindow - 0.3)
+        : rules.midSpread ? duration / 4 + scheduleRng.unit() * duration / 2
         : first + (end - first) * scheduleRng.unit() ** TIME_EXPONENT;
+    }
+    // chaos-v3 pacing: the middle half is busy; the last quarter keeps 1-2 order-changing skills.
+    if (rules.midSpread) {
+      const active = slots.filter(sl => sl.kind === 'skill' && !sl.passive), plot = active.filter(sl => PLOT_TWISTS.has(racers[sl.actorId].skill.id));
+      const pool = plot.length ? plot : active, n = Math.min(pool.length, 1 + scheduleRng.integer(2));
+      shuffled(pool, scheduleRng).slice(0, n).forEach(sl => { sl.time = duration * 3 / 4 + scheduleRng.unit() * (duration / 4 - 0.8); sl.plot = true; });
     }
     // chaos-v3 finale: a rock in the last 2 s that always trips the leader out of the win.
     if (finaleRng && finaleRng.unit() < rules.finaleChance) slots.push({ kind: 'hazard', hazard: hazards[0], finale: true, time: duration - 0.6 - finaleRng.unit() * 1.4 });
@@ -172,9 +182,10 @@
     // Late guarantee first: it may pull an early slot, which the early guarantee then refills.
     if (!slots.some(s => visible(s) && s.time >= duration - 2)) {
       const late = [...slots].reverse();
-      const pick = (rules.lateGuaranteePrefersRock ? late.find(s => s.hazard?.id === 'rock') : late.find(s => s.kind === 'hazard' && s.hazard.id !== 'rock'))
+      const pick = (rules.midSpread ? late.find(s => s.plot) : rules.lateGuaranteePrefersRock ? late.find(s => s.hazard?.id === 'rock') : late.find(s => s.kind === 'hazard' && s.hazard.id !== 'rock'))
         || late.find(s => s.kind === 'hazard') || late.find(visible);
       pick.time = duration - 2 + scheduleRng.unit() * 1.7;
+      if (rules.midSpread) pick.plot = true;
       byTime();
     }
     // Spacing can push a slot later by one gap per earlier (passive) slot, so the
@@ -191,6 +202,8 @@
     for (let i = 1; i < slots.length; i++) slots[i].tick = Math.max(slots[i].tick, slots[i - 1].tick + gap);
     slots[slots.length - 1].tick = Math.min(slots[slots.length - 1].tick, lastTick);
     for (let i = slots.length - 2; i >= 0; i--) slots[i].tick = Math.min(slots[i].tick, slots[i + 1].tick - gap);
+    // chaos-v3: spacing never pushes an ordinary twist into the last quarter.
+    if (rules.midSpread) { const q = Math.round(duration * 3 / 4 * HZ) - 1; slots.forEach(sl => { if (!sl.plot && !sl.finale) sl.tick = Math.min(sl.tick, q); }); }
     // The finale takes the latest tick so no twist can undo it.
     const finale = slots.find(sl => sl.finale);
     if (finale) { const lastSlot = slots.reduce((a, b) => (b.tick >= a.tick ? b : a)); [finale.tick, lastSlot.tick] = [lastSlot.tick, finale.tick]; }
@@ -201,7 +214,7 @@
   // epic (chaos-v3): hook reels in the leader, wave sweeps the top 3 behind the caster.
   // finaleChance (chaos-v3): share of races ending with a decisive rock trip.
   const V2_RULES = freeze({ skills, hazards, weather: false, rockLateChance: tuning.hazard.rockLateChance, lateGuaranteePrefersRock: true, smartTargets: false });
-  const V3_RULES = freeze({ skills: freeze([...skills, ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4 });
+  const V3_RULES = freeze({ skills: freeze([...skills, ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true });
   function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed()) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;
@@ -372,7 +385,7 @@
         top.forEach((target, i) => {
           const defense = defend(target, actor, true);
           if (defense?.outcome === 'reflected') reflect(target, actor, 'hit');
-          else if (!defense) jump(target, rules.epic ? Math.min(target.distance - pct(V.push), actor.distance - pct(tuning.epic.waveGap) * (i + 1)) : target.distance - pct(V.push));
+          else if (!defense) jump(target, rules.epic ? Math.min(target.distance - pct(tuning.epic.wavePush), actor.distance - pct(tuning.epic.waveGap) * (i + 1)) : target.distance - pct(V.push));
           outcomes[target.id] = defense ? defense.outcome : 'hit';
         });
         const reflected = Object.values(outcomes).includes('reflected');
@@ -430,7 +443,7 @@
           const leader = atRank(1);
           Object.assign(before, snapshot([leader]));
           const result = strike(actor, leader,
-            () => { jump(leader, actor.distance - pct(tuning.epic.hookGap)); return { outcome: 'hit', label: 'CẦN CÂU GIẬT CON DẪN ĐẦU!' }; },
+            () => { jump(leader, Math.min(leader.distance - pct(tuning.epic.hookPull), actor.distance - pct(tuning.epic.hookGap))); return { outcome: 'hit', label: 'CẦN CÂU GIẬT CON DẪN ĐẦU!' }; },
             () => impair(actor, 'capsized', tuning.mirror.reflectStun));
           return { targetId: leader.id, ...result, before, after: snapshot([actor, leader]) };
         }

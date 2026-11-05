@@ -169,12 +169,15 @@ test('flip swaps the leader with the last duck (2nd with last when the caster le
 test('rewind sends every other unguarded duck back in time; the caster stays put', () => {
   const list = withRace(e => e.skill === 'rewind' && e.activation);
   assert.ok(list.length > 200);
+  // Rare misses are fine: everyone frozen, or just knocked back inside the rewound window.
+  let rewinds = 0, pulled = 0;
   for (const { e } of list) {
     assert.equal(e.after[e.actorId], e.before[e.actorId]);
     const moved = e.affectedIds.filter(id => !e.protectedIds.includes(id));
     for (const id of moved) assert.ok(e.after[id] <= e.before[id]);
-    if (e.time > 4) assert.ok(moved.some(id => e.after[id] < e.before[id]), 'someone actually goes back');
+    if (e.time > 4) { rewinds++; if (moved.some(id => e.after[id] < e.before[id])) pulled++; }
   }
+  assert.ok(pulled / rewinds >= 0.9, `${pulled}/${rewinds} rewinds pulled someone back`);
 });
 
 test('chaos-v3 hook reels in the leader and drops it right behind the caster', () => {
@@ -301,4 +304,18 @@ test('hippo tosses a top-half duck back, log blocks the leader, frog hops a back
     if (e.outcome === 'hit' && e.time + 0.6 < 25 && !touchedBetween(race, e, e.actorId, e.time + 0.5)) assert.equal(race.sample(e.time + 0.5)[e.actorId].slowed, true);
   }
   for (const { e } of frog) { assert.ok(e.ranksBefore[e.actorId] > 4); assert.ok(e.after[e.actorId] > e.before[e.actorId]); }
+});
+
+test('chaos-v3 pacing: most twists between 1/4 and 3/4; the last quarter keeps 1-3 real plot twists', () => {
+  const PLOT = new Set(['torpedo', 'missile', 'lightning', 'tornado', 'blackhole', 'hook']);
+  let mid = 0, all = 0;
+  for (let seed = 0; seed < 1000; seed++) {
+    const r = V3.createRace(names(7), 25, seed), twists = r.events.filter(e => e.scheduled && !e.finale);
+    const lastQuarter = r.events.filter(e => e.scheduled && e.time >= 18.75);
+    all += twists.length; mid += twists.filter(e => e.time >= 6.25 && e.time < 18.75).length;
+    assert.ok(lastQuarter.length >= 1 && lastQuarter.length <= 3, `seed ${seed}: ${lastQuarter.length} twists in the last quarter`);
+    const hasPlot = r.racers.some(x => PLOT.has(x.skill.id)); // a field with no order-changing skill falls back to any active skill
+    for (const e of lastQuarter) assert.ok(e.finale || PLOT.has(e.skill) || !hasPlot, `seed ${seed}: ${e.skill || e.hazard} is not a plot twist`);
+  }
+  assert.ok(mid / all >= 0.75, `only ${(mid / all * 100).toFixed(0)}% of twists in the middle half`);
 });
