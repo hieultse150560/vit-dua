@@ -31,6 +31,7 @@
     reverse: { time: 1.5, factor: -0.7 }, freeze: { time: 1 },
     missile: { knock: 4, stun: 1 }, bees: { time: 2, slow: 0.4 }, blackhole: { pull: 0.6 }, ghost: { time: 2, boost: 0.2 }, balloon: { time: 1.5 },
     epic: { hookGap: 0.4, waveGap: 0.4, wavePush: 7, hookPull: 6 }, // minimum knockback, % of the course
+    tornado: { keep: 0.5, behind: 2, spin: 0.8 }, // chaos-v3: victims land from `behind` % past the last duck up to `keep` of their lead over it
     rune: { boost: 0.4, time: 1.5, slow: 0.6 },
     hazard: { countMin: 2, countMax: 4, rockStun: 1.5, rockLateWindow: 3, rockLateChance: 0.7, crocPull: 5, windPush: 6, whirlStun: 1.5, dolphinPush: 5, surgeTime: 1, finaleKnock: 0.6,
       hippoKnock: 3, hippoStun: 1, logTime: 1.5, logSlow: 0.1, frogHop: 3 }
@@ -75,7 +76,7 @@
   const PASSIVE = new Set(['mirror', 'buoy']);
   // Skills that hit the leader or scramble the order: the only ones chaos-v3 saves for the last quarter.
   // Self-boosting skills (wings, swap, magnet, rewind, wave, flip) stay mid-race: late, they would all but decide the winner.
-  const PLOT_TWISTS = new Set(['torpedo', 'missile', 'lightning', 'tornado', 'blackhole', 'hook']);
+  const PLOT_TWISTS = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook']);
   // chaos-v3 = chaos-v2 + one weather per race. Weather adds hazards and reweights them.
   // chaos-v2 never touches this table, so its replays stay identical.
   const v3Hazards = freeze([
@@ -159,20 +160,27 @@
     const hazardCount = (H.countMin + hazardRng.integer(H.countMax - H.countMin + 1) + (weather?.extra || 0)) * Math.ceil(count / 7);
     const pickHazard = weather ? () => weighted(rules.hazards, h => weather.weights[h.id] || 1, hazardRng) : () => rules.hazards[hazardRng.integer(rules.hazards.length)];
     for (let i = 0; i < hazardCount; i++) slots.push({ kind: 'hazard', hazard: pickHazard() });
-    const first = tuning.firstPhase, last = duration - 0.2;
-    for (const slot of slots) {
+    const first = tuning.firstPhase, last = duration - 0.2, minGap = rules.gap ?? tuning.minGap;
+    if (!rules.midSpread) for (const slot of slots) {
       const lateRock = slot.hazard?.id === 'rock' && scheduleRng.unit() < rules.rockLateChance;
       const end = rules.finaleChance && slot.hazard?.id === 'rock' ? duration - H.rockLateWindow : duration;
       slot.time = lateRock
         ? duration - H.rockLateWindow + scheduleRng.unit() * (H.rockLateWindow - 0.3)
-        : rules.midSpread ? duration / 4 + scheduleRng.unit() * duration / 2
         : first + (end - first) * scheduleRng.unit() ** TIME_EXPONENT;
     }
-    // chaos-v3 pacing: the middle half is busy; the last quarter keeps 1-2 order-changing skills.
+    // chaos-v3 pacing: twists spread evenly from 1/5 to ~3/4 (one equal stratum each, random order,
+    // a little jitter) so they never pile up; the last quarter keeps 1-2 order-changing skills.
     if (rules.midSpread) {
       const active = slots.filter(sl => sl.kind === 'skill' && !sl.passive), plot = active.filter(sl => PLOT_TWISTS.has(racers[sl.actorId].skill.id));
       const pool = plot.length ? plot : active, n = Math.min(pool.length, 1 + scheduleRng.integer(2));
-      shuffled(pool, scheduleRng).slice(0, n).forEach(sl => { sl.time = duration * 3 / 4 + scheduleRng.unit() * (duration / 4 - 0.8); sl.plot = true; });
+      shuffled(pool, scheduleRng).slice(0, n).forEach(sl => { sl.plot = true; });
+      const spread = (list, from, to) => { const w = (to - from) / list.length;
+        list.forEach((sl, i) => { sl.time = from + w * (i + .5 + (scheduleRng.unit() - .5) * .3); }); };
+      // Passive slots (mirror, buoy) take the first strata: they often fire earlier as a reaction,
+      // and an empty stratum then reads as a calm start rather than a mid-race lull.
+      const ordinary = slots.filter(sl => !sl.plot);
+      spread([...ordinary.filter(sl => sl.passive), ...shuffled(ordinary.filter(sl => !sl.passive), scheduleRng)], duration / 5, duration * .72);
+      spread(shuffled(slots.filter(sl => sl.plot), scheduleRng), duration * 3 / 4 + .5, duration - .8);
     }
     // chaos-v3 finale: a rock in the last 2 s that always trips the leader out of the win.
     if (finaleRng && finaleRng.unit() < rules.finaleChance) slots.push({ kind: 'hazard', hazard: hazards[0], finale: true, time: duration - 0.6 - finaleRng.unit() * 1.4 });
@@ -190,20 +198,18 @@
     }
     // Spacing can push a slot later by one gap per earlier (passive) slot, so the
     // early guarantee keeps that much margin before the first third ends.
-    const earlyEnd = Math.max(first, duration / 3 - (slots.filter(s => !visible(s)).length + 1) * tuning.minGap - 0.05);
-    if (!slots.some(s => visible(s) && s.time < earlyEnd)) {
+    const earlyEnd = Math.max(first, duration / 3 - (slots.filter(s => !visible(s)).length + 1) * minGap - 0.05);
+    if (!rules.midSpread && !slots.some(s => visible(s) && s.time < earlyEnd)) {
       slots.find(visible).time = first + scheduleRng.unit() * (earlyEnd - first);
       byTime();
     }
     // Whole-tick spacing keeps the gap exact after quantization.
     const firstTick = Math.round(first * HZ), lastTick = Math.round(last * HZ);
-    const gap = Math.max(0, Math.min(Math.round(tuning.minGap * HZ), Math.floor((lastTick - firstTick) / slots.length)));
+    const gap = Math.max(0, Math.min(Math.round(minGap * HZ), Math.floor((lastTick - firstTick) / slots.length)));
     slots.forEach(s => { s.tick = Math.min(lastTick, Math.max(firstTick, Math.round(s.time * HZ))); });
     for (let i = 1; i < slots.length; i++) slots[i].tick = Math.max(slots[i].tick, slots[i - 1].tick + gap);
     slots[slots.length - 1].tick = Math.min(slots[slots.length - 1].tick, lastTick);
     for (let i = slots.length - 2; i >= 0; i--) slots[i].tick = Math.min(slots[i].tick, slots[i + 1].tick - gap);
-    // chaos-v3: spacing never pushes an ordinary twist into the last quarter.
-    if (rules.midSpread) { const q = Math.round(duration * 3 / 4 * HZ) - 1; slots.forEach(sl => { if (!sl.plot && !sl.finale) sl.tick = Math.min(sl.tick, q); }); }
     // The finale takes the latest tick so no twist can undo it.
     const finale = slots.find(sl => sl.finale);
     if (finale) { const lastSlot = slots.reduce((a, b) => (b.tick >= a.tick ? b : a)); [finale.tick, lastSlot.tick] = [lastSlot.tick, finale.tick]; }
@@ -214,7 +220,8 @@
   // epic (chaos-v3): hook reels in the leader, wave sweeps the top 3 behind the caster.
   // finaleChance (chaos-v3): share of races ending with a decisive rock trip.
   const V2_RULES = freeze({ skills, hazards, weather: false, rockLateChance: tuning.hazard.rockLateChance, lateGuaranteePrefersRock: true, smartTargets: false });
-  const V3_RULES = freeze({ skills: freeze([...skills, ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true });
+  const v3Tornado = { ...skills.find(s => s.id === 'tornado'), description: 'Cuốn 3 con dẫn đầu lên trời, quăng văng về cuối đoàn, quay mòng mòng.' };
+  const V3_RULES = freeze({ skills: freeze([...skills.map(s => (s.id === 'tornado' ? v3Tornado : s)), ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 1 });
   function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed()) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;
@@ -280,6 +287,12 @@
     const ranksNow = () => { const ranks = []; ranked().forEach((r, index) => { ranks[r.id] = index + 1; }); return ranks; };
     const atRank = rank => ranked()[rank - 1];
     const snapshot = list => Object.fromEntries(list.map(r => [r.id, r.distance]));
+    // chaos-v3 (smartTargets): stun-only attacks skip ducks already stunned or immune, so no hit is wasted.
+    const open = r => now >= r.impairUntil && now >= r.immuneUntil;
+    const topRivals = (actor, n) => {
+      const order = ranked().filter(r => r !== actor);
+      return (rules.smartTargets ? [...order.filter(open), ...order.filter(r => !open(r))] : order).slice(0, n);
+    };
 
     function jump(racer, distance) {
       if (!jumps.has(currentStep)) jumps.set(currentStep, new Map());
@@ -372,8 +385,8 @@
         actor.flyUntil = tick(now + W.flyTime) / HZ;
         return { outcome: 'fly', label: rank === 1 ? 'BAY CAO HƠN!' : 'BAY LÊN!', before, after: snapshot([actor]) };
       },
-      torpedo(actor, ranks) {
-        const target = ranks[actor.id] === 1 ? atRank(2) : atRank(1);
+      torpedo(actor) {
+        const [target] = topRivals(actor, 1);
         const stun = tuning.torpedo.stun;
         return { targetId: target.id, ...strike(actor, target,
           () => { const outcome = impair(target, 'capsized', stun); return { outcome, label: outcome === 'hit' ? LABEL.hit : LABEL.immune }; },
@@ -427,7 +440,7 @@
       mirror(actor, ranks) {
         const M = tuning.mirror, rank = ranks[actor.id];
         actor.mirror = false;
-        const target = rank === 1 ? atRank(2) : atRank(rules.smartTargets ? 1 : rank - 1);
+        const target = rules.smartTargets ? topRivals(actor, 1)[0] : atRank(rank === 1 ? 2 : rank - 1);
         const result = strike(actor, target,
           () => ({ outcome: 'fallback', effect: impair(target, 'slow', M.glareTime, M.glareSlow), label: 'GƯƠNG CHIẾU CHÓI!' }),
           () => impair(actor, 'slow', M.glareTime, M.glareSlow));
@@ -455,6 +468,15 @@
         return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
       },
       tornado(actor, ranks) {
+        if (rules.epic) {
+          // chaos-v3: the twister sweeps up the top 3 (never the caster) and flings each one into the
+          // back part of the pack, spinning. Guarded and ghosted ducks are left out.
+          const T = tuning.tornado, order = ranked(), victims = order.filter(r => r !== actor).slice(0, 3);
+          const tail = order[count - 1].distance - pct(T.behind), before = snapshot([actor, ...victims]), hit = victims.filter(r => !shielded(r));
+          for (const r of hit) { jump(r, tail + (r.distance - tail) * T.keep * effectRng.unit()); impair(r, 'spinning', T.spin); }
+          return { affectedIds: victims.map(r => r.id), protectedIds: victims.filter(shielded).map(r => r.id),
+            outcome: hit.length ? 'shuffled' : 'none', label: 'LỐC XOÁY CUỐN BAY TỐP ĐẦU!', before, after: snapshot([actor, ...victims]) };
+        }
         // Smart: weight (count - rank + 1)^2 makes the leaders the likeliest to be swept up.
         const pickTop = () => { const pool = [...racers], out = [];
           while (out.length < Math.min(3, count)) { const pick = weighted(pool, r => (count - ranks[r.id] + 1) ** 2, effectRng); out.push(pick); pool.splice(pool.indexOf(pick), 1); }
@@ -480,7 +502,7 @@
         return { outcome: 'pull', label: rank <= 2 ? 'NAM CHÂM HÚT LÊN DẪN ĐẦU!' : 'NAM CHÂM HÚT LÊN!', before, after: snapshot([actor]) };
       },
       lightning(actor) {
-        const stun = tuning.lightning.stun, top = ranked().filter(r => r !== actor).slice(0, 2), outcomes = {};
+        const stun = tuning.lightning.stun, top = topRivals(actor, 2), outcomes = {};
         for (const target of top) {
           const defense = defend(target, actor, true);
           if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'capsized', stun)); outcomes[target.id] = 'reflected'; }
@@ -508,7 +530,7 @@
         return { affectedIds: [top.id, last.id], ...result, before, after: snapshot([top, last]) };
       },
       reverse(actor) {
-        const R = tuning.reverse, top = ranked().filter(r => r !== actor).slice(0, 2), outcomes = {};
+        const R = tuning.reverse, top = topRivals(actor, 2), outcomes = {};
         for (const target of top) {
           const defense = defend(target, actor, true);
           if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'reversed', R.time, R.factor)); outcomes[target.id] = 'reflected'; }
@@ -541,7 +563,7 @@
         return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
       },
       bees(actor) {
-        const B = tuning.bees, top = ranked().filter(r => r !== actor).slice(0, 2), outcomes = {};
+        const B = tuning.bees, top = topRivals(actor, 2), outcomes = {};
         for (const target of top) {
           const defense = defend(target, actor, true);
           if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'slow', B.time, B.slow)); outcomes[target.id] = 'reflected'; }
@@ -561,8 +583,8 @@
         actor.ghostUntil = tick(now + tuning.ghost.time) / HZ;
         return { outcome: 'ghost', label: 'TÀNG HÌNH!' };
       },
-      balloon(actor, ranks) {
-        const target = ranks[actor.id] === 1 ? atRank(2) : atRank(1), time = tuning.balloon.time;
+      balloon(actor) {
+        const [target] = topRivals(actor, 1), time = tuning.balloon.time;
         return { targetId: target.id, ...strike(actor, target,
           () => { const outcome = impair(target, 'lifted', time); return { outcome, label: outcome === 'hit' ? 'BÓNG BAY NHẤC BỔNG!' : LABEL.immune }; },
           () => impair(actor, 'lifted', time)) };
@@ -585,7 +607,7 @@
     const randomDuck = () => atRank(1 + hazardRng.integer(count));
     const hazardEffects = {
       rock() {
-        const victim = atRank(1);
+        const [victim] = topRivals(null, 1);
         return { victim, label: !rules.finaleChance && now >= duration - HZD.rockLateWindow ? 'VẤP ĐÁ SÁT ĐÍCH!' : 'VẤP ĐÁ!', harm: () => impair(victim, 'capsized', HZD.rockStun) };
       },
       croc() {
@@ -603,7 +625,7 @@
         return plan;
       },
       log() {
-        const victim = atRank(1);
+        const [victim] = topRivals(null, 1);
         return { victim, label: 'KHÚC GỖ CHẮN ĐƯỜNG!', harm: () => impair(victim, 'slow', HZD.logTime, HZD.logSlow) };
       },
       frog() {

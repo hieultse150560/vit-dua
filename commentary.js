@@ -14,7 +14,7 @@
     'mirror:fallback': ['{a} chiếu gương thẳng mặt {b}, chói hết cả mắt!', 'Ánh gương của {a} làm {b} lóa mắt chậm hẳn lại!'],
     'hook:hit': ['{a} quăng câu, kéo tuột {b} về sau rồi vượt lên!', 'Móc câu! {b} bị {a} lôi ngược lại!'],
     'hook:fallback': ['{a} móc vào bờ, tự kéo mình lên phía trước!'],
-    'tornado:shuffled': ['Lốc xoáy của {a} xáo tung đường đua!', 'Gió lốc nổi lên! {a} khiến mọi thứ đảo điên!'],
+    'tornado:shuffled': ['Lốc xoáy của {a} cuốn bay cả tốp đầu, quăng văng về cuối đoàn!', 'Gió lốc nổi lên! {a} hất tung mấy con dẫn đầu ra sau!', 'Vòi rồng của {a} hút tốp đầu lên trời, rơi bõm xuống cuối đoàn!'],
     'tornado:none': ['{a} gọi lốc xoáy nhưng ai cũng có phao, gió thổi qua vô hại!'],
     'banana:dropped': ['{a} thả vỏ chuối ngay trước mũi {b}!', 'Cẩn thận {b}! {a} vừa rải vỏ chuối!'],
     'banana:hit': ['{b} đạp trúng vỏ chuối của {a}, quay như chong chóng!', 'Trượt rồi! {b} xoay tít vì vỏ chuối của {a}!'],
