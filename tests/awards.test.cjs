@@ -53,3 +53,15 @@ test('works on real chaos-v3 races without throwing', () => {
   assert.ok(awards.length >= 3);
   for (const a of awards) assert.ok(a.value > 0 && a.playerIds.length >= 1);
 });
+
+test('lightning, reverse and freeze hits make victims; flip and rewind count ducks sent back', () => {
+  const r = race([1, 2, 3, 4], [1, 2, 3, 4], [
+    { type: 'skill', skill: 'lightning', actorId: 3, affectedIds: [0, 1], outcomes: { 0: 'hit', 1: 'hit' }, outcome: 'hit' },
+    { type: 'skill', skill: 'freeze', actorId: 2, affectedIds: [0, 1, 3], outcomes: { 0: 'hit', 1: 'protected', 3: 'hit' }, outcome: 'frozen' },
+    { type: 'skill', skill: 'flip', actorId: 2, affectedIds: [0, 3], outcome: 'swapped', before: { 0: 9, 3: 1 }, after: { 0: 1, 3: 9 } },
+    { type: 'skill', skill: 'rewind', actorId: 1, affectedIds: [0, 2, 3], protectedIds: [], outcome: 'rewound', before: { 1: 5, 0: 8, 2: 6, 3: 9 }, after: { 1: 5, 0: 7, 2: 6, 3: 8 } }
+  ]);
+  const awards = byId(W.compute([{ race: r, ownerOf: owners }]));
+  assert.deepEqual(awards.unlucky.playerIds, ['p0']);
+  assert.equal(awards.unlucky.value, 4);
+});

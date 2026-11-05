@@ -201,7 +201,9 @@ test('every v2 event kind maps to a visual burst without throwing', async () => 
       ['skill', 'wings', 'fly', '🪽'], ['skill', 'torpedo', 'hit', '💣'], ['skill', 'wave', 'hit', '🌊'], ['skill', 'rocket', 'boost', '🚀'],
       ['skill', 'rocket', 'exploded', '💥'], ['skill', 'mirror', 'reflected', '🪞'], ['skill', 'mirror', 'fallback', '🪞'], ['skill', 'hook', 'hit', '🎣'],
       ['skill', 'tornado', 'shuffled', '🌪️'], ['skill', 'banana', 'dropped', '🍌'], ['skill', 'banana', 'hit', '🍌'], ['skill', 'buoy', 'blocked', '🛟'],
-      ['hazard', 'rock', 'hit', '🪨'], ['hazard', 'croc', 'hit', '🐊'], ['hazard', 'wind', 'boost', '💨'], ['hazard', 'whirlpool', 'hit', '🌀'], ['hazard', 'dolphin', 'boost', '🐬']
+      ['hazard', 'rock', 'hit', '🪨'], ['hazard', 'croc', 'hit', '🐊'], ['hazard', 'wind', 'boost', '💨'], ['hazard', 'whirlpool', 'hit', '🌀'], ['hazard', 'dolphin', 'boost', '🐬'],
+      ['skill', 'magnet', 'pull', '🧲'], ['skill', 'lightning', 'hit', '⚡'], ['skill', 'flip', 'swapped', '🔃'], ['skill', 'rewind', 'rewound', '⏪'],
+      ['skill', 'reverse', 'hit', '↩️'], ['skill', 'freeze', 'frozen', '🧊']
     ];
     cases.forEach(([type, id, outcome, icon], index) => {
       game.window.__drawn.length = 0; game.window.__calls.length = 0;
@@ -389,4 +391,25 @@ test('a river ambience plays while racing, pauses with the race, and the crowd c
     assert.ok(game.window.__sfx.includes('cheer'), JSON.stringify(game.window.__sfx));
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
+});
+
+test('ducks swimming backwards face the other way; frozen ducks shiver in ice', async () => {
+  const pick = pose => { for (let seed = 1; seed < 600; seed++) {
+    const race = V2.v3.createRace(names.map((_, id) => A.name(id)), 25, seed), all = twists(race);
+    const e = all.find(t => t.skill === (pose === 'reversed' ? 'reverse' : 'freeze') && t.activation && t.time > 6 && t.time < 20 && !all.some(o => o !== t && Math.abs(o.time - t.time) < 2.5));
+    const id = e && e.affectedIds.find(i => e.outcomes[i] === 'hit');
+    if (id !== undefined) return { seed, e, id };
+  } };
+  for (const [pose, face] of [['reversed', '😱'], ['frozen', '🥶']]) {
+    const { seed, e, id } = pick(pose);
+    const source = v2Fixture(seed, 4); source.sessions[1].active.engine = 'chaos-v3';
+    const game = loadGame({ [KEY]: JSON.stringify(source) });
+    try {
+      game.click('resume-overlay'); advanceToTwist(game, e); game.advance(150, 50);
+      const racer = game.window.document.querySelectorAll('.racer')[id];
+      assert.ok(racer.classList.contains(pose), `${pose} class`);
+      assert.equal(racer.querySelector('.racer-emote').textContent, face);
+      assert.deepEqual(game.errors.map(String), []);
+    } finally { await game.close(); }
+  }
 });

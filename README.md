@@ -37,20 +37,26 @@ Mở [game trên máy](http://127.0.0.1:8000). Dùng cùng trình duyệt và đ
 
 Các vòng mới dùng cơ chế `chaos-v2`: **chọn đủ vịt → xuất phát mới lộ skill → lật kèo liên tục đến giây cuối**. Mỗi người vẫn chọn lại một vịt mỗi vòng. Không còn thiên phú: chọn vịt không quyết định thắng thua, mọi lợi thế đến từ skill bốc ngẫu nhiên lúc xuất phát. Không thể xem skill rồi hoàn tác lựa chọn.
 
-Mỗi vịt được bốc một skill riêng (không trùng nhau khi có tối đa 10 vịt; đông hơn thì mỗi skill dùng tối đa `ceil(N / 10)` lần). Skill tự kích hoạt đúng một lần:
+Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ skill; đông hơn thì mỗi skill dùng tối đa `ceil(N / số skill)` lần). `chaos-v2` có 10 skill, `chaos-v3` có 16. Skill tự kích hoạt đúng một lần:
 
 | Skill | Hiệu ứng |
 | --- | --- |
 | 🪽 Cánh vàng | Bay vượt lên 2–3 con phía trước. Đang dẫn thì bay cao thêm một đoạn. |
 | 💣 Thủy lôi | Ném vào con đang dẫn đầu (hoặc hạng 2 nếu mình đang dẫn), lật thuyền đứng yên 2 giây. |
-| 🌊 Sóng thần | Top 3 (trừ mình) dạt lùi 4% đường đua, mình lướt sóng tiến 3% trong 1 giây. |
+| 🌊 Sóng thần | Top 3 (trừ mình) dạt lùi 4% đường đua, mình lướt sóng tiến 3% trong 1 giây. Bản `chaos-v3`: bức tường nước cuốn top 3 trôi về ngay sau lưng mình. |
 | 🔄 Đổi đời | Đổi chỗ với một con đang hơn mình 1–3 bậc. Đang dẫn thì đổi với con kém mình 1–3 bậc, tự tụt! |
 | 🚀 Tên lửa | 70% phóng +150% tốc độ trong 1,5 giây, 30% nổ máy tự lật 2 giây. |
 | 🪞 Gương phản đòn | Đòn đầu tiên từ skill vịt khác bị dội ngược: kẻ tấn công lãnh đúng cái hại đó. Không ai đánh thì đến giờ chiếu chói con ngay trên mình (chậm 50% trong 1,5 giây). |
-| 🎣 Móc câu | Kéo con ngay trên mình lùi về chỗ mình rồi vượt lên ngay trước nó. Đang dẫn thì móc bờ kéo mình lên 3%. |
+| 🎣 Cần câu | Kéo con ngay trên mình lùi về chỗ mình rồi vượt lên ngay trước nó. Bản `chaos-v3`: móc con dẫn đầu, giật nó tụt về ngay sau mình. Đang dẫn thì móc bờ kéo mình lên 3%. |
 | 🌪️ Lốc xoáy | Xáo trộn vị trí của 3 con ngẫu nhiên, có thể gồm cả mình; con nào cũng đổi chỗ. |
 | 🍌 Vỏ chuối | Thả tại chỗ; con bám ngay sau chạm tới thì trượt quay vòng 1,5 giây. Đang bét thì ném lên trúng con ngay trên. |
 | 🛟 Phao thần | Chặn đòn đầu tiên (skill hoặc sự kiện sông nước) rồi bật lên vượt 1 con. Không ai đánh thì đến giờ phao bơm hơi đẩy lên vượt 1 con. |
+| 🧲 Nam châm (`chaos-v3`) | Hút mình lên ngay sau con dẫn đầu; đang nhì thì vọt lên dẫn. |
+| ⚡ Sét đánh (`chaos-v3`) | Sét đánh trúng 2 con dẫn đầu (trừ mình), lật thuyền 1,5 giây. |
+| 🔃 Lộn đầu đuôi (`chaos-v3`) | Con dẫn đầu và con chót đổi chỗ. Mình đang dẫn thì con nhì đổi với con chót. |
+| ⏪ Tua ngược (`chaos-v3`) | Mọi con khác (trừ con có phao/bong bóng) bị tua lùi về chỗ của 1 giây trước. |
+| ↩️ Bơi ngược (`chaos-v3`) | Hai con dẫn đầu quay đầu bơi ngược chiều 1,5 giây. |
+| 🧊 Đóng băng (`chaos-v3`) | Cả sông đóng băng 1 giây, chỉ mình bơi; con có phao/bong bóng không bị đóng băng. |
 
 Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 7)` khi đông vịt):
 
@@ -86,7 +92,7 @@ Mặt sông đổi màu theo thời tiết, có mưa rơi, gió thổi và chớ
 `chaos-v3` còn chỉnh hai điểm so với `chaos-v2`:
 
 - **Skill thông minh:** vẫn ngẫu nhiên nhưng nghiêng về con đang dẫn: Đổi đời ưu tiên con cao nhất trong tầm 1–3 bậc (nhất là con đang dẫn), Lốc xoáy thường cuốn nhóm đầu, Gương không bị đánh thì chiếu chói thẳng con đang dẫn.
-- **Vấp đá sát đích hiếm hơn:** khoảng 19% số trận có vấp đá trong 3 giây cuối (chaos-v2 là khoảng 41%).
+- **Vấp đá sát đích quyết định:** khoảng 40% số trận kết thúc bằng một cú vấp đá trong 2 giây cuối. Đó luôn là pha cuối cùng trong lịch, không chặn được: con đang dẫn ngã ra sau con nhì và nằm lật đến hết giờ, nên chắc chắn không thắng. Các cú vấp đá thường chỉ xảy ra trước 3 giây cuối.
 
 ### Slow motion, camera và photo finish
 

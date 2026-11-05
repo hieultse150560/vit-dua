@@ -34,3 +34,13 @@ test('race start mentions the weather and the finish names the winner', () => {
   const close = K.finish('Phú', 'An', true);
   assert.ok(close.includes('Phú') && close.includes('An') && /sát nút/i.test(close), close);
 });
+
+test('new chaos-v3 skills and the finale rock get their own lines, not the generic one', () => {
+  const generic = ['tung chiêu', 'ra tay!'];
+  for (const e of twists.filter(e => ['magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze'].includes(e.skill) && e.activation && e.outcome !== 'blocked' && e.outcome !== 'none' || e.finale)) {
+    const text = K.line(e, nameOf);
+    assert.ok(!generic.some(g => text.includes(g)), `${e.skill || 'finale'}/${e.outcome}: ${text}`);
+  }
+  const finale = twists.find(e => e.finale);
+  assert.ok(/vạch đích|về nhất|chiến thắng/i.test(K.line(finale, nameOf)));
+});

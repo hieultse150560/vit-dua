@@ -9,10 +9,12 @@
   const TWIST = {
     fly: ['🪽', '#fff1a8'], torpedo: ['💣', '#d7b0ff'], wave: ['🌊', '#9fe7ff'], rocket: ['🚀', '#ffd27f'], boom: ['💥', '#ff9b73'],
     mirror: ['🪞', '#e9f7ff'], hook: ['🎣', '#c9f0c1'], tornado: ['🌪️', '#d9e4ff'], banana: ['🍌', '#fff07a'], guard: ['🛟', '#c2fbff'],
-    rock: ['🪨', '#d9c6a5'], croc: ['🐊', '#b5e3a1'], wind: ['💨', '#e8fbff'], whirlpool: ['🌀', '#a9dcff'], dolphin: ['🐬', '#a6e4ff']
+    rock: ['🪨', '#d9c6a5'], croc: ['🐊', '#b5e3a1'], wind: ['💨', '#e8fbff'], whirlpool: ['🌀', '#a9dcff'], dolphin: ['🐬', '#a6e4ff'],
+    magnet: ['🧲', '#ff7a7a'], lightning: ['⚡', '#fff6a0'], flip: ['🔃', '#ffd166'], rewind: ['⏪', '#ffe2a8'], reverse: ['↩️', '#ff6fd8'], freeze: ['🧊', '#c9f3ff']
   };
   const V2_KIND = { wings: 'fly', torpedo: 'torpedo', wave: 'wave', rocket: 'rocket', mirror: 'mirror', hook: 'hook', tornado: 'tornado', banana: 'banana', buoy: 'guard',
-    rock: 'rock', croc: 'croc', wind: 'wind', whirlpool: 'whirlpool', dolphin: 'dolphin' };
+    rock: 'rock', croc: 'croc', wind: 'wind', whirlpool: 'whirlpool', dolphin: 'dolphin',
+    magnet: 'magnet', lightning: 'lightning', flip: 'flip', rewind: 'rewind', reverse: 'reverse', freeze: 'freeze' };
   // Race seconds. TWIST_MAIN matches the app's slow-motion window (0.15x for 1.8 s = 0.27 race-s),
   // so each twist's main action plays in slow motion; the rest is a slow fade.
   const BURST_LIFE = .85, TWIST_LIFE = 1.7, TWIST_MAIN = .27;
@@ -295,24 +297,35 @@
         }
         pop(f.icon, spot, f.m, f.alpha, 52);
       },
+      // A wall of water rolls back over every duck it sweeps.
       wave(b, f) {
-        const spots = b.affected.length ? b.affected : [b.target];
-        spots.forEach((spot, i) => {
-          const x = spot.x + 160 - clamp01(f.m * 1.2) * 190;
-          ctx.globalAlpha = f.alpha * .8; ctx.strokeStyle = '#2f9bd6'; ctx.lineWidth = 14; ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.arc(x, spot.y - 6, 30, Math.PI * .9, Math.PI * 1.9); ctx.stroke();
-          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5;
-          ctx.beginPath(); ctx.arc(x, spot.y - 6, 36, Math.PI * 1.05, Math.PI * 1.75); ctx.stroke(); ctx.lineCap = 'butt';
-          splash({ x, y: spot.y }, clamp01(f.m) * .6 + f.fade * .6, f.alpha, b.id + i * 13, '#ffffff', 10);
-        });
-        pop(f.icon, spots[0], f.m, f.alpha, 52);
+        const spots = b.affected.length ? b.affected : [b.target], ys = spots.map(s => s.y);
+        const top = Math.min(...ys) - 80, bottom = Math.max(...ys) + 26;
+        const fromX = Math.max(...spots.map(s => s.x)) + 150, toX = Math.min(b.origin.x, ...spots.map(s => s.x)) - 40;
+        const x = fromX + (toX - fromX) * clamp01(f.m * 1.15);
+        const g = ctx.createLinearGradient(x, top, x + 140, bottom);
+        g.addColorStop(0, '#f2fdff'); g.addColorStop(.3, '#4fb8e8'); g.addColorStop(1, '#0f5c8c');
+        ctx.globalAlpha = f.alpha * .88; ctx.fillStyle = g;
+        ctx.beginPath(); ctx.moveTo(x + 170, bottom); ctx.lineTo(x + 10, bottom);
+        ctx.quadraticCurveTo(x - 48, (top + bottom) / 2, x - 14, top + 18);
+        ctx.quadraticCurveTo(x + 30, top - 26, x + 84, top + 12);
+        ctx.quadraticCurveTo(x + 150, top + 50, x + 170, bottom); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x - 16, top + 22); ctx.quadraticCurveTo(x + 30, top - 22, x + 86, top + 14); ctx.stroke(); ctx.lineCap = 'butt';
+        splash({ x: x - 8, y: top + 24 }, (f.m * 2.4) % 1.1, f.alpha, b.id, '#ffffff', 22);
+        for (const spot of spots) ripples(spot, f.m + f.fade, f.alpha);
+        pop(f.icon, { x: x + 40, y: top + 70 }, f.m, f.alpha, 66);
       },
+      // Rod at the caster; the hook flies to the leader, then reels it back.
       hook(b, f) {
-        const reach = clamp01(f.m / .45), tip = flight(b.origin, b.target, reach, 40);
-        ctx.globalAlpha = f.alpha; ctx.strokeStyle = '#3f3a2e'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(b.origin.x, b.origin.y - 30); ctx.quadraticCurveTo((b.origin.x + tip.x) / 2, Math.min(b.origin.y, tip.y) - (reach < 1 ? 50 : 10), tip.x, tip.y); ctx.stroke();
-        emoji(f.icon, tip.x, tip.y, 32, f.alpha);
-        if (reach >= 1) ripples(b.target, (f.m - .45) * 1.4 + f.fade, f.alpha);
+        const reach = clamp01(f.m / .4), back = clamp01((f.m - .4) / .6);
+        const tip = back > 0 ? { x: b.target.x + (b.origin.x - 40 - b.target.x) * back, y: b.target.y + (b.origin.y - b.target.y) * back } : flight(b.origin, b.target, reach, 60);
+        ctx.globalAlpha = f.alpha; ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(b.origin.x + 18, b.origin.y - 58);
+        ctx.quadraticCurveTo((b.origin.x + tip.x) / 2, Math.min(b.origin.y, tip.y) - (back > 0 ? 18 : 80), tip.x, tip.y - 12); ctx.stroke();
+        emoji(f.icon, b.origin.x + 12, b.origin.y - 44, 40, f.alpha);
+        emoji('🪝', tip.x, tip.y - 2, 28, f.alpha);
+        if (back > 0) { splash(tip, back * .9, f.alpha, b.id, '#e9fbff', 16); ripples(tip, back + f.fade, f.alpha); }
       },
       tornado(b, f) {
         const spots = b.affected.length ? b.affected : [b.target];
@@ -363,21 +376,131 @@
         }
         pop(f.icon, spot, f.m, f.alpha, 48);
       },
+      // Dark funnel with turning spiral arms and orbiting foam.
       whirlpool(b, f) {
-        const spot = b.target;
-        for (let k = 0; k < 4; k++) {
-          const start = (f.m + f.fade) * TAU * 2.5 + k;
-          ctx.globalAlpha = f.alpha * (.9 - k * .15); ctx.strokeStyle = k % 2 ? '#e9fbff' : '#2d7fb8'; ctx.lineWidth = 3;
-          ctx.beginPath(); ctx.ellipse(spot.x, spot.y + 4, 16 + k * 14, 5 + k * 4, 0, start, start + Math.PI * 1.5); ctx.stroke();
+        const c = { x: b.target.x, y: b.target.y + 4 }, spin = (f.m + f.fade) * TAU * 2.2;
+        const g = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, 76);
+        g.addColorStop(0, 'rgba(4,30,58,.9)'); g.addColorStop(.5, 'rgba(26,104,156,.5)'); g.addColorStop(1, 'rgba(120,200,240,0)');
+        ctx.globalAlpha = f.alpha; ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(c.x, c.y, 78, 28, 0, 0, TAU); ctx.fill();
+        for (let arm = 0; arm < 3; arm++) {
+          ctx.beginPath();
+          for (let i = 0; i <= 25; i++) {
+            const t = i / 25, ang = spin + arm * TAU / 3 + t * TAU * 1.6, r = 6 + t * 68;
+            const x = c.x + Math.cos(ang) * r, y = c.y + Math.sin(ang) * r * .36;
+            if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+          }
+          ctx.globalAlpha = f.alpha * .9; ctx.strokeStyle = arm % 2 ? '#e9fbff' : '#8fd6ff'; ctx.lineWidth = 3.2; ctx.stroke();
         }
-        pop(f.icon, spot, f.m, f.alpha, 46);
+        ctx.fillStyle = '#ffffff';
+        for (let i = 0; i < 16; i++) {
+          const ang = spin * 1.6 + i / 16 * TAU, r = 28 + noise(i + b.id) * 42;
+          ctx.globalAlpha = f.alpha * .85; ctx.beginPath(); ctx.arc(c.x + Math.cos(ang) * r, c.y + Math.sin(ang) * r * .36, 2 + noise(i) * 2.4, 0, TAU); ctx.fill();
+        }
+        pop(f.icon, b.target, f.m, f.alpha, 54);
       },
+      // The dolphin leaps a rainbow arc over the duck, nose along the curve.
       dolphin(b, f) {
-        const spot = b.target, t = clamp01(f.m / .8), from = { x: spot.x - 110, y: spot.y + 10 }, to = { x: spot.x + 60, y: spot.y + 10 };
-        const p = flight(from, to, t, 90);
-        emoji(f.icon, p.x, p.y, 44, f.alpha);
-        splash(from, t * 1.2, f.alpha * (1 - t), b.id, '#e9fbff', 10);
-        if (t >= 1) splash(to, (f.m - .8) * 2 + f.fade, f.alpha, b.id + 5, '#e9fbff', 10);
+        const spot = b.target, t = clamp01(f.m / .85), from = { x: spot.x - 160, y: spot.y + 16 }, to = { x: spot.x + 70, y: spot.y + 16 };
+        const at = u => ({ x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u - Math.sin(u * Math.PI) * 120 });
+        ['#ff6b6b', '#ffd166', '#06d6a0', '#4cc9f0'].forEach((col, i) => {
+          ctx.globalAlpha = f.alpha * .4; ctx.strokeStyle = col; ctx.lineWidth = 3.5; ctx.beginPath();
+          for (let k = 0; k <= 20; k++) { const p = at(t * k / 20); if (k) ctx.lineTo(p.x, p.y + 10 + i * 4); else ctx.moveTo(p.x, p.y + 10 + i * 4); }
+          ctx.stroke();
+        });
+        ctx.fillStyle = '#eafcff';
+        for (let i = 0; i < 12; i++) {
+          const u = t - i * .035; if (u < 0) break;
+          const p = at(u); ctx.globalAlpha = f.alpha * (1 - i / 12);
+          ctx.beginPath(); ctx.arc(p.x - 6 + noise(i + b.id) * 12, p.y + 12 + i * 2.4, Math.max(.6, 3.4 - i * .22), 0, TAU); ctx.fill();
+        }
+        const p = at(t), q = at(Math.min(1, t + .02));
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(q.y - p.y, q.x - p.x)); ctx.scale(-1, 1); // emoji faces left
+        emoji(f.icon, 0, 16, 60, f.alpha); ctx.restore();
+        splash(from, t * 1.4, f.alpha * (1 - t), b.id, '#e9fbff', 18); ripples(from, t, f.alpha * (1 - t));
+        if (t >= 1) { const after = (f.m - .85) * 3 + f.fade; splash(to, after, f.alpha, b.id + 5, '#e9fbff', 22); ripples(to, after, f.alpha); }
+      },
+      magnet(b, f) {
+        const s = b.origin;
+        ctx.strokeStyle = '#ff5a5a'; ctx.lineWidth = 3.5;
+        for (let i = 0; i < 4; i++) {
+          const r = 22 + i * 18 + (f.m * 60) % 18;
+          ctx.globalAlpha = f.alpha * (1 - i * .22); ctx.beginPath(); ctx.arc(s.x + 24, s.y - 24, r, -Math.PI * .45, Math.PI * .45); ctx.stroke();
+        }
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        for (let i = 0; i < 7; i++) {
+          const y = s.y - 48 + i * 9, len = 70 + noise(b.id + i) * 150;
+          ctx.globalAlpha = f.alpha * .75 * (1 - clamp01(f.m * .6 + f.fade)); line({ x: s.x - 34, y }, { x: s.x - 34 - len, y });
+        }
+        ctx.lineCap = 'butt';
+        pop(f.icon, s, f.m, f.alpha, 60);
+      },
+      lightning(b, f) {
+        const spots = b.affected.length ? b.affected : [b.target];
+        if (f.m < .6) { ctx.globalAlpha = (1 - f.m / .6) * .4; ctx.fillStyle = '#eef6ff'; ctx.fillRect(0, 0, width, height); }
+        spots.forEach((spot, i) => {
+          if (f.m < .75 && noise(Math.floor(f.m * 40) + i * 7 + b.id) > .25) {
+            let x = spot.x + (noise(b.id + i) - .5) * 70;
+            ctx.beginPath(); ctx.moveTo(x, 0);
+            for (let k = 1; k <= 9; k++) { x = k === 9 ? spot.x : x + (noise(b.id + i * 11 + k + Math.floor(f.m * 12)) - .5) * 56; ctx.lineTo(x, (spot.y - 30) * k / 9); }
+            ctx.strokeStyle = '#fff3a0'; ctx.lineWidth = 11; ctx.globalAlpha = f.alpha * .5; ctx.stroke();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.5; ctx.globalAlpha = f.alpha; ctx.stroke();
+          }
+          glow(spot, 80, '#fff6a0', f.alpha * (1 - clamp01(f.m)));
+          capsize(spot, f.m * .7 + f.fade * .8, f.alpha, b.id + i);
+          pop(f.icon, spot, f.m, f.alpha, 54);
+        });
+      },
+      flip(b, f) {
+        const [a, c] = b.affected.length >= 2 ? b.affected : [b.origin, b.target], k = clamp01(f.m * 1.3);
+        [[a, c, '#ffd166', 1], [c, a, '#9be7ff', -1]].forEach(([from, to, col, side]) => {
+          const p = flight(from, to, k, 90);
+          ctx.globalAlpha = f.alpha * .85; ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.setLineDash([12, 9]);
+          ctx.beginPath(); ctx.moveTo(from.x, from.y - 30); ctx.quadraticCurveTo((from.x + p.x) / 2 + side * 80, Math.min(from.y, p.y) - 70, p.x, p.y); ctx.stroke(); ctx.setLineDash([]);
+          glow(p, 30, col, f.alpha);
+        });
+        pop(f.icon, { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 }, f.m, f.alpha, 70);
+      },
+      rewind(b, f) {
+        ctx.globalAlpha = f.alpha * .2; ctx.fillStyle = '#c9a46a'; ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#ffffff';
+        for (let i = 0; i < 9; i++) { ctx.globalAlpha = f.alpha * .3; ctx.fillRect(noise(b.id + i + Math.floor(f.m * 24)) * width, 0, 1.6, height); }
+        ctx.strokeStyle = '#ffe2a8'; ctx.lineWidth = 4;
+        for (const spot of b.affected) for (let k = 0; k < 3; k++) {
+          const x = spot.x - 24 - k * 22 - (f.m * 40) % 22;
+          ctx.globalAlpha = f.alpha * (1 - k * .3); ctx.beginPath(); ctx.moveTo(x + 10, spot.y - 36); ctx.lineTo(x, spot.y - 26); ctx.lineTo(x + 10, spot.y - 16); ctx.stroke();
+        }
+        const s = b.origin, ang = -(f.m + f.fade) * TAU * 3;
+        ring(s.x, s.y - 34, 36, 36, '#ffe2a8', f.alpha, 4);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.globalAlpha = f.alpha;
+        line({ x: s.x, y: s.y - 34 }, { x: s.x + Math.cos(ang) * 28, y: s.y - 34 + Math.sin(ang) * 28 });
+        pop(f.icon, s, f.m, f.alpha, 58);
+      },
+      reverse(b, f) {
+        const spots = b.affected.length ? b.affected : [b.target], k = clamp01(f.m * 1.5);
+        spots.forEach(spot => {
+          const start = -Math.PI * .1, end = start - Math.PI * 1.25 * k, cy = spot.y - 44;
+          ctx.globalAlpha = f.alpha; ctx.strokeStyle = '#ff6fd8'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.arc(spot.x, cy, 30, start, end, true); ctx.stroke(); ctx.lineCap = 'butt';
+          const ax = spot.x + Math.cos(end) * 30, ay = cy + Math.sin(end) * 30;
+          ctx.fillStyle = '#ff6fd8'; ctx.beginPath(); ctx.moveTo(ax - 11, ay - 4); ctx.lineTo(ax + 4, ay + 12); ctx.lineTo(ax + 7, ay - 9); ctx.fill();
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+          for (let i = 0; i < 4; i++) { const y = spot.y - 30 + i * 9, x = spot.x + 40 + ((f.m + f.fade) * 80 + i * 13) % 40; ctx.globalAlpha = f.alpha * .7; line({ x, y }, { x: x + 26, y }); }
+          pop(f.icon, { x: spot.x, y: spot.y - 6 }, f.m, f.alpha, 48);
+        });
+      },
+      freeze(b, f) {
+        const k = clamp01(f.m * 2);
+        const g = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * .2, width / 2, height / 2, Math.max(width, height) * .7);
+        g.addColorStop(0, 'rgba(220,245,255,0)'); g.addColorStop(1, 'rgba(220,245,255,.8)');
+        ctx.globalAlpha = f.alpha * k; ctx.fillStyle = g; ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6;
+        for (let i = 0; i < 30; i++) {
+          const x = noise(b.id + i) * width, y = noise(b.id + i + 50) * height, r = 4 + noise(i) * 6;
+          ctx.globalAlpha = f.alpha * k * .9;
+          for (let a = 0; a < 3; a++) { const ang = a / 3 * Math.PI; line({ x: x - Math.cos(ang) * r, y: y - Math.sin(ang) * r }, { x: x + Math.cos(ang) * r, y: y + Math.sin(ang) * r }); }
+        }
+        for (const spot of b.affected) emoji('❄️', spot.x + 22, spot.y - 52, 24 * k + 1, f.alpha);
+        pop(f.icon, b.origin, f.m, f.alpha, 62);
       },
       mirror(b, f) {
         const glass = mirrorPane(b.origin, f.m, f.alpha), reach = clamp01((f.m - .2) / .5);

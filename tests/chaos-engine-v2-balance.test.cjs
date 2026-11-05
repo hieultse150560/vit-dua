@@ -8,7 +8,7 @@ const names = count => Array.from({ length: count }, (_, i) => `Vịt ${i + 1}`)
 const D = 25;
 
 function skillTable(count, races, engine = E) {
-  const stats = Object.fromEntries(E.skills.map(s => [s.id, { held: 0, wins: 0, top3: 0 }]));
+  const stats = Object.fromEntries(engine.skills.map(s => [s.id, { held: 0, wins: 0, top3: 0 }]));
   for (let seed = 0; seed < races; seed++) {
     for (const r of engine.createRace(names(count), D, seed).results) {
       const row = stats[r.skill.id];
