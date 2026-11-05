@@ -1,20 +1,20 @@
 (() => {
   'use strict';
-  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV3;
+  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV3, SOUND_KEY='vit-dua-sound';
   // Saved races replay with the engine version they were started on.
   const ENGINES={[C.version]:C,[C2.version]:C2,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays the race at SLOWMO_RATE for SLOWMO_MS of real time.
   // Only the display clock slows; the simulated result never changes.
   // slowmoUntil is on the race clock, so pausing keeps the remaining slow motion.
-  const SLOWMO_RATE=.2, SLOWMO_MS=1400;let slowmoUntil=0;
+  const SLOWMO_RATE=.15, SLOWMO_MS=1800;let slowmoUntil=0;
   // Photo finish: when the runner-up ends within PHOTO_GAP of the line, the last
   // PHOTO_WINDOW race-seconds play at PHOTO_RATE with the camera on the finish line.
   const PHOTO_GAP=.015, PHOTO_WINDOW=1.2, PHOTO_RATE=.3;let photoFinish=false, photoActive=false;
   const KEY='vit-dua-seasons-v3', LEGACY_KEY='vit-dua-club-v2';
   let store={version:3,currentId:null,currentSeasonId:null,seasons:[],sessions:[]}, current=null, selected=null, setupMode='season', starArmed=false;
   let race=null, phase='idle', raf=null, lastTime=0, lastSaved=0, nodes=[], runwayWidth=0;
-  let audio=null, sound=false, lastTick=-1, sprintAnnounced=false, leadersKey='', toastTimer;
+  let audio=null, sound=soundPref(), lastTick=-1, sprintAnnounced=false, leadersKey='', toastTimer;
   let dialogAction=()=>{}, storageBlocked=false;
   let eventCursor=0, runeMarkerKey='', skillNodes=[];
   let visuals=null, racerViews=[], owners=[], currentSample=[], checkpoint=null, runeSpawns=[], lastTimerText='', lastSprintState=false;
@@ -244,6 +244,11 @@
     if(w)water.classList.add(`weather-${w.id}`);$('weather-label').textContent=w?`${w.icon} ${w.name}`:'';
   }
   // Synthesized sound for chaos-v2/v3 twists; returns false so callers fall back to a plain tone.
+  // Sound is on unless this viewer turned it off (per-browser preference, key SOUND_KEY).
+  function soundPref(){try{return localStorage.getItem(SOUND_KEY)!=='0';}catch{return true;}}
+  let stopAmbience=null;
+  function startAmbience(){if(stopAmbience||!sound||!audio||audio.state!=='running'||!window.DuckSfx?.ambience)return;stopAmbience=window.DuckSfx.ambience(audio);}
+  function endAmbience(){if(stopAmbience){stopAmbience();stopAmbience=null;}}
   function playSfx(event){const kind=window.DuckSfx?.kindOf(event);if(!kind||!sound||!audio||audio.state!=='running')return false;window.DuckSfx.play(audio,kind);return true;}
   function closeFinish(r){
     if(!r?.events||r.results.length<2)return false;
@@ -309,6 +314,7 @@
       if(a.countdownLeft<=0){phase='running';say(window.DuckCommentary?.start(race));$('race-overlay').hidden=true;$('pause').disabled=false;$('river').classList.add('is-running');$('arena-title').textContent='Quạc quạc… tăng tốc nào!';$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';$('sprint-label').textContent='CỔ VŨ CHO CHÚ VỊT CỦA BẠN';tone(820,.25);lastTick=-1;}
     }
     if(phase==='running'){
+      startAmbience();
       a.elapsed=Math.min(race.duration,a.elapsed+delta*playbackRate(a.elapsed));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
       if(a.elapsed>=race.sprintStart){if(!sprintAnnounced){sprintAnnounced=true;$('arena-title').textContent='NƯỚC RÚT! Cơ hội lật ngược!';$('race-status').textContent='⚡ Tăng tốc ngẫu nhiên — vịt cuối vẫn có cơ hội!';tone(950,.2);}$('sprint-label').textContent='⚡ 5 GIÂY CUỐI · BỨT PHÁ!';const second=Math.ceil(remaining);if(second!==lastTick&&second>0){lastTick=second;tone(650,.06);}}
       if(a.elapsed>=race.duration){finish();return;}
@@ -318,7 +324,7 @@
   }
   function pause(){
     if(!current?.active)return;
-    if(phase==='running'){stop();phase='paused';window.speechSynthesis?.cancel?.();$('river').classList.remove('is-running');if(currentSample.length)draw(currentSample);$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Nghỉ quẩy một chút';$('resume-overlay').hidden=false;$('pause').textContent='▶ Tiếp tục';save();}
+    if(phase==='running'){stop();phase='paused';window.speechSynthesis?.cancel?.();endAmbience();$('river').classList.remove('is-running');if(currentSample.length)draw(currentSample);$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Nghỉ quẩy một chút';$('resume-overlay').hidden=false;$('pause').textContent='▶ Tiếp tục';save();}
     else if(phase==='paused'){activateAudio();phase=current.active.countdownLeft>0?'countdown':'running';lastTime=performance.now();lastSaved=lastTime;$('resume-overlay').hidden=true;$('pause').textContent='Ⅱ Tạm dừng';$('pause').disabled=phase==='countdown';$('race-overlay').hidden=phase==='running';$('overlay-number').textContent=String(Math.ceil(current.active.countdownLeft));$('overlay-text').textContent='Chuẩn bị nào!';$('river').classList.toggle('is-running',phase==='running');$('restore-notice').hidden=true;if(phase==='running'){const sprint=current.active.elapsed>=race.sprintStart;$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('arena-title').textContent=sprint?'NƯỚC RÚT! Cơ hội lật ngược!':'Quạc quạc… tăng tốc nào!';$('sprint-label').textContent=sprint?'⚡ 5 GIÂY CUỐI · BỨT PHÁ!':'CỔ VŨ CHO CHÚ VỊT CỦA BẠN';$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';}schedule();}
   }
   function finish(){
@@ -326,6 +332,7 @@
     const input={id:a.id,picks:{...current.picks},order:race.results.map(r=>r.id),completedAt:new Date().toISOString(),...(type==='regular'?{stars:starsOf()}:{})};
     try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);}catch(e){phase='paused';toast(`Chưa ghi được điểm: ${e.message}`);return;}
     if(engineFor(a.engine)){current.raceReplays??=[];if(!current.raceReplays.some(r=>r.id===a.id))current.raceReplays.push({id:a.id,seed:a.seed,engine:a.engine});}
+    endAmbience();if(sound&&audio&&audio.state==='running')window.DuckSfx?.play(audio,'cheer');
     const [first,second]=race.results,photo=photoFinish;say(window.DuckCommentary?.finish(owners[first.id],owners[second?.id],photo));
     current.active=null;current.stage='result';current.stars=[];clearRace();save();render();tone(523,.2);tone(659,.2,.17);tone(784,.3,.34);
     const record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);showRound(record,type,true);
@@ -447,7 +454,7 @@
   $('season-fund').onclick=()=>showFund();$('fund-close').onclick=()=>close('fund-dialog');$('export-fund').onclick=exportFund;$('close-season').onclick=requestCloseSeason;$('close-season-close').onclick=()=>close('close-season-dialog');$('confirm-close-season').onclick=confirmCloseSeason;
   $('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
   $('final-summary').onclick=()=>{if(outcome().status==='tie'){if(current.stage==='picking'&&current.type==='tie'){toast('Chọn vịt cho nhóm đồng điểm ở bên dưới.');return;}next();}else{current.stage='complete';save();render();showFinal();}};
-  $('sound').onclick=()=>{sound=!sound;setSound();activateAudio();tone(700);};
+  $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem(SOUND_KEY,sound?'1':'0');}catch{}if(!sound){endAmbience();window.speechSynthesis?.cancel?.();}setSound();activateAudio();tone(700);};
   $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.body.requestFullscreen)await document.body.requestFullscreen();else toast('Dùng phím F11 để mở toàn màn hình.');}catch{toast('Dùng phím F11 để mở toàn màn hình.');}};
   document.addEventListener('keydown',e=>{if(e.code!=='Space'||e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,button,a,select')||document.querySelector('dialog[open]'))return;e.preventDefault();if(current?.active)pause();else if(current?.stage==='picking')start();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&current?.active)save();});window.addEventListener('pagehide',()=>{if(current)save();});

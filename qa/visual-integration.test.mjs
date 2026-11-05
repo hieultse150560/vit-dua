@@ -116,14 +116,16 @@ test('missing 2D canvas context does not prevent exact physics, finishing or sco
   } finally { await game.close(); }
 });
 
-// A do-anything Web Audio stand-in: every property and call returns another stand-in.
+// Minimal Web Audio stand-in: enough nodes for tones, synthesized effects and ambience.
 function fakeAudio(window) {
-  const any = () => new Proxy(function () {}, {
-    get: (target, key) => key === 'then' ? undefined : key === 'state' ? 'running' : key === 'currentTime' ? 0 : key === 'sampleRate' ? 48000 : any(),
-    apply: () => any(), construct: () => any(), set: () => true
-  });
-  window.__audio = any();
-  window.AudioContext = function () { return window.__audio; };
+  const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} });
+  const node = () => ({ frequency: param(), gain: param(), Q: param(), connect() {}, disconnect() {}, start() {}, stop() {}, buffer: null, loop: false, onended: null });
+  window.AudioContext = class {
+    constructor() { this.state = 'running'; this.currentTime = 0; this.sampleRate = 8000; this.destination = {}; }
+    resume() { return Promise.resolve(); }
+    createOscillator() { return node(); } createGain() { return node(); } createBiquadFilter() { return node(); } createBufferSource() { return node(); }
+    createBuffer(channels, length) { return { getChannelData: () => new Float32Array(length) }; }
+  };
 }
 // ---- chaos-v2 twist banner and visuals ----
 function v2Fixture(seed, elapsed) {
@@ -157,7 +159,7 @@ test('twist banner shows owner name and label, then hides on race clock', async 
     assert.equal(banner.hidden, false);
     assert.ok(banner.textContent.includes(names[e.actorId]), banner.textContent);
     assert.ok(banner.textContent.includes(e.label), banner.textContent);
-    game.advance(2500, 50); // 1.4 s slow motion (0.28 race-s) + 1.1 s normal > 1.2 race-s banner
+    game.advance(3000, 50); // 1.8 s slow motion (0.27 race-s) + 1.2 s normal > 1.2 race-s banner
     assert.equal(banner.hidden, true);
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
@@ -226,9 +228,9 @@ test('twists play in slow motion, then the race clock returns to normal speed', 
     const start = elapsedNow();
     game.advance(500, 50);
     const slow = elapsedNow() - start;
-    assert.ok(slow > 0.07 && slow < 0.13, `slow motion (0.2x) advanced ${slow} race-s in 0.5 s`);
-    game.advance(700, 50);
-    assert.ok(game.window.document.querySelector('.race-water').classList.contains('slowmo'), 'slow motion still on at 1.2 s');
+    assert.ok(slow > 0.05 && slow < 0.1, `slow motion (0.15x) advanced ${slow} race-s in 0.5 s`);
+    game.advance(1100, 50);
+    assert.ok(game.window.document.querySelector('.race-water').classList.contains('slowmo'), 'slow motion still on at 1.6 s');
     game.advance(400, 50);
     assert.equal(game.window.document.querySelector('.race-water').classList.contains('slowmo'), false);
     assert.equal(game.window.document.querySelectorAll('.racer.twist-focus').length, 0);
@@ -249,7 +251,7 @@ test('pausing during slow motion keeps the rest of the slow motion for after res
     game.advance(5000, 50);
     game.click('pause'); game.advance(300, 50);
     game.click('pause'); const gained = current(game).active.elapsed - before;
-    assert.ok(gained > 0.04 && gained < 0.15, `after a long pause, 0.3 s of play advanced ${gained} race-s`);
+    assert.ok(gained > 0.02 && gained < 0.1, `after a long pause, 0.3 s of play advanced ${gained} race-s`);
     assert.ok(game.window.document.querySelector('.race-water').classList.contains('slowmo'));
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
@@ -264,10 +266,10 @@ test('commentator captions each twist and speaks Vietnamese when sound is on', a
     fakeAudio(window);
   } });
   try {
-    game.click('sound');
     game.click('resume-overlay'); advanceToTwist(game, e);
     const caption = game.$('commentary');
     assert.equal(caption.hidden, false);
+    assert.equal(caption.closest('.race-water'), null, 'caption sits below the river, never over a duck');
     assert.ok(caption.textContent.includes(names[e.actorId]), caption.textContent);
     const spoken = game.window.__spoken.at(-1);
     assert.equal(spoken.text, caption.textContent.replace(/^🎙️\s*/, ''));
@@ -288,7 +290,6 @@ test('twists play their synthesized sound effect when sound is on', async () => 
     + `;globalThis.__sfx = []; globalThis.DuckSfx = { ...globalThis.DuckSfx, play: (ctx, kind) => __sfx.push(kind) };`;
   const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) }, { scripts: { 'sound-fx.js': spy }, beforeScripts: fakeAudio });
   try {
-    game.click('sound');
     game.click('resume-overlay'); advanceToTwist(game, e);
     assert.equal(game.window.__sfx.at(-1), real.kindOf(e));
     assert.deepEqual(game.errors.map(String), []);
@@ -311,7 +312,10 @@ test('slow motion zooms the camera onto the twist, then zooms back out', async (
 });
 
 test('a close finish plays the last moments slowly and shows a photo-finish card; a clear win does not', async () => {
-  for (const [seed, close] of [[11, true], [3, false]]) {
+  // Pick seeds from the live engine so rule tweaks never stale this test.
+  const gapAt = seed => { const end = [...V2.v3.createRace(names.map((_, id) => A.name(id)), 25, seed).sample(25)].sort((x, y) => x.rank - y.rank); return 1 - end[1].progress; };
+  const seeds = Array.from({ length: 300 }, (_, i) => i + 1);
+  for (const [seed, close] of [[seeds.find(s => gapAt(s) < 0.012), true], [seeds.find(s => gapAt(s) > 0.05), false]]) {
     const source = v2Fixture(seed, 20);
     source.sessions[1].active.engine = 'chaos-v3';
     const order = V2.v3.createRace(names.map((_, id) => A.name(id)), 25, seed).results;
@@ -345,6 +349,44 @@ test('ducks pull faces: dizzy when knocked over', async () => {
     assert.equal(racers[e.targetId].querySelector('.racer-emote').textContent, '😵');
     assert.equal(racers[e.actorId].querySelector('.racer-emote').textContent === '😵', false);
     game.advance(45000, 50);
+    assert.deepEqual(game.errors.map(String), []);
+  } finally { await game.close(); }
+});
+
+test('effects canvas renders above screen resolution so the camera zoom stays sharp', async () => {
+  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) }, { beforeScripts(window) { window.devicePixelRatio = 1; window.eval(`HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => k in t ? t[k] : (k === 'createLinearGradient' || k === 'createRadialGradient') ? () => ({ addColorStop() {} }) : () => {}, set: (t, k, v) => { t[k] = v; return true; } });`); } });
+  try {
+    const canvas = game.window.document.querySelector('.race-effects');
+    assert.ok(canvas, 'effects canvas exists');
+    assert.ok(canvas.width >= 800 * 1.35 - 1, `canvas backing width ${canvas.width} for an 800px river`);
+    assert.deepEqual(game.errors.map(String), []);
+  } finally { await game.close(); }
+});
+
+test('sound is on by default and the choice is remembered', async () => {
+  const game = loadGame(); let again;
+  try {
+    assert.equal(game.$('sound').getAttribute('aria-pressed'), 'true');
+    game.click('sound');
+    assert.equal(game.$('sound').getAttribute('aria-pressed'), 'false');
+    again = loadGame(game.storage());
+    assert.equal(again.$('sound').getAttribute('aria-pressed'), 'false');
+    assert.deepEqual(game.errors.map(String), []); assert.deepEqual(again.errors.map(String), []);
+  } finally { await game.close(); if (again) await again.close(); }
+});
+
+test('a river ambience plays while racing, pauses with the race, and the crowd cheers at the finish', async () => {
+  const spy = readFileSync(new URL('../dist/sound-fx.js', import.meta.url), 'utf8')
+    + `;globalThis.__sfx = []; globalThis.__amb = []; globalThis.DuckSfx = { ...globalThis.DuckSfx, play: (ctx, kind) => __sfx.push(kind), ambience: () => { __amb.push('start'); return () => __amb.push('stop'); } };`;
+  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 20)) }, { scripts: { 'sound-fx.js': spy }, beforeScripts: fakeAudio });
+  try {
+    game.click('resume-overlay'); game.advance(300, 50);
+    assert.deepEqual(plain(game.window.__amb), ['start']);
+    game.click('pause');
+    assert.deepEqual(plain(game.window.__amb), ['start', 'stop']);
+    game.click('pause'); game.advance(45000, 50);
+    assert.equal(game.window.__amb.at(-1), 'stop');
+    assert.ok(game.window.__sfx.includes('cheer'), JSON.stringify(game.window.__sfx));
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
 });

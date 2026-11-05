@@ -79,20 +79,26 @@ Mỗi vòng mới bốc một kiểu thời tiết, hiện trên đầu sông v�
 | ☀️ Nắng đẹp | 40% | Như bình thường |
 | 🌧️ Mưa rào | 25% | Thêm 1 sự kiện; xoáy nước và cá sấu hay xuất hiện hơn |
 | 💨 Gió lớn | 20% | Thêm 1 sự kiện; gió thuận chiếm phần lớn |
-| ⛈️ Bão sông | 15% | Thêm 2 sự kiện; vấp đá và xoáy nước nhiều gấp đôi |
+| ⛈️ Bão sông | 15% | Thêm 2 sự kiện; xoáy nước và cá sấu nhiều gấp đôi |
 
 Mặt sông đổi màu theo thời tiết, có mưa rơi, gió thổi và chớp giật khi bão.
 
+`chaos-v3` còn chỉnh hai điểm so với `chaos-v2`:
+
+- **Skill thông minh:** vẫn ngẫu nhiên nhưng nghiêng về con đang dẫn: Đổi đời ưu tiên con cao nhất trong tầm 1–3 bậc (nhất là con đang dẫn), Lốc xoáy thường cuốn nhóm đầu, Gương không bị đánh thì chiếu chói thẳng con đang dẫn.
+- **Vấp đá sát đích hiếm hơn:** khoảng 19% số trận có vấp đá trong 3 giây cuối (chaos-v2 là khoảng 41%).
+
 ### Slow motion, camera và photo finish
 
-- Mỗi pha lật kèo chiếu chậm 0,2× trong 1,4 giây; camera zoom vào chỗ xảy ra, con vịt liên quan phóng to và phát sáng, màn hình chớp và rung khi có con trúng đòn. Chỉ đồng hồ hiển thị chậm lại, kết quả không đổi; tạm dừng giữ nguyên phần slow motion còn lại.
+- Mỗi pha lật kèo chiếu chậm 0,15× trong 1,8 giây; camera zoom vào chỗ xảy ra, con vịt liên quan phóng to và phát sáng, màn hình chớp và rung khi có con trúng đòn. Chỉ đồng hồ hiển thị chậm lại, kết quả không đổi; tạm dừng giữ nguyên phần slow motion còn lại.
 - Banner chữ đập vào màn hình, từng chữ rơi xuống, có vệt sáng quét qua, tự né sang nửa sông không có pha.
 - **Photo finish:** khi con về nhì cách vạch đích dưới 1,5% đường đua, 1,2 giây cuối chiếu chậm với camera zoom vào vạch đích; bảng kết quả có thẻ 📸 PHOTO FINISH.
 - Vịt có biểu cảm: 😵 khi bị lật, 🤪 khi quay tròn, 😎 khi bay, 😣 khi bị làm chậm.
 
 ### Bình luận viên và âm thanh
 
-- Mỗi pha có một câu bình luận tiếng Việt hiện ở cuối sông (`dist/commentary.js`), kèm câu mở màn theo thời tiết và câu chốt khi về đích.
+- Mỗi pha có một câu bình luận tiếng Việt hiện trên thanh nhỏ ngay dưới mặt sông, không che vịt (`dist/commentary.js`), kèm câu mở màn theo thời tiết và câu chốt khi về đích.
+- Âm thanh **bật sẵn** và nhớ lựa chọn bật/tắt trên từng trình duyệt. Trong lúc đua có tiếng nước sông chảy nền; về đích có tiếng reo hò.
 - Khi bật âm thanh, câu bình luận được đọc bằng giọng tiếng Việt của trình duyệt (Web Speech) nếu máy có; không có thì chỉ hiện chữ.
 - Hiệu ứng âm thanh được tổng hợp bằng Web Audio, không cần file (`dist/sound-fx.js`): nổ nước, đuôi tên lửa, gương "keng", cá sấu đớp, cá heo kêu, vỏ chuối trượt…
 

@@ -40,3 +40,13 @@ test('each sound builds real audio nodes and never throws', () => {
   assert.doesNotThrow(() => F.play(null, 'boom'));
   assert.doesNotThrow(() => F.play(fakeContext(), 'nope'));
 });
+
+test('river ambience loops until stopped; cheer is a known sound', () => {
+  assert.ok(F.kinds.includes('cheer'));
+  const ctx = fakeContext();
+  const stop = F.ambience(ctx);
+  assert.equal(typeof stop, 'function');
+  assert.ok(ctx.made.includes('noise'));
+  assert.doesNotThrow(stop);
+  assert.doesNotThrow(() => F.ambience(null)());
+});

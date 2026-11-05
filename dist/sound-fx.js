@@ -4,7 +4,7 @@
   // kindOf() picks a sound for an event; play() builds it with Web Audio.
   const BY_SKILL = { wings: 'flutter', wave: 'wave', swap: 'zap', mirror: 'ding', hook: 'zip', tornado: 'swirl', buoy: 'pop' };
   const BY_HAZARD = { rock: 'splash', croc: 'chomp', wind: 'whoosh', whirlpool: 'swirl', dolphin: 'chirp' };
-  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp']);
+  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer']);
   const V2_SKILLS = new Set(['wings', 'torpedo', 'wave', 'swap', 'rocket', 'mirror', 'hook', 'tornado', 'banana', 'buoy']);
 
   function kindOf(event) {
@@ -60,14 +60,29 @@
     pop: (c, t) => tone(c, 'sine', 520, 1300, t, .09, 1, .003),
     slide: (c, t) => tone(c, 'sine', 1300, 260, t, .65, .7),
     chomp: (c, t) => { for (const d of [0, .14]) { noise(c, 'lowpass', 1400, 300, t + d, .06, 1, .002); tone(c, 'square', 90, 60, t + d, .06, .5, .002); } },
-    chirp: (c, t) => { for (let i = 0; i < 3; i++) tone(c, 'sine', 1400, 3200, t + i * .11, .08, .6, .005); }
+    chirp: (c, t) => { for (let i = 0; i < 3; i++) tone(c, 'sine', 1400, 3200, t + i * .11, .08, .6, .005); },
+    // Crowd roar (band-passed noise swell) plus two whistles.
+    cheer: (c, t) => { noise(c, 'bandpass', 900, 1700, t, 1.6, 1.1, .25); tone(c, 'sine', 1800, 2400, t + .2, .25, .3); tone(c, 'sine', 2000, 2700, t + .55, .3, .3); }
   };
+  // Soft looping river noise for the whole race; returns stop().
+  function ambience(ctx) {
+    if (!ctx) return () => {};
+    try {
+      const frames = Math.round(ctx.sampleRate * 2), buffer = ctx.createBuffer(1, frames, ctx.sampleRate), data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), gain = ctx.createGain(), t = ctx.currentTime;
+      src.buffer = buffer; src.loop = true; filter.type = 'lowpass'; filter.frequency.setValueAtTime(650, t);
+      gain.gain.setValueAtTime(0.0001, t); gain.gain.linearRampToValueAtTime(.18 * VOLUME, t + .8);
+      src.connect(filter); filter.connect(gain); gain.connect(ctx.destination); src.start(t);
+      return () => { try { const end = ctx.currentTime; gain.gain.linearRampToValueAtTime(0.0001, end + .3); src.stop(end + .35); } catch { /* already stopped */ } };
+    } catch { return () => {}; }
+  }
   function play(ctx, kind) {
     const recipe = RECIPES[kind];
     if (!ctx || !recipe) return;
     try { recipe(ctx, ctx.currentTime); } catch { /* ponytail: a failed sound must never break the race */ }
   }
-  const api = Object.freeze({ kinds, kindOf, play });
+  const api = Object.freeze({ kinds, kindOf, play, ambience });
   root.DuckSfx = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

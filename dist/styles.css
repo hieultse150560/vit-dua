@@ -358,11 +358,11 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .race-water.weather-wind .river{filter:saturate(.95) contrast(1.05)}
 .race-water.weather-storm .river{filter:saturate(.6) brightness(.72) contrast(1.1)}
 
-/* Commentator caption, bottom of the river */
-.commentary{position:absolute;left:50%;bottom:14px;z-index:6;transform:translateX(-50%);max-width:min(92%,820px);padding:9px 18px;border-radius:12px;background:rgba(12,22,40,.78);color:#fff;font-size:clamp(14px,1.6vw,19px);font-weight:600;font-style:italic;line-height:1.4;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none}
+/* Commentator caption: a slim bar under the river, never over a duck */
+.commentary{display:block;width:fit-content;max-width:94%;margin:8px auto 0;padding:6px 14px;border-radius:999px;background:#1d2a3d;color:#fff;font-size:clamp(12px,1.25vw,15px);font-weight:600;font-style:italic;line-height:1.35;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.18)}
 .commentary[hidden]{display:none}
-.commentary.fresh{animation:commentary-in .35s ease-out}
-@keyframes commentary-in{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+.commentary.fresh{animation:commentary-in .3s ease-out}
+@keyframes commentary-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.commentary.fresh{animation:none}}
 
 /* Camera zoom during slow motion: river and effects canvas scale around the twist. */
