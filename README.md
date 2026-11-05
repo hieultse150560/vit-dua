@@ -1,6 +1,6 @@
 # 🦆 Vịt Đua · Quỹ Mùa Giải
 
-Game đua vịt tiếng Việt cho 3–100 người chơi trên một màn hình chung. Mỗi người chọn một con vịt theo thiên phú. Khi vịt xuống nước, skill bí mật và rune có thể đảo thứ hạng ngay sát đích.
+Game đua vịt tiếng Việt cho 3–100 người chơi trên một màn hình chung. Mỗi người chọn một con vịt; khi xuất phát, mỗi vịt mới lộ một skill bí mật. Lật thuyền, vấp đá, bay vọt, đổi đời: thứ hạng đảo liên tục từ đầu đến tận vạch đích.
 
 **[Chơi Vịt Đua trên trình duyệt](https://vit-dua-phu-20261104.hoangbaophu89.chatgpt.site/)**
 
@@ -33,36 +33,72 @@ Mở [game trên máy](http://127.0.0.1:8000). Dùng cùng trình duyệt và đ
 - **Hoàn tác lựa chọn cuối** chỉ gỡ lựa chọn gần nhất. Có thể hoàn tác nhiều lần rồi chọn lại, nhưng vẫn phải đi theo thứ tự ưu tiên.
 - Đua phụ dùng thứ tự từ chót lên nhất của vòng thường cuối cùng, lọc còn những người phải phân định.
 
-## Thiên phú, skill bí mật và rune
+## Skill bí mật, lật kèo và rune
 
-Các vòng mới của mùa giải dùng cơ chế `chaos-v1`: **xem thiên phú → chọn đủ vịt → xuất phát mới lộ skill → rune xuất hiện trong lúc đua**. Mỗi người vẫn chọn lại một vịt mỗi vòng. Thiên phú ổn định theo số vịt, còn skill được chia lại độc lập khi xuất phát; không thể xem skill rồi hoàn tác lựa chọn.
+Các vòng mới dùng cơ chế `chaos-v2`: **chọn đủ vịt → xuất phát mới lộ skill → lật kèo liên tục đến giây cuối**. Mỗi người vẫn chọn lại một vịt mỗi vòng. Không còn thiên phú: chọn vịt không quyết định thắng thua, mọi lợi thế đến từ skill bốc ngẫu nhiên lúc xuất phát. Không thể xem skill rồi hoàn tác lựa chọn.
 
-Với 7 người, bảy vịt đầu có các thiên phú sau:
+Mỗi vịt được bốc một skill riêng (không trùng nhau khi có tối đa 10 vịt; đông hơn thì mỗi skill dùng tối đa `ceil(N / 10)` lần). Skill tự kích hoạt đúng một lần:
 
-| Vịt | Thiên phú | Hiệu ứng |
+| Skill | Hiệu ứng |
+| --- | --- |
+| 🪽 Cánh vàng | Bay vượt lên 2–3 con phía trước. Đang dẫn thì bay cao thêm một đoạn. |
+| 💣 Thủy lôi | Ném vào con đang dẫn đầu (hoặc hạng 2 nếu mình đang dẫn), lật thuyền đứng yên 2 giây. |
+| 🌊 Sóng thần | Top 3 (trừ mình) dạt lùi 4% đường đua, mình lướt sóng tiến 3% trong 1 giây. |
+| 🔄 Đổi đời | Đổi chỗ với một con đang hơn mình 1–3 bậc. Đang dẫn thì đổi với con kém mình 1–3 bậc, tự tụt! |
+| 🚀 Tên lửa | 70% phóng +150% tốc độ trong 1,5 giây, 30% nổ máy tự lật 2 giây. |
+| 🪞 Gương phản đòn | Đòn đầu tiên từ skill vịt khác bị dội ngược: kẻ tấn công lãnh đúng cái hại đó. Không ai đánh thì đến giờ chiếu chói con ngay trên mình (chậm 50% trong 1,5 giây). |
+| 🎣 Móc câu | Kéo con ngay trên mình lùi về chỗ mình rồi vượt lên ngay trước nó. Đang dẫn thì móc bờ kéo mình lên 3%. |
+| 🌪️ Lốc xoáy | Xáo trộn vị trí của 3 con ngẫu nhiên, có thể gồm cả mình; con nào cũng đổi chỗ. |
+| 🍌 Vỏ chuối | Thả tại chỗ; con bám ngay sau chạm tới thì trượt quay vòng 1,5 giây. Đang bét thì ném lên trúng con ngay trên. |
+| 🛟 Phao thần | Chặn đòn đầu tiên (skill hoặc sự kiện sông nước) rồi bật lên vượt 1 con. Không ai đánh thì đến giờ phao bơm hơi đẩy lên vượt 1 con. |
+
+Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 7)` khi đông vịt):
+
+- 🪨 **Vấp đá:** con đang dẫn vấp ngã, đứng yên 1,5 giây. 70% rơi vào 3 giây cuối.
+- 🐊 **Cá sấu đớp:** một con ngẫu nhiên bị kéo lùi 5%.
+- 💨 **Gió thuận:** con đang bét được đẩy lên 6% trong 1 giây.
+- 🌀 **Xoáy nước:** một con ngẫu nhiên quay tròn tại chỗ 1,5 giây.
+- 🐬 **Cá heo cõng:** một con ở nửa cuối được cõng lên 5% trong 1 giây.
+
+**Lịch lật kèo:** pha lật kèo (skill hoặc sự kiện) rải từ giây thứ 2 đến cuối trận, càng về cuối càng dày, và vòng nào cũng có ít nhất một pha ở 1/3 đầu và một pha trong 2 giây cuối. Hai pha cách nhau ít nhất 0,4 giây; khi quá đông vịt khoảng cách co lại và banner gộp "N pha liên tiếp!".
+
+Vịt đang bị lật hay quay tròn không bị cộng dồn; hết hiệu ứng có 1 giây miễn nhiễm, nhưng vẫn có thể bị đổi chỗ. Phao và bong bóng chặn được cả sự kiện sông nước; gương chỉ dội đòn từ skill vịt khác, không dội Lốc xoáy hay sự kiện. Vịt có phao hoặc bong bóng đứng ngoài Lốc xoáy.
+
+Rune xuất hiện ở các làn ngẫu nhiên, không ưu tiên vịt dẫn đầu. Có ít nhất 3 rune mỗi trận: **Nước tăng lực** (+40% trong 1,5 giây), **Bong bóng bảo vệ** (một lần chặn) và **Hộp hên xui** (50% tăng tốc, 50% chậm 40%).
+
+Mỗi pha lật kèo hiện **banner chữ lớn** giữa sông kèm tên người chơi, hoạt ảnh riêng (lật ngửa, quay tròn, bay lên…) và tiếng báo. Nhật ký sự kiện chỉ hiện những gì đã xảy ra; kết quả vòng có phần xem lại skill và diễn biến.
+
+**Cân bằng:** bộ test `tests/chaos-engine-v2-balance.test.cjs` chạy 5.000 trận 7 vịt × 25 giây: người cầm skill nào cũng thắng trong khoảng 0,7–1,3 lần mức trung bình; con dẫn đầu lúc còn 3 giây chỉ thắng khoảng 40% số trận.
+
+### Thời tiết (`chaos-v3`)
+
+Mỗi vòng mới bốc một kiểu thời tiết, hiện trên đầu sông và lúc đếm ngược:
+
+| Thời tiết | Tỉ lệ | Ảnh hưởng |
 | --- | --- | --- |
-| Vàng | Đều chân | +2% tốc độ cơ bản cả trận |
-| Hồng | Hợp rune | +1,5% tốc độ cơ bản; rune tăng tốc kéo dài thêm 30%, hiệu ứng chậm từ rune ngắn hơn 30% |
-| Xanh | Không bỏ cuộc | +5% tốc độ cơ bản khi thuộc 3 vị trí cuối |
-| Tím | Mỏ neo | +1,5% tốc độ cơ bản; 50% cơ hội kháng swap khiến mình tụt lại |
-| Cam | Đề-pa | +10% tốc độ cơ bản trong 5 giây đầu |
-| Mint | Lì đòn | +1,5% tốc độ cơ bản; giảm 40% thời gian bị làm chậm |
-| Đào | Nước rút | +10% tốc độ cơ bản trong 5 giây cuối |
+| ☀️ Nắng đẹp | 40% | Như bình thường |
+| 🌧️ Mưa rào | 25% | Thêm 1 sự kiện; xoáy nước và cá sấu hay xuất hiện hơn |
+| 💨 Gió lớn | 20% | Thêm 1 sự kiện; gió thuận chiếm phần lớn |
+| ⛈️ Bão sông | 15% | Thêm 2 sự kiện; vấp đá và xoáy nước nhiều gấp đôi |
 
-Nếu có hơn 7 vịt, bộ thiên phú lặp theo **số vịt**, và từng thẻ ghi rõ thiên phú của nó. Khi số vịt khác 7, Không bỏ cuộc áp dụng cho nhóm cuối có `ceil(3 × N / 7)` vịt. Phần cộng tốc độ tính theo tốc độ cơ bản, không nhân chồng với skill hoặc rune. Chỉ số được kiểm tra với mặc định 7 người, 25 giây; thay đổi thời lượng hoặc số người có thể làm tương quan thiên phú khác đi.
+Mặt sông đổi màu theo thời tiết, có mưa rơi, gió thổi và chớp giật khi bão.
 
-Mỗi vịt có một skill tự kích hoạt tối đa một lần:
+### Slow motion, camera và photo finish
 
-- **Chân vịt phản lực:** +70% tốc độ cơ bản trong 1,5 giây.
-- **Bom xỉn:** ném một đối thủ ngẫu nhiên, làm chậm 40% trong 1,5 giây trước khi áp dụng kháng.
-- **Phao hộ mệnh:** chặn một lần trúng đòn hoặc swap khiến vịt tụt lại. Phao không có thời hạn và không cộng dồn nhiều lớp.
-- **Đổi đời:** đổi vị trí với một đối thủ ngẫu nhiên khi còn 2 giây, có thể tự đổi từ đầu xuống cuối. 25% cơ hội mỗi trận có một vịt mang skill này; tối đa một lần thử swap trong trận.
+- Mỗi pha lật kèo chiếu chậm 0,2× trong 1,4 giây; camera zoom vào chỗ xảy ra, con vịt liên quan phóng to và phát sáng, màn hình chớp và rung khi có con trúng đòn. Chỉ đồng hồ hiển thị chậm lại, kết quả không đổi; tạm dừng giữ nguyên phần slow motion còn lại.
+- Banner chữ đập vào màn hình, từng chữ rơi xuống, có vệt sáng quét qua, tự né sang nửa sông không có pha.
+- **Photo finish:** khi con về nhì cách vạch đích dưới 1,5% đường đua, 1,2 giây cuối chiếu chậm với camera zoom vào vạch đích; bảng kết quả có thẻ 📸 PHOTO FINISH.
+- Vịt có biểu cảm: 😵 khi bị lật, 🤪 khi quay tròn, 😎 khi bay, 😣 khi bị làm chậm.
 
-Khi swap gây tụt lại, chỉ vịt chịu thiệt được kiểm tra phao hoặc Mỏ neo, kể cả khi nó tự kích hoạt skill. Phao chặn trước; nếu không có phao, Mỏ neo có 50% cơ hội kháng. Chặn thành công hủy cả lần đổi, hai vịt giữ nguyên vị trí. Swap không đổi chủ, màu hay skill.
+### Bình luận viên và âm thanh
 
-Rune xuất hiện ở các làn ngẫu nhiên, không ưu tiên vịt dẫn đầu. Có ít nhất 3 rune mỗi trận: **Nước tăng lực** (+40% trong 1,5 giây), **Bong bóng bảo vệ** (một lần chặn) và **Hộp hên xui** (50% tăng tốc, 50% gây chậm). Hợp rune thay đổi thời lượng tăng tốc/chậm; bong bóng vẫn chặn một lần. Các hiệu ứng chậm không cộng dồn; hết chậm có 1 giây miễn nhiễm ngắn.
+- Mỗi pha có một câu bình luận tiếng Việt hiện ở cuối sông (`dist/commentary.js`), kèm câu mở màn theo thời tiết và câu chốt khi về đích.
+- Khi bật âm thanh, câu bình luận được đọc bằng giọng tiếng Việt của trình duyệt (Web Speech) nếu máy có; không có thì chỉ hiện chữ.
+- Hiệu ứng âm thanh được tổng hợp bằng Web Audio, không cần file (`dist/sound-fx.js`): nổ nước, đuôi tên lửa, gương "keng", cá sấu đớp, cá heo kêu, vỏ chuối trượt…
 
-Biểu tượng trên vịt, danh sách skill và nhật ký sự kiện cho biết ai dùng skill, ai bị tác động và rune vừa xuất hiện. Nhật ký đang đua chỉ hiện sự kiện đã xảy ra. Kết quả các vòng mới có phần xem lại thiên phú, skill và diễn biến.
+### Danh hiệu cuối ngày
+
+Bảng tổng kết ngày trao 4 danh hiệu từ các vòng `chaos-v2`/`chaos-v3` (`dist/awards.js`): 👑 **Vua lật kèo** (vượt nhiều bậc nhất trong 3 giây cuối), 💣 **Sát thủ** (ra đòn trúng nhiều nhất), 🛡️ **Thánh né đòn** (chặn hoặc dội nhiều đòn nhất), 😭 **Kẻ xui nhất** (dính nhiều đòn nhất). Đồng hạng thì cùng nhận; danh hiệu không ai đạt thì bỏ qua. Danh hiệu chỉ để vui, không ảnh hưởng điểm hay quỹ.
 
 ## Đua và điểm ngày
 
@@ -71,6 +107,15 @@ Biểu tượng trên vịt, danh sách skill và nhật ký sự kiện cho bi�
 Trong **5 giây cuối**, một số vịt được tăng tốc ngẫu nhiên. Cú tăng tốc bổ sung quãng đường thật nên vịt đang cuối vẫn có thể vượt lên thắng. Hiệu ứng vệt nước cho biết vịt nào đang bứt phá.
 
 Với N người, vịt về hạng r mang lại **N − r + 1 điểm** cho người đã chọn. Sau mỗi vòng có bảng kết quả, tổng điểm ngày và thứ tự chọn vòng sau. Mọi người chọn lại vịt ở mỗi vòng.
+
+### ⭐ Ngôi sao hy vọng
+
+Mỗi người có **1 ngôi sao mỗi ngày đua** (ngày tạo từ bản này trở đi). Đến lượt mình, bật **Dùng sao lượt này** rồi mới bấm chọn vịt. Vịt có sao mang ⭐ suốt trận. Nếu vịt về **nửa trên** (hạng r ≤ ⌊N/2⌋), điểm vòng đó **nhân đôi**; về nửa dưới vẫn nhận điểm thường, **không bao giờ bị trừ**. Ví dụ 7 người: hạng 1–3 có sao được 14 / 12 / 10.
+
+- Hoàn tác lựa chọn cuối gỡ luôn sao đi kèm. Đã xuất phát thì không gỡ được.
+- Sao không dùng ở đua phụ; ngày không dùng sao thì mất.
+- Điểm có sao cộng thẳng vào tổng ngày, nên ảnh hưởng cả việc ai đóng quỹ. Thứ tự chọn vòng sau vẫn theo thứ hạng vòng vừa đua.
+- Bảng kết quả ghi ⭐×2 khi được nhân đôi; CSV có thêm cột Sao.
 
 ## Khoản đóng quỹ cuối ngày
 
@@ -109,17 +154,17 @@ Mùa, ngày, lựa chọn, kết quả và trạng thái thu tiền được lư
 
 Các giải cũ giữ nguyên điểm, kết quả, lựa chọn và cuộc đua đang dở; tiếp tục dùng luật cà phê cũ. Chúng không thuộc quỹ mùa mới và **không bị tính tiền hồi tố**. Quy tắc ưu tiên mới kiểm tra chặt thứ tự lựa chọn của các ngày theo luật mùa mới; lựa chọn dở hợp lệ từ bản cũ vẫn được bảo toàn khi chuyển dữ liệu.
 
-Một cuộc đua mùa giải đã xuất phát trước bản thiên phú vẫn dùng mô phỏng cũ đến hết vòng đó. Vòng tiếp theo mới dùng `chaos-v1`. Các giải cà phê phiên bản 2 tiếp tục dùng mô phỏng cũ trong mọi vòng. Dữ liệu có phiên bản cuộc đua đang dở chưa hỗ trợ sẽ không được tự chạy lại bằng một cơ chế khác hoặc ghi đè.
+Một cuộc đua mùa giải đã xuất phát trước bản thiên phú vẫn dùng mô phỏng cũ đến hết vòng đó. Trận đang dở và phần xem lại luôn dựng lại bằng đúng phiên bản đã lưu (`chaos-v1`, `chaos-v2` hoặc `chaos-v3`); vòng tiếp theo dùng `chaos-v3`. Test `tests/chaos-engine-v3.test.cjs` khóa kết quả `chaos-v2` bằng mã băm để bảo đảm không đổi. Ngày đua đang chơi dở từ bản trước (phiên bản luật 3) chuyển sang `chaos-v2` cho các vòng còn lại nhưng không có ngôi sao; ngày mới dùng phiên bản luật 4. Các giải cà phê phiên bản 2 tiếp tục dùng mô phỏng cũ trong mọi vòng. Dữ liệu có phiên bản cuộc đua đang dở chưa hỗ trợ sẽ không được tự chạy lại bằng một cơ chế khác hoặc ghi đè.
 
 ## Cơ chế mô phỏng
 
-Mỗi vòng có seed ngẫu nhiên từ Web Crypto. `chaos-v1` tích phân quãng đường theo bước 1/20 giây, gồm vận tốc cơ bản, thiên phú, skill, rune, tác động chậm và nước rút sin² trong 5 giây cuối. Swap thực sự hoán đổi quãng đường của hai vịt tại thời điểm sự kiện. Thứ hạng lấy từ quãng đường cuối, không phải bảng kết quả gán sẵn. Quãng đường được chuẩn hóa để vịt thắng chạm đích ở đúng thời lượng đã chọn.
+Mỗi vòng có seed ngẫu nhiên từ Web Crypto. Vòng mới dùng `chaos-v3`, tức `chaos-v2` cộng thời tiết (cùng file, xuất ra `DuckChaosEngineV3`). `chaos-v2` (`dist/chaos-engine-v2.js`) tích phân quãng đường theo bước 1/20 giây, gồm vận tốc cơ bản, skill, sự kiện sông nước, rune, tác động lật/quay/chậm và nước rút sin² trong 5 giây cuối. Các cú nhảy vị trí (bay, đổi chỗ, móc câu, lốc xoáy, cá sấu, sóng) thay đổi quãng đường thật ngay tại thời điểm sự kiện, không trượt dần. `chaos-v1` (`dist/chaos-engine.js`) giữ nguyên cho trận và replay cũ. Thứ hạng lấy từ quãng đường cuối, không phải bảng kết quả gán sẵn. Quãng đường được chuẩn hóa để vịt thắng chạm đích ở đúng thời lượng đã chọn.
 
-Tên người chơi và tổng điểm ngày không thay đổi xác suất sự kiện. Thiên phú có ảnh hưởng được công bố trên từng vịt. Các dòng ngẫu nhiên dành cho chuyển động, skill, rune và kháng được tách riêng; cùng seed và phiên bản luôn dựng lại cùng diễn biến. Không được chỉnh các quy tắc `chaos-v1` đã phát hành tại chỗ nếu làm đổi kết quả lưu; thay đổi tương lai cần phiên bản mô phỏng mới và giữ bộ đọc cũ.
+Tên người chơi và tổng điểm ngày không thay đổi xác suất sự kiện. Các dòng ngẫu nhiên dành cho chuyển động, skill, lịch lật kèo, sự kiện, rune và hiệu ứng được tách riêng; cùng seed và phiên bản luôn dựng lại cùng diễn biến. Không được chỉnh các quy tắc `chaos-v1` hay `chaos-v2` đã phát hành tại chỗ nếu làm đổi kết quả lưu; thay đổi tương lai cần phiên bản mô phỏng mới và giữ bộ đọc cũ.
 
 ## Đồ họa và chuyển động
 
-- Bộ vịt dùng chung một ảnh sprite trong `dist/assets/duck-atlas.png`; tên, số vịt, màu nhận diện và thiên phú giữ nguyên. Cảnh sông có nền `river-garden.png`, vùng xuất phát, đích và thứ hạng trực tiếp cạnh từng vịt.
+- Bộ vịt dùng chung một ảnh sprite trong `dist/assets/duck-atlas.png`; tên, số vịt và màu nhận diện giữ nguyên. Cảnh sông có nền `river-garden.png`, vùng xuất phát, đích và thứ hạng trực tiếp cạnh từng vịt.
 - Khi đua, đường đua mở rộng; thân vịt nổi nhẹ trên nước, nhãn tên và hạng tách khỏi chuyển động của thân để dễ đọc. Vị trí theo `requestAnimationFrame` và nội suy sẵn có của engine, không thêm độ trễ vào quãng đường hay đổi kết quả.
 - Lớp `race-visuals.js` chỉ vẽ hiệu ứng: gợn nước, vệt tăng tốc, bom bay, cổng swap, nhặt rune, khiên và pháo giấy cuối lượt. Canvas giới hạn theo vùng nhìn thấy; tạm dừng không tiếp tục chạy hiệu ứng. Khôi phục trận không phát lại các hiệu ứng ngắn đã qua.
 - Trình duyệt bật giảm chuyển động sẽ bỏ các hoạt ảnh trang trí; không hỗ trợ Canvas 2D vẫn đua và tính điểm bình thường.

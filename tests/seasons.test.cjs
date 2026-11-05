@@ -118,3 +118,15 @@ test('season setup and names follow the validated roster contract', () => {
   assert.throws(() => makeSeason({ date: '2026-02-30' }));
   assert.throws(() => makeSeason({ name: 'x'.repeat(81) }));
 });
+
+test('season accepts v4 days alongside v3 days and keeps fund math', () => {
+  const season = makeSeason();
+  const v3 = makeDay('2026-11-04', [0, 1, 2]);
+  let v4 = T.createSession({ names, date: '2026-11-05', roundLimit: 1 });
+  v4 = T.recordRound(v4, { id: '2026-11-05-r1', picks, order: [2, 0, 1], completedAt: '2026-11-05T10:00:00.000Z', stars: ['p2'] });
+  assert.equal(v4.version, 4);
+  const result = S.summary(season, [v3, v4]);
+  assert.equal(result.daysComplete, 2);
+  assert.equal(result.assessed, 200000);
+  assert.deepEqual(S.validateSeason(JSON.parse(JSON.stringify(season)), [v3, v4]), season);
+});

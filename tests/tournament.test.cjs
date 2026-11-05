@@ -106,9 +106,9 @@ test('setup validation rejects ambiguous names and invalid calendar/settings val
   assert.equal(make(3, { date: '2028-02-29' }).date, '2028-02-29');
 });
 
-test('version 3 is the default and unique daily last places owe 60k and 40k', () => {
+test('version 4 is the default (hope stars); unique daily last places owe 60k and 40k', () => {
   const created = T.createSession({ names: ['Phú', 'An', 'Bình'], date: '2026-11-04' });
-  assert.equal(created.version, 3);
+  assert.equal(created.version, 4);
   let session = make(4, { version: 3, roundLimit: 1 });
   assert.deepEqual(T.coffeeStatus(session), { status: 'pending', coffeeIds: [], tiedIds: [], slots: 2, contributions: [] });
   session = add(session, [0, 1, 2, 3]);
@@ -175,4 +175,86 @@ test('selection follows last round worst to best, not accumulated scores', () =>
   const legacy = { ...session, version: 2 };
   assert.equal(T.selectionState(legacy, 'regular', { p3: 0 }).nextPlayerId, 'p0');
   assert.throws(() => T.selectionOrder(session, 'invalid'));
+});
+
+// ---- Ngôi sao hy vọng (session version 4) ----
+const people = count => Array.from({ length: count }, (_, i) => `Người ${i + 1}`);
+const v4 = (count, extra = {}) => T.createSession({ names: people(count), date: '2026-11-04', ...extra });
+const starRound = (session, order, stars, id = `r${session.rounds.length + 1}`) => T.recordRound(session, { id, picks: picksFor(session.players), order, completedAt, stars });
+
+test('new sessions default to v4', () => {
+  assert.equal(v4(3).version, 4);
+  assert.throws(() => v4(3, { version: 5 }));
+});
+
+test('star doubles top-half points and never subtracts', () => {
+  const s = starRound(v4(7), [0, 1, 2, 3, 4, 5, 6], ['p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
+  assert.deepEqual(s.rounds[0].entries.map(e => e.points), [14, 12, 10, 4, 3, 2, 1]);
+  assert.ok(s.rounds[0].entries.every(e => e.star === true));
+  const plain = starRound(v4(7), [0, 1, 2, 3, 4, 5, 6], []);
+  assert.ok(plain.rounds[0].entries.every(e => !('star' in e)));
+});
+
+test('three players: only rank 1 doubles', () => {
+  const s = starRound(v4(3), [0, 1, 2], ['p0', 'p1', 'p2']);
+  assert.deepEqual(s.rounds[0].entries.map(e => e.points), [6, 2, 1]);
+});
+
+test('one star per player per day', () => {
+  let s = v4(4);
+  assert.equal(T.starAvailable(s, 'p0'), true);
+  s = starRound(s, [0, 1, 2, 3], ['p0']);
+  assert.equal(T.starAvailable(s, 'p0'), false);
+  assert.equal(T.starAvailable(s, 'p1'), true);
+  assert.throws(() => starRound(s, [0, 1, 2, 3], ['p0']), /sao/i);
+  assert.throws(() => starRound(s, [0, 1, 2, 3], ['p1', 'p1']), /sao/i);
+  assert.throws(() => starRound(s, [0, 1, 2, 3], ['p9']), /sao/i);
+});
+
+test('v3 session rejects stars and keeps old points', () => {
+  const s = T.createSession({ version: 3, names: people(3), date: '2026-11-04' });
+  assert.equal(T.starAvailable(s, 'p0'), false);
+  assert.throws(() => starRound(s, [0, 1, 2], ['p0']), /sao/i);
+  assert.deepEqual(starRound(s, [0, 1, 2], []).rounds[0].entries.map(e => e.points), [3, 2, 1]);
+});
+
+test('saved v4 session with stars round-trips through validateSession', () => {
+  const s = starRound(starRound(v4(4), [0, 1, 2, 3], ['p1']), [3, 2, 1, 0], ['p3']);
+  const saved = JSON.parse(JSON.stringify(s));
+  assert.deepEqual(T.validateSession(saved), s);
+  const badPoints = JSON.parse(JSON.stringify(s)); badPoints.rounds[0].entries[1].points = 3;
+  assert.throws(() => T.validateSession(badPoints));
+  const badFlag = JSON.parse(JSON.stringify(s)); badFlag.rounds[0].entries[1].star = 'yes';
+  assert.throws(() => T.validateSession(badFlag));
+  const twice = JSON.parse(JSON.stringify(s)); twice.rounds[1].entries.find(e => e.playerId === 'p1').star = true;
+  assert.throws(() => T.validateSession(twice));
+  const v3 = T.createSession({ version: 3, names: people(3), date: '2026-11-04' });
+  const v3Saved = JSON.parse(JSON.stringify(starRound(v3, [0, 1, 2], []))); v3Saved.rounds[0].entries[0].star = true; v3Saved.rounds[0].entries[0].points = 6;
+  assert.throws(() => T.validateSession(v3Saved));
+});
+
+test('tiebreak cannot carry stars', () => {
+  const base = starRound(v4(4, { roundLimit: 2 }), [0, 1, 2, 3], []);
+  const level = starRound(base, [1, 0, 3, 2], []);
+  assert.equal(T.coffeeStatus(level).status, 'tie');
+  const ids = T.coffeeStatus(level).tiedIds;
+  const players = level.players.filter(p => ids.includes(p.id));
+  const picks = Object.fromEntries(players.map((p, i) => [p.id, i]));
+  const done = T.recordTiebreak(level, { id: 't1', picks, order: players.map((_, i) => i), completedAt, stars: [players[0].id] });
+  assert.ok(done.tiebreaks[0].entries.every(e => !('star' in e)));
+  const saved = JSON.parse(JSON.stringify(done)); saved.tiebreaks[0].entries[0].star = true;
+  assert.throws(() => T.validateSession(saved));
+});
+
+test('stars change who pays, and doubled totals can force a tiebreak', () => {
+  const r1 = [1, 0, 2, 3], r2 = [3, 2, 1, 0];
+  const plain = starRound(starRound(v4(4, { roundLimit: 2 }), r1, []), r2, []);
+  assert.deepEqual(T.standings(plain).map(r => [r.playerId, r.total]).sort(), [['p0', 4], ['p1', 6], ['p2', 5], ['p3', 5]]);
+  assert.ok(T.coffeeStatus(plain).coffeeIds.includes('p0'));
+  const starred = starRound(starRound(v4(4, { roundLimit: 2 }), r1, ['p0']), r2, []);
+  assert.equal(T.standings(starred).find(r => r.playerId === 'p0').total, 7);
+  const status = T.coffeeStatus(starred);
+  assert.ok(!status.coffeeIds.includes('p0'));
+  assert.equal(status.status, 'tie');
+  assert.deepEqual([...status.tiedIds].sort(), ['p2', 'p3']);
 });
