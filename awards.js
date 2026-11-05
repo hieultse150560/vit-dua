@@ -31,13 +31,13 @@
     if (SINGLE_HITS.has(e.skill) && e.outcome === 'hit') { out.victims.push(e.targetId); out.strikes++; }
     if (e.skill === 'mirror' && e.outcome === 'fallback' && e.effect === 'hit') { out.victims.push(e.targetId); out.strikes++; }
     if (e.skill === 'rocket' && e.outcome === 'exploded') out.victims.push(e.actorId);
-    if (e.skill === 'wave' && e.outcomes) {
+    if (e.outcomes) { // wave, lightning, reverse, freeze: per-duck results
       for (const [id, result] of Object.entries(e.outcomes)) {
         if (result === 'hit') { out.victims.push(Number(id)); out.strikes++; }
         if (result === 'blocked' && !buoyReactions.has(`${e.time}|${id}`)) out.dodgers.push(Number(id));
       }
     }
-    if ((e.skill === 'swap' && e.outcome === 'swapped') || (e.skill === 'tornado' && e.outcome === 'shuffled')) {
+    if ((['swap', 'flip'].includes(e.skill) && e.outcome === 'swapped') || (e.skill === 'tornado' && e.outcome === 'shuffled') || e.skill === 'rewind') {
       out.victims.push(...movedBack(e));
       if (e.skill === 'swap' && e.after?.[e.actorId] > e.before?.[e.actorId]) out.strikes++;
     }

@@ -389,3 +389,9 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .award-title{font-size:14px;color:#6b4a00}
 .award-who{font-weight:800;font-size:16px;color:#2c2410}
 .award-detail{color:#7d6a3e}
+
+/* chaos-v3 poses: backwards swimmers face the other way; frozen ducks sit in an ice block */
+.racer.reversed .duck-body{scale:-1 1}
+.racer.twist-focus.reversed .duck-body{scale:-1.5 1.5}
+.racer.frozen .duck-body{filter:saturate(.25) brightness(1.25) drop-shadow(0 0 6px #bff4ff)}
+.racer.frozen::after{content:'';position:absolute;left:14%;right:14%;top:8%;bottom:14%;z-index:3;border-radius:12px;border:2px solid rgba(235,252,255,.95);background:linear-gradient(135deg,rgba(255,255,255,.55),rgba(190,240,255,.25));box-shadow:inset 0 0 12px rgba(255,255,255,.8);pointer-events:none}

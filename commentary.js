@@ -24,9 +24,17 @@
     'croc:hit': ['Cá sấu! {a} bị đớp kéo lùi lại!', 'Một con cá sấu ngoạm lấy {a}! Hú hồn!'],
     'wind:boost': ['Gió thuận thổi bay {a} lên phía trước!', 'Ông trời thương {a}, gió đẩy lên vùn vụt!'],
     'whirlpool:hit': ['Xoáy nước cuốn {a} quay vòng vòng!', '{a} lọt vào xoáy nước, chóng hết cả mặt!'],
+    'magnet:pull': ['Nam châm của {a} hút vèo một cái, dính ngay sau con dẫn đầu!', '{a} bật nam châm, bay một mạch lên top!'],
+    'lightning:hit': ['Ầm! Sét đánh trúng tốp đầu, {a} cười khoái chí!', 'Trời nổi giông! {a} gọi sét đánh lật cả hai con dẫn đầu!'],
+    'lightning:reflected': ['{a} gọi sét nhưng sét dội ngược, tự lãnh đủ!'],
+    'flip:swapped': ['Lộn đầu đuôi! {a} khiến con dẫn đầu rơi xuống chót!', 'Không thể tin nổi! {a} đảo ngược đầu và đuôi đoàn đua!'],
+    'rewind:rewound': ['{a} tua ngược thời gian, cả đoàn bị kéo lùi lại!', 'Tua lại nào! Mọi con trừ {a} đều về chỗ cũ!'],
+    'reverse:hit': ['Bơi ngược chiều! {a} khiến tốp đầu quay đầu bơi lùi!', '{a} làm hai con dẫn đầu lú lẫn, bơi ngược về sau!'],
+    'freeze:frozen': ['Đóng băng! Cả sông đứng hình, chỉ mình {a} còn bơi!', '{a} thổi một luồng gió lạnh, mặt sông đóng băng tức thì!'],
+    'rock:finale': ['Trời ơi! {a} vấp đá ngay trước vạch đích, mất trắng chiến thắng!', 'Kịch tính tột độ! {a} sắp về nhất thì vấp đá ngã lăn!', '{a} chỉ còn một sải nữa thôi… và vấp đá! Chiến thắng tuột khỏi tay!'],
     'dolphin:boost': ['Cá heo xuất hiện, cõng {a} lên phía trước!', '{a} được cá heo cho đi nhờ! Vui quá!'],
     blocked: ['{b} có lá chắn, đòn của {a} tan biến!', 'Đỡ được rồi! {a} vô vọng trước {b}!', 'Phao cứu {a} một bàn thua trông thấy!'],
-    reflected: ['Đòn của {a} bị gương của {b} dội ngược!', '{a} tấn công {b} và… tự hại mình!'],
+    reflected: ['Đòn của {a} bị gương của {b} dội ngược!', '{a} tấn công {b} và… tự hại mình!', 'Gương thần! Đòn của {a} bị dội ngược về chính nó!'],
     immune: ['{b} đang miễn nhiễm, {a} đánh hụt!', '{a} ra đòn nhưng không ăn thua!', '{a} vẫn còn choáng nên không sao!'],
     default: ['{a} tung chiêu vào {b}!', '{a} ra tay!']
   };
@@ -46,7 +54,7 @@
     const id = event.skill || event.hazard, a = nameOf(event.actorId);
     const hasTarget = Number.isInteger(event.targetId) && event.targetId !== event.actorId;
     const fits = list => (list || []).filter(text => text.includes('{b}') === hasTarget);
-    const pool = [LINES[`${id}:${event.outcome}`], LINES[event.outcome], LINES.default].map(fits).find(list => list.length)
+    const pool = [event.finale && LINES['rock:finale'], LINES[`${id}:${event.outcome}`], LINES[event.outcome], LINES.default].map(fits).find(list => list.length)
       || [`${a} ${event.label || ''}`.trim()];
     const pick = pool[hash(`${event.id}|${event.time}`) % pool.length];
     return pick.replaceAll('{a}', a).replaceAll('{b}', hasTarget ? nameOf(event.targetId) : '');

@@ -2,10 +2,12 @@
   'use strict';
   // Synthesized sound effects for chaos-v2/v3 twists (no audio files).
   // kindOf() picks a sound for an event; play() builds it with Web Audio.
-  const BY_SKILL = { wings: 'flutter', wave: 'wave', swap: 'zap', mirror: 'ding', hook: 'zip', tornado: 'swirl', buoy: 'pop' };
+  const BY_SKILL = { wings: 'flutter', wave: 'wave', swap: 'zap', mirror: 'ding', hook: 'zip', tornado: 'swirl', buoy: 'pop',
+    magnet: 'zip', lightning: 'thunder', flip: 'zap', rewind: 'warp', reverse: 'warp', freeze: 'ice' };
   const BY_HAZARD = { rock: 'splash', croc: 'chomp', wind: 'whoosh', whirlpool: 'swirl', dolphin: 'chirp' };
-  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer']);
-  const V2_SKILLS = new Set(['wings', 'torpedo', 'wave', 'swap', 'rocket', 'mirror', 'hook', 'tornado', 'banana', 'buoy']);
+  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer', 'thunder', 'warp', 'ice']);
+  const V2_SKILLS = new Set(['wings', 'torpedo', 'wave', 'swap', 'rocket', 'mirror', 'hook', 'tornado', 'banana', 'buoy',
+    'magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze']); // chaos-v2 + chaos-v3 skills
 
   function kindOf(event) {
     if (event.type === 'hazard') return BY_HAZARD[event.hazard] || null;
@@ -62,6 +64,12 @@
     chomp: (c, t) => { for (const d of [0, .14]) { noise(c, 'lowpass', 1400, 300, t + d, .06, 1, .002); tone(c, 'square', 90, 60, t + d, .06, .5, .002); } },
     chirp: (c, t) => { for (let i = 0; i < 3; i++) tone(c, 'sine', 1400, 3200, t + i * .11, .08, .6, .005); },
     // Crowd roar (band-passed noise swell) plus two whistles.
+    // Crack then rolling rumble.
+    thunder: (c, t) => { noise(c, 'highpass', 3000, 1200, t, .12, 1.2, .002); noise(c, 'lowpass', 600, 80, t + .05, 1.4, 1.1, .05); tone(c, 'sine', 70, 40, t + .05, 1, .8); },
+    // Tape-rewind squeal sweeping down.
+    warp: (c, t) => { tone(c, 'sawtooth', 1800, 120, t, .7, .35); tone(c, 'sine', 900, 60, t + .08, .65, .4); },
+    // Glassy shimmer of ice.
+    ice: (c, t) => { for (let i = 0; i < 5; i++) tone(c, 'triangle', 2400 + i * 380, 2300 + i * 380, t + i * .06, .5, .25, .003); noise(c, 'highpass', 6000, 4000, t, .4, .3); },
     cheer: (c, t) => { noise(c, 'bandpass', 900, 1700, t, 1.6, 1.1, .25); tone(c, 'sine', 1800, 2400, t + .2, .25, .3); tone(c, 'sine', 2000, 2700, t + .55, .3, .3); }
   };
   // Soft looping river noise for the whole race; returns stop().
