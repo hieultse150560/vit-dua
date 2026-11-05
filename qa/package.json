@@ -1,0 +1,13 @@
+{
+  "name": "vit-dua-qa",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test v3-integration.test.mjs chaos-integration.test.mjs visual-integration.test.mjs"
+  },
+  "devDependencies": {
+    "happy-dom": "21.0.4"
+  }
+}
