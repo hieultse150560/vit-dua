@@ -3,11 +3,12 @@
   // Synthesized sound effects for chaos-v2/v3 twists (no audio files).
   // kindOf() picks a sound for an event; play() builds it with Web Audio.
   const BY_SKILL = { wings: 'flutter', wave: 'wave', swap: 'zap', mirror: 'ding', hook: 'zip', tornado: 'swirl', buoy: 'pop',
-    magnet: 'zip', lightning: 'thunder', flip: 'zap', rewind: 'warp', reverse: 'warp', freeze: 'ice' };
-  const BY_HAZARD = { rock: 'splash', croc: 'chomp', wind: 'whoosh', whirlpool: 'swirl', dolphin: 'chirp' };
-  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer', 'thunder', 'warp', 'ice']);
+    magnet: 'zip', lightning: 'thunder', flip: 'zap', rewind: 'warp', reverse: 'warp', freeze: 'ice',
+    missile: 'missile', bees: 'buzz', blackhole: 'warp', ghost: 'ghost', balloon: 'balloon' };
+  const BY_HAZARD = { rock: 'splash', croc: 'chomp', wind: 'whoosh', whirlpool: 'swirl', dolphin: 'chirp', hippo: 'splash', log: 'thud', frog: 'ribbit' };
+  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer', 'thunder', 'warp', 'ice', 'missile', 'buzz', 'ghost', 'balloon', 'thud', 'ribbit']);
   const V2_SKILLS = new Set(['wings', 'torpedo', 'wave', 'swap', 'rocket', 'mirror', 'hook', 'tornado', 'banana', 'buoy',
-    'magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze']); // chaos-v2 + chaos-v3 skills
+    'magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon']); // chaos-v2 + chaos-v3 skills
 
   function kindOf(event) {
     if (event.type === 'hazard') return BY_HAZARD[event.hazard] || null;
@@ -70,6 +71,13 @@
     warp: (c, t) => { tone(c, 'sawtooth', 1800, 120, t, .7, .35); tone(c, 'sine', 900, 60, t + .08, .65, .4); },
     // Glassy shimmer of ice.
     ice: (c, t) => { for (let i = 0; i < 5; i++) tone(c, 'triangle', 2400 + i * 380, 2300 + i * 380, t + i * .06, .5, .25, .003); noise(c, 'highpass', 6000, 4000, t, .4, .3); },
+    missile: (c, t) => { noise(c, 'bandpass', 600, 3200, t, .45, .8, .05); tone(c, 'sawtooth', 300, 1400, t, .42, .25); RECIPES.boom(c, t + .45); },
+    // A swarm: detuned square buzzes wobbling in pitch.
+    buzz: (c, t) => { for (const f of [210, 228, 245]) for (let i = 0; i < 4; i++) tone(c, 'square', f + i * 9, f - i * 7, t + i * .18, .2, .18, .02); },
+    ghost: (c, t) => { tone(c, 'sine', 420, 880, t, .5, .5, .15); tone(c, 'sine', 880, 330, t + .5, .7, .45, .05); tone(c, 'triangle', 660, 640, t, 1.1, .15, .3); },
+    balloon: (c, t) => { tone(c, 'sine', 500, 1600, t, .45, .5, .02); tone(c, 'triangle', 1600, 1500, t + .45, .25, .3); },
+    thud: (c, t) => { tone(c, 'sine', 110, 45, t, .35, 1.1, .003); noise(c, 'lowpass', 700, 120, t, .3, .8, .003); },
+    ribbit: (c, t) => { for (const d of [0, .2]) { tone(c, 'square', 180, 260, t + d, .07, .5, .005); tone(c, 'square', 260, 150, t + d + .07, .06, .4, .005); } },
     cheer: (c, t) => { noise(c, 'bandpass', 900, 1700, t, 1.6, 1.1, .25); tone(c, 'sine', 1800, 2400, t + .2, .25, .3); tone(c, 'sine', 2000, 2700, t + .55, .3, .3); }
   };
   // Soft looping river noise for the whole race; returns stop().
