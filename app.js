@@ -1,8 +1,18 @@
 (() => {
   'use strict';
-  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine;
+  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV3;
+  // Saved races replay with the engine version they were started on.
+  const ENGINES={[C.version]:C,[C2.version]:C2,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
+  let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
+  // Slow motion: each twist plays the race at SLOWMO_RATE for SLOWMO_MS of real time.
+  // Only the display clock slows; the simulated result never changes.
+  // slowmoUntil is on the race clock, so pausing keeps the remaining slow motion.
+  const SLOWMO_RATE=.2, SLOWMO_MS=1400;let slowmoUntil=0;
+  // Photo finish: when the runner-up ends within PHOTO_GAP of the line, the last
+  // PHOTO_WINDOW race-seconds play at PHOTO_RATE with the camera on the finish line.
+  const PHOTO_GAP=.015, PHOTO_WINDOW=1.2, PHOTO_RATE=.3;let photoFinish=false, photoActive=false;
   const KEY='vit-dua-seasons-v3', LEGACY_KEY='vit-dua-club-v2';
-  let store={version:3,currentId:null,currentSeasonId:null,seasons:[],sessions:[]}, current=null, selected=null, setupMode='season';
+  let store={version:3,currentId:null,currentSeasonId:null,seasons:[],sessions:[]}, current=null, selected=null, setupMode='season', starArmed=false;
   let race=null, phase='idle', raf=null, lastTime=0, lastSaved=0, nodes=[], runwayWidth=0;
   let audio=null, sound=false, lastTick=-1, sprintAnnounced=false, leadersKey='', toastTimer;
   let dialogAction=()=>{}, storageBlocked=false;
@@ -21,6 +31,9 @@
   const seasonView=()=>store.seasons.find(s=>s.id===store.currentSeasonId)||currentSeason();
   const queue=()=>T.selectionState(current.session,current.type,current.picks);
   const isLegacy=()=>current?.session.version===2;
+  const starsOf=()=>current?.stars||[];
+  // ⭐×2 when the star doubled the round, ⭐ when it was played without doubling.
+  const starMark=(entry,count)=>entry.star?(entry.points!==count-entry.rank+1?' ⭐×2':' ⭐'):'';
   const amountFor=id=>outcome().contributions?.find(c=>c.playerId===id)?.amount||0;
   const contributionLabel=id=>isLegacy()?(outcome().coffeeIds.includes(id)?'☕ Bao cà phê':'—'):(amountFor(id)?money(amountFor(id)):'—');
   const playerName=id=>current.session.players.find(p=>p.id===id)?.name||'—';
@@ -60,10 +73,13 @@
     const players=participants(clean), ids=new Set(players.map(p=>p.id)), chosen=new Set();
     if(!raw.picks||typeof raw.picks!=='object'||Array.isArray(raw.picks))throw Error('Lựa chọn đã lưu không hợp lệ.');
     for(const [id,duck] of Object.entries(raw.picks)){if(!ids.has(id)||!Number.isInteger(duck)||duck<0||duck>=players.length||chosen.has(duck))throw Error('Lựa chọn đã lưu không hợp lệ.');clean.picks[id]=duck;chosen.add(duck);}
+    const stars=raw.stars===undefined?[]:raw.stars;
+    if(!Array.isArray(stars)||new Set(stars).size!==stars.length||stars.some(id=>typeof id!=='string'||!Object.hasOwn(clean.picks,id)||!T.starAvailable(clean.session,id))||(stars.length&&(clean.type!=='regular'||clean.stage!=='picking')))throw Error('Ngôi sao hy vọng đã lưu không hợp lệ.');
+    if(stars.length)clean.stars=[...stars]; // ponytail: absent means none, so old saves keep their exact shape
     if(raw.active){const a=raw.active;T.validatePicks(players,clean.picks);if(clean.stage!=='picking'||!Number.isInteger(a.seed)||a.seed<0||a.seed>4294967295||typeof a.id!=='string'||!a.id||a.id.length>128||!Number.isFinite(a.elapsed)||a.elapsed<0||a.elapsed>clean.session.duration||!Number.isFinite(a.countdownLeft)||a.countdownLeft<0||a.countdownLeft>3)throw Error('Lượt đang đua không hợp lệ.');if(clean.type==='regular'&&clean.session.rounds.length>=clean.session.roundLimit)throw Error('Lượt đã hoàn tất.');if(clean.type==='tie'&&T.coffeeStatus(clean.session).status!=='tie')throw Error('Lượt phụ không hợp lệ.');if([...clean.session.rounds,...clean.session.tiebreaks].some(r=>r.id===a.id))throw Error('Lượt bị trùng.');clean.active={id:a.id,seed:a.seed,elapsed:a.elapsed,countdownLeft:a.countdownLeft};}
-    if(raw.active?.engine!==undefined){if(raw.active.engine!==C.version)throw Error('Phiên bản cuộc đua chưa được hỗ trợ.');clean.active.engine=raw.active.engine;}
+    if(raw.active?.engine!==undefined){if(!engineFor(raw.active.engine))throw Error('Phiên bản cuộc đua chưa được hỗ trợ.');clean.active.engine=raw.active.engine;}
     const records=new Set([...clean.session.rounds,...clean.session.tiebreaks].map(r=>r.id));
-    if(Array.isArray(raw.raceReplays)){const seen=new Set();for(const r of raw.raceReplays){if(r&&records.has(r.id)&&!seen.has(r.id)&&r.engine===C.version&&Number.isInteger(r.seed)&&r.seed>=0&&r.seed<=4294967295){clean.raceReplays.push({id:r.id,seed:r.seed,engine:r.engine});seen.add(r.id);}}}
+    if(Array.isArray(raw.raceReplays)){const seen=new Set();for(const r of raw.raceReplays){if(r&&records.has(r.id)&&!seen.has(r.id)&&engineFor(r.engine)&&Number.isInteger(r.seed)&&r.seed>=0&&r.seed<=4294967295){clean.raceReplays.push({id:r.id,seed:r.seed,engine:r.engine});seen.add(r.id);}}}
     if(clean.stage==='picking')T.selectionState(clean.session,clean.type,clean.picks);
     return clean;
   }
@@ -76,7 +92,7 @@
       if(new Set(sessions.map(e=>e.session.id)).size!==sessions.length)throw Error('Trùng ngày đua.');
       const seasons=raw?saved.seasons.map(s=>S.validateSeason(s,sessions.filter(e=>e.seasonId===s.id).map(e=>e.session))):[];
       if(new Set(seasons.map(s=>s.id)).size!==seasons.length||seasons.filter(s=>!s.closedAt).length>1)throw Error('Danh sách mùa giải không hợp lệ.');
-      for(const e of sessions){if(e.session.version===3&&!seasons.some(s=>s.id===e.seasonId))throw Error('Ngày đua thiếu mùa giải.');if(e.session.version===2&&e.seasonId!==null)throw Error('Không gán tiền hồi tố cho dữ liệu cũ.');}
+      for(const e of sessions){if(e.session.version!==2&&!seasons.some(s=>s.id===e.seasonId))throw Error('Ngày đua thiếu mùa giải.');if(e.session.version===2&&e.seasonId!==null)throw Error('Không gán tiền hồi tố cho dữ liệu cũ.');}
       store={version:3,currentId:saved.currentId,currentSeasonId:raw?saved.currentSeasonId:null,seasons,sessions};
       current=sessions.find(e=>e.session.id===store.currentId)||sessions.at(-1)||null;if(current){store.currentId=current.session.id;store.currentSeasonId=current.seasonId;}
       if(legacy)save();
@@ -107,15 +123,17 @@
     $('pick-help').textContent=s.rounds.length?'Chót vòng trước chọn trước → về nhất chọn cuối.':'Vòng đầu ngày: chọn lần lượt theo danh sách.';
     $('players').replaceChildren(...orderedPlayers.map((p,index)=>{
       const duck=current.picks[p.id], b=node('button',`player${p.id===selected&&picking?' selected':''}${duck!==undefined?' chosen':''}`);b.dataset.playerId=p.id;b.disabled=!picking||p.id!==selected;b.setAttribute('aria-pressed',String(p.id===selected));
-      const info=node('span','player-info');info.append(node('span','player-name',`${index+1}. ${p.name}`),node('span','player-duck',duck===undefined?(p.id===selected?'Đến lượt chọn vịt':`Chờ lượt chọn ${index+1}`):`#${duck+1} · ${A.name(duck)}`));b.append(node('span','avatar',p.name.split(/\s+/).map(n=>Array.from(n)[0]).slice(-2).join('')),info,node('span','player-check',duck===undefined?(p.id===selected?'→':'…'):'✓'));b.onclick=()=>{if(!current.active&&current.stage==='picking'&&p.id===queue().nextPlayerId)focusDuck();};return b;
+      const info=node('span','player-info');info.append(node('span','player-name',`${index+1}. ${p.name}${starsOf().includes(p.id)?' ⭐':''}`),node('span','player-duck',duck===undefined?(p.id===selected?'Đến lượt chọn vịt':`Chờ lượt chọn ${index+1}`):`#${duck+1} · ${A.name(duck)}`));if(s.version===4&&!T.starAvailable(s,p.id))info.append(node('span','star-used','☆ đã dùng sao'));b.append(node('span','avatar',p.name.split(/\s+/).map(n=>Array.from(n)[0]).slice(-2).join('')),info,node('span','player-check',duck===undefined?(p.id===selected?'→':'…'):'✓'));b.onclick=()=>{if(!current.active&&current.stage==='picking'&&p.id===queue().nextPlayerId)focusDuck();};return b;
     }));
     $('selected-player').textContent=players.find(p=>p.id===selected)?.name||(chosen===players.length?'Cả hội đã chọn xong':'—');
     $('selection-hint').textContent=picking&&selected?`Lượt chọn ${chosen+1}/${players.length}`:'Đội hình đã chốt';
+    const starOpen=picking&&!!selected&&current.type==='regular'&&T.starAvailable(s,selected);if(!starOpen)starArmed=false;
+    $('star-toggle').hidden=!starOpen;$('star-toggle').setAttribute('aria-pressed',String(starArmed));$('star-toggle').textContent=starArmed?'⭐ Sao đang bật cho lượt này':'☆ Dùng sao lượt này';
     $('duck-grid').replaceChildren(...players.map((_,id)=>{
       const owner=players.find(p=>current.picks[p.id]===id);
-      const talent=C.talentFor(id), b=node('button',`duck-card${owner?' claimed':''}`);b.dataset.duckId=String(id);b.disabled=!picking||!!owner||!selected;b.setAttribute('aria-label',`${A.name(id)} số ${id+1}${isLegacy()?'':` · ${talent.name} · ${talent.description}`}${owner?` — ${owner.name} đã chọn`:' — còn trống'}`);b.setAttribute('aria-pressed',String(!!owner));
+      const b=node('button',`duck-card${owner?' claimed':''}`);b.dataset.duckId=String(id);b.disabled=!picking||!!owner||!selected;b.setAttribute('aria-label',`${A.name(id)} số ${id+1}${isLegacy()?'':' · Skill bí mật'}${owner?` — ${owner.name} đã chọn`:' — còn trống'}`);b.setAttribute('aria-pressed',String(!!owner));
       const art=node('span');art.innerHTML=A.svg(id);b.append(node('span','duck-number',`#${String(id+1).padStart(2,'0')}`),art,node('strong','',A.name(id)),node('small','',owner?`${owner.name} ✓`:'Chọn vịt này'));
-      if(!isLegacy())b.append(node('span','talent-tag',`${talent.icon} ${talent.name}`),node('small','talent-detail',talent.description),node('small','secret-skill','🔒 Skill bí mật · lộ khi xuất phát'));
+      if(!isLegacy())b.append(node('small','secret-skill','🔒 Skill bí mật · lộ khi xuất phát'));
       b.onclick=()=>pick(id);return b;
     }));
     $('random-picks').disabled=!picking||chosen===players.length;
@@ -144,34 +162,35 @@
     $('round-history').replaceChildren(...(records.length?records.map(({r,type})=>{const b=node('button','history-card'),winner=r.entries[0];b.disabled=!!current.active;b.append(node('span','',type==='tie'?'⚖ LƯỢT PHÂN ĐỊNH':`VÒNG ${String(r.number).padStart(2,'0')}`),node('strong','',`🥇 ${playerName(winner.playerId)}`),node('small','',`${A.name(winner.duckId)}${type==='regular'?` · +${winner.points} điểm`:' · Không cộng điểm'}`));b.onclick=()=>showRound(r,type,false);return b;}):[node('p','empty','Chưa có vòng đua nào. Cả hội sẵn sàng chưa?')]));
   }
   function focusDuck(id){const target=id===undefined?null:$('duck-grid').querySelector(`[data-duck-id="${id}"]:not(:disabled)`);(target||$('duck-grid').querySelector('button:not(:disabled)'))?.focus({preventScroll:true});}
-  function pick(duck){if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const players=participants(),nextId=queue().nextPlayerId;if(!nextId||!Number.isInteger(duck)||duck<0||duck>=players.length||Object.values(current.picks).includes(duck))return;current.picks[nextId]=duck;save();render();if(Object.keys(current.picks).length===players.length)$('start').focus({preventScroll:true});else focusDuck();}
-  function undoPick(){if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const last=queue().order.filter(id=>current.picks[id]!==undefined).at(-1);if(!last)return;const duck=current.picks[last];delete current.picks[last];save();render();focusDuck(duck);}
+  function pick(duck){if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const players=participants(),nextId=queue().nextPlayerId;if(!nextId||!Number.isInteger(duck)||duck<0||duck>=players.length||Object.values(current.picks).includes(duck))return;current.picks[nextId]=duck;if(starArmed&&current.type==='regular'&&T.starAvailable(current.session,nextId))current.stars=[...starsOf(),nextId];starArmed=false;save();render();if(Object.keys(current.picks).length===players.length)$('start').focus({preventScroll:true});else focusDuck();}
+  function undoPick(){if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const last=queue().order.filter(id=>current.picks[id]!==undefined).at(-1);if(!last)return;const duck=current.picks[last];delete current.picks[last];current.stars=starsOf().filter(id=>id!==last);starArmed=false;save();render();focusDuck(duck);}
   function randomPicks(){
     if(!current||current.active||current.stage!=='picking')return;
     const players=participants(), pool=players.map((_,i)=>i).filter(i=>!Object.values(current.picks).includes(i));if(!pool.length)return;
     let x;const cap=4294967296-(4294967296%pool.length);do{x=crypto.getRandomValues(new Uint32Array(1))[0];}while(x>=cap);pick(pool[x%pool.length]);
   }
   function makeTrack(){
-    const players=participants();nodes=[];eventCursor=0;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
+    photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
     owners=race.racers.map(r=>players.find(p=>current.picks[p.id]===r.id)?.name||A.name(r.id));
     runeSpawns=(race.events||[]).filter(e=>e.type==='rune-spawn');
     $('lanes').replaceChildren(...race.racers.map(r=>{
       const lane=node('div','lane'),runway=node('div','runway'),racer=node('div','racer'),art=node('span','duck-body');art.innerHTML=A.svg(r.id);
       racer.style.setProperty('--duck-color',A.colors[r.id%A.colors.length]);racer.style.setProperty('--bob-delay',`${-(r.id*.31).toFixed(2)}s`);
-      const rankBadge=node('span','racer-rank'),stateBadge=node('span','racer-state');
-      racer.append(node('span','wake'),art,node('span','racer-label',owners[r.id]),rankBadge);
+      const rankBadge=node('span','racer-rank'),stateBadge=node('span','racer-state'),emote=node('span','racer-emote');
+      racer.append(node('span','wake'),art,node('span','racer-label',owners[r.id]),rankBadge,emote);
+      const ownerId=players.find(p=>current.picks[p.id]===r.id)?.id;if(ownerId&&starsOf().includes(ownerId)){racer.classList.add('has-star');racer.append(node('span','racer-star','⭐'));racer.title=`⭐ ${racer.title}`;}
       racer.title=`${A.name(r.id)} — ${owners[r.id]}`;
-      if(r.skill){const badge=node('span','racer-skill',r.skill.icon);badge.title=`${r.skill.name}: ${r.skill.description}`;racer.append(badge,stateBadge);racer.title+=` · ${r.talent.name} · ${r.skill.name}`;}
+      if(r.skill){const badge=node('span','racer-skill',r.skill.icon);badge.title=`${r.skill.name}: ${r.skill.description}`;racer.append(badge,stateBadge);racer.title+=`${r.talent?` · ${r.talent.name}`:''} · ${r.skill.name}`;}
       runway.append(racer);lane.append(node('span','lane-number',String(r.id+1).padStart(2,'0')),runway);nodes.push(racer);
-      racerViews[r.id]={element:racer,stateBadge,rankBadge,flags:-1,rank:0};return lane;
+      racerViews[r.id]={element:racer,stateBadge,rankBadge,emote,face:'',flags:-1,rank:0};return lane;
     }));
     const chaotic=!!race.events;
     document.querySelector('.skill-reveal-wrap').hidden=!chaotic;
     document.querySelector('.event-history-panel').hidden=!chaotic;
     $('event-feed').hidden=!chaotic;
     $('event-history').replaceChildren();$('event-feed').replaceChildren();
-    $('skill-reveal').replaceChildren(...(chaotic?race.racers.map(r=>{const owner=players.find(p=>current.picks[p.id]===r.id),chip=node('div','skill-chip');chip.dataset.duckId=String(r.id);chip.dataset.skillId=r.skill.id;chip.title=`${r.skill.description} · Thiên phú: ${r.talent.description}`;chip.append(node('strong','skill-owner',`${owner?.name||A.name(r.id)} · #${r.id+1}`),node('span','skill-name',`${r.skill.icon} ${r.skill.name}`));skillNodes[r.id]=chip;return chip;}):[]));
-    visuals?.destroy();visuals=window.DuckRaceVisuals?.create({container:document.querySelector('.race-water'),river:$('river'),nodes,reduced:()=>reduced.matches,seed:race.seed})||null;
+    $('skill-reveal').replaceChildren(...(chaotic?race.racers.map(r=>{const owner=players.find(p=>current.picks[p.id]===r.id),chip=node('div','skill-chip');chip.dataset.duckId=String(r.id);chip.dataset.skillId=r.skill.id;chip.title=r.talent?`${r.skill.description} · Thiên phú: ${r.talent.description}`:r.skill.description;chip.append(node('strong','skill-owner',`${owner?.name||A.name(r.id)} · #${r.id+1}`),node('span','skill-name',`${r.skill.icon} ${r.skill.name}`));skillNodes[r.id]=chip;return chip;}):[]));
+    visuals?.destroy();showWeather();visuals=window.DuckRaceVisuals?.create({container:document.querySelector('.race-water'),river:$('river'),nodes,reduced:()=>reduced.matches,seed:race.seed,weather:race.weather?.id})||null;
     $('river').scrollTop=0;measure();
   }
   function eventText(event,picks=current.picks){
@@ -181,10 +200,74 @@
     return `${event.icon||'✦'} ${who}${target}: ${event.label}`;
   }
   function eventItem(event,picks){const item=node('li','race-event',`${event.time.toFixed(1)}s · ${eventText(event,picks)}`);item.dataset.eventId=String(event.id);item.dataset.eventTime=String(event.time);return item;}
+  // Twist banner: newest twist in big type; simultaneous twists are counted.
+  const TWIST_TONE={blocked:'guard',reflected:'guard',immune:'guard',swapped:'swap',shuffled:'swap',fly:'boost',boost:'boost'}, TONE_HZ={harm:220,boost:880,swap:660,guard:520};
+  function twistTone(event){return TWIST_TONE[event.outcome]||(event.outcome==='fallback'&&event.skill!=='mirror'?'boost':'harm');}
+  function showBanner(list){
+    const event=list.at(-1),kind=twistTone(event),banner=$('twist-banner'),icon=event.icon||'✦',full=eventText(event);
+    // Mirror/buoy reactions ride on the attack that triggered them, so only scheduled twists count.
+    const phases=list.filter(e=>e.scheduled).length;
+    const text=(full.startsWith(`${icon} `)?full.slice(icon.length+1):full)+(phases>1?` · ${phases} pha liên tiếp!`:'');
+    // Letters drop in one by one; CSS staggers them by --i.
+    // Words never break; their letters drop in one by one (CSS staggers by --i).
+    const letters=node('span','twist-text');let index=0;
+    text.split(' ').forEach((word,w)=>{if(w)letters.append(' ');const span=node('span','twist-word');Array.from(word).forEach(ch=>{const l=node('span','twist-letter',ch);l.style.setProperty('--i',String(index++));span.append(l);});letters.append(span);});
+    // Keep the banner off the ducks involved: twists in the top half show it low, and vice versa.
+    const ids=list.flatMap(e=>[e.actorId,e.targetId,...(e.affectedIds||[])]).filter(Number.isInteger),high=ids.length&&ids.reduce((a,b)=>a+b,0)/ids.length<(nodes.length-1)/2;
+    banner.replaceChildren(node('span','twist-icon',icon),letters);banner.className=`twist-banner ${kind}${high?' low':''}`;void banner.offsetWidth;banner.hidden=false;bannerUntil=event.time+1.2;if(!playSfx(event))tone(TONE_HZ[kind],.12);
+    startSlowmo(list,kind);
+    say(window.DuckCommentary?.line(event,id=>owners[id]||A.name(id)));
+  }
+  // Commentator: a caption on the river, read aloud in Vietnamese when sound is on.
+  function say(text){const box=$('commentary');if(!box||!text)return;box.textContent=`🎙️ ${text}`;box.hidden=false;box.classList.remove('fresh');void box.offsetWidth;box.classList.add('fresh');speak(text);}
+  function speak(text){
+    if(!sound||!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;
+    try{const u=new SpeechSynthesisUtterance(text);u.lang='vi-VN';u.rate=1.15;u.pitch=1.1;const voice=speechSynthesis.getVoices?.().find(v=>/^vi/i.test(v.lang));if(voice)u.voice=voice;speechSynthesis.cancel();speechSynthesis.speak(u);}
+    catch{} // ponytail: speech is a bonus; a browser without it still shows captions
+  }
+  function startSlowmo(list,kind){
+    const water=document.querySelector('.race-water');
+    nodes.forEach(n=>n.classList.remove('twist-focus'));
+    for(const e of list)for(const id of [e.actorId,e.targetId,...(e.affectedIds||[])])if(Number.isInteger(id))nodes[id]?.classList.add('twist-focus');
+    water.classList.add('slowmo');water.classList.remove('shake','flash');void water.offsetWidth;water.classList.add('flash');
+    // Camera: zoom toward the centre of the ducks involved (river and effects canvas share the origin).
+    const focus=nodes.filter(n=>n.classList.contains('twist-focus')),box=water.getBoundingClientRect();
+    if(focus.length&&!reduced.matches){const c=focus.map(n=>n.getBoundingClientRect()).reduce((s,r)=>({x:s.x+(r.left+r.width/2-box.left)/focus.length,y:s.y+(r.top+r.height/2-box.top)/focus.length}),{x:0,y:0});
+      water.style.setProperty('--zx',`${Math.round(c.x)}px`);water.style.setProperty('--zy',`${Math.round(c.y)}px`);water.classList.add('zoom');}
+    if(kind==='harm'&&!reduced.matches){void water.offsetWidth;water.classList.add('shake');} // reflow restarts the shake
+    slowmoUntil=current.active.elapsed+SLOWMO_RATE*SLOWMO_MS/1000;
+  }
+  function endSlowmo(){slowmoUntil=0;document.querySelector('.race-water')?.classList.remove('slowmo','shake','flash',...(photoActive?[]:['zoom']));$('twist-banner')?.classList.add('settled');nodes.forEach(n=>n.classList.remove('twist-focus'));}
+  function showWeather(){
+    const water=document.querySelector('.race-water'),w=race?.weather;
+    water.classList.remove('weather-sunny','weather-rain','weather-wind','weather-storm');
+    if(w)water.classList.add(`weather-${w.id}`);$('weather-label').textContent=w?`${w.icon} ${w.name}`:'';
+  }
+  // Synthesized sound for chaos-v2/v3 twists; returns false so callers fall back to a plain tone.
+  function playSfx(event){const kind=window.DuckSfx?.kindOf(event);if(!kind||!sound||!audio||audio.state!=='running')return false;window.DuckSfx.play(audio,kind);return true;}
+  function closeFinish(r){
+    if(!r?.events||r.results.length<2)return false;
+    const end=[...r.sample(r.duration)].sort((a,b)=>a.rank-b.rank);return 1-end[1].progress<PHOTO_GAP;
+  }
+  function playbackRate(t){
+    let rate=t<slowmoUntil?SLOWMO_RATE:1;
+    if(photoFinish&&t>=race.duration-PHOTO_WINDOW){rate=Math.min(rate,PHOTO_RATE);if(!photoActive)startPhoto();}
+    return rate;
+  }
+  function startPhoto(){
+    photoActive=true;const water=document.querySelector('.race-water'),box=water.getBoundingClientRect(),line=document.querySelector('.finish-line')?.getBoundingClientRect();
+    const top=[...race.results.slice(0,2)].map(r=>nodes[r.id]?.getBoundingClientRect()).filter(Boolean);
+    if(line&&top.length&&!reduced.matches){water.style.setProperty('--zx',`${Math.round(line.left+line.width/2-box.left)}px`);water.style.setProperty('--zy',`${Math.round(top.reduce((s,r)=>s+r.top+r.height/2-box.top,0)/top.length)}px`);water.classList.add('zoom');}
+    water.classList.add('photo-finish');
+    const banner=$('twist-banner');banner.replaceChildren(node('span','twist-icon','📸'),node('span','twist-text','SÁT NÚT! CHIẾU CHẬM VẠCH ĐÍCH'));banner.className='twist-banner swap';banner.hidden=false;bannerUntil=race.duration+1;
+    say('Ngang nhau! Ngang nhau! Chiếu chậm vạch đích nào!');
+  }
+  function hideBanner(){bannerUntil=0;const banner=$('twist-banner');if(banner)banner.hidden=true;}
   function drawEvents(elapsed){
     if(!race.events)return;
-    let changed=false;
-    while(eventCursor<race.events.length&&race.events[eventCursor].time<=elapsed+1e-8){const event=race.events[eventCursor];$('event-history').append(eventItem(event));if(phase==='running'&&elapsed-event.time<.3)visuals?.event(event,currentSample,elapsed);eventCursor++;changed=true;}
+    let changed=false;const fresh=[];
+    while(eventCursor<race.events.length&&race.events[eventCursor].time<=elapsed+1e-8){const event=race.events[eventCursor];$('event-history').append(eventItem(event));if(phase==='running'&&elapsed-event.time<.3){visuals?.event(event,currentSample,elapsed);if(event.type==='skill'||event.type==='hazard')fresh.push(event);}eventCursor++;changed=true;}
+    if(fresh.length)showBanner(fresh);else if(bannerUntil&&elapsed>=bannerUntil)hideBanner();
     if(changed){const recent=race.events.slice(Math.max(0,eventCursor-3),eventCursor);$('event-feed').replaceChildren(...recent.map(e=>node('p','live-event',eventText(e))));}
     const visible=runeSpawns.filter(e=>e.time<=elapsed&&elapsed<e.pickupTime),key=visible.map(e=>e.id).join('|');
     if(key!==runeMarkerKey){runeMarkerKey=key;document.querySelectorAll('.rune-marker').forEach(e=>e.remove());for(const rune of visible){const runway=nodes[rune.actorId]?.parentElement;if(!runway)continue;const marker=node('span','rune-marker',rune.icon);marker.title=rune.label;marker.style.left=`${Math.max(0,Math.min(1,rune.progress))*100}%`;runway.append(marker);}}
@@ -192,9 +275,9 @@
   function measure(){runwayWidth=$('lanes').querySelector('.runway')?.getBoundingClientRect().width||0;visuals?.resize();if(race&&current?.active)draw(race.sample(current.active.elapsed));}
   function start(){
     if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;
-    try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);race=(isLegacy()?DuckRaceEngine:C).createRace(participants().map((_,i)=>A.name(i)),current.session.duration);}catch(e){toast(e.message);return;}
-    stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C.version})};phase='countdown';lastTime=performance.now();lastSaved=lastTime;lastTick=3;sprintAnnounced=false;leadersKey='';save();render();makeTrack();activateAudio();tone(520);
-    $('restore-notice').hidden=true;$('arena-title').textContent='Chuẩn bị xuất phát…';$('race-overlay').hidden=false;$('overlay-number').textContent='3';$('overlay-text').textContent='Chuẩn bị nào!';$('resume-overlay').hidden=true;$('sprint-label').textContent='ĐANG VÀO VỊ TRÍ';$('live-leaders').replaceChildren();
+    try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);race=(isLegacy()?DuckRaceEngine:C3).createRace(participants().map((_,i)=>A.name(i)),current.session.duration);}catch(e){toast(e.message);return;}
+    stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C3.version})};phase='countdown';lastTime=performance.now();lastSaved=lastTime;lastTick=3;sprintAnnounced=false;leadersKey='';save();render();makeTrack();activateAudio();tone(520);
+    $('restore-notice').hidden=true;$('arena-title').textContent='Chuẩn bị xuất phát…';$('race-overlay').hidden=false;$('overlay-number').textContent='3';$('overlay-text').textContent=race.weather?`Chuẩn bị nào! · ${race.weather.icon} ${race.weather.name}`:'Chuẩn bị nào!';$('resume-overlay').hidden=true;$('sprint-label').textContent='ĐANG VÀO VỊ TRÍ';$('live-leaders').replaceChildren();
     document.querySelector('.arena-panel').scrollIntoView({block:'start',behavior:reduced.matches?'instant':'smooth'});
     schedule();
   }
@@ -206,8 +289,11 @@
       // on this transform: easing chases a moving target and makes overtakes lag.
       e.style.transform=`translate3d(${(r.progress*runwayWidth).toFixed(3)}px,0,0)`;
       const boosting=!!r.boosting&&phase==='running',leading=current.active.elapsed>0&&r.currentRank===1;
-      const flags=(boosting?1:0)|(leading?2:0)|(r.slowed?4:0)|(r.shielded?8:0)|(r.swapping?16:0)|(r.skillUsed?32:0);
-      if(flags!==view.flags){view.flags=flags;e.classList.toggle('boosting',boosting);e.classList.toggle('leading',leading);e.classList.toggle('slowed',!!r.slowed);e.classList.toggle('shielded',!!r.shielded);e.classList.toggle('swapping',!!r.swapping);e.classList.toggle('skill-used',!!r.skillUsed);view.stateBadge.textContent=r.swapping?'🔄':r.shielded?'🛟':r.slowed?'💫':boosting?'⚡':'';skillNodes[r.id]?.classList.toggle('skill-used',!!r.skillUsed);}
+      const flags=(boosting?1:0)|(leading?2:0)|(r.slowed?4:0)|(r.shielded?8:0)|(r.swapping?16:0)|(r.skillUsed?32:0)|(r.pose==='capsized'?64:0)|(r.pose==='spinning'?128:0)|(r.flying?256:0);
+      if(flags!==view.flags){view.flags=flags;e.classList.toggle('boosting',boosting);e.classList.toggle('leading',leading);e.classList.toggle('slowed',!!r.slowed);e.classList.toggle('shielded',!!r.shielded);e.classList.toggle('swapping',!!r.swapping);e.classList.toggle('skill-used',!!r.skillUsed);e.classList.toggle('stunned',!!r.stunned);e.classList.toggle('capsized',r.pose==='capsized');e.classList.toggle('spinning',r.pose==='spinning');e.classList.toggle('flying',!!r.flying);view.stateBadge.textContent=r.pose==='capsized'?'🙃':r.pose==='spinning'?'💫':r.flying?'🪽':r.swapping?'🔄':r.shielded?'🛟':r.slowed?'💫':boosting?'⚡':'';skillNodes[r.id]?.classList.toggle('skill-used',!!r.skillUsed);}
+      // Faces: dizzy when knocked over, silly when spun, cool when flying, grumpy when slowed, party when winning.
+      const face=r.pose==='capsized'?'😵':r.pose==='spinning'?'🤪':r.flying?'😎':r.slowed?'😣':current.active.elapsed>=race.duration&&r.rank===1?'🥳':'';
+      if(face!==view.face){view.face=face;view.emote.textContent=face;view.emote.classList.toggle('show',!!face);}
       if(view.rank!==r.currentRank){view.rank=r.currentRank;view.rankBadge.textContent=String(r.currentRank);view.rankBadge.title=`Đang hạng ${r.currentRank}`;}
     }
     drawEvents(current.active.elapsed);
@@ -220,10 +306,10 @@
     let delta=Math.max(0,(now-lastTime)/1000);lastTime=now;const a=current.active;
     if(phase==='countdown'){
       const consumed=Math.min(delta,a.countdownLeft);a.countdownLeft-=consumed;delta-=consumed;const count=Math.max(1,Math.ceil(a.countdownLeft));if(count!==lastTick){$('overlay-number').textContent=count;lastTick=count;tone(520);}
-      if(a.countdownLeft<=0){phase='running';$('race-overlay').hidden=true;$('pause').disabled=false;$('river').classList.add('is-running');$('arena-title').textContent='Quạc quạc… tăng tốc nào!';$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';$('sprint-label').textContent='CỔ VŨ CHO CHÚ VỊT CỦA BẠN';tone(820,.25);lastTick=-1;}
+      if(a.countdownLeft<=0){phase='running';say(window.DuckCommentary?.start(race));$('race-overlay').hidden=true;$('pause').disabled=false;$('river').classList.add('is-running');$('arena-title').textContent='Quạc quạc… tăng tốc nào!';$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';$('sprint-label').textContent='CỔ VŨ CHO CHÚ VỊT CỦA BẠN';tone(820,.25);lastTick=-1;}
     }
     if(phase==='running'){
-      a.elapsed=Math.min(race.duration,a.elapsed+delta);const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
+      a.elapsed=Math.min(race.duration,a.elapsed+delta*playbackRate(a.elapsed));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
       if(a.elapsed>=race.sprintStart){if(!sprintAnnounced){sprintAnnounced=true;$('arena-title').textContent='NƯỚC RÚT! Cơ hội lật ngược!';$('race-status').textContent='⚡ Tăng tốc ngẫu nhiên — vịt cuối vẫn có cơ hội!';tone(950,.2);}$('sprint-label').textContent='⚡ 5 GIÂY CUỐI · BỨT PHÁ!';const second=Math.ceil(remaining);if(second!==lastTick&&second>0){lastTick=second;tone(650,.06);}}
       if(a.elapsed>=race.duration){finish();return;}
     }
@@ -232,22 +318,24 @@
   }
   function pause(){
     if(!current?.active)return;
-    if(phase==='running'){stop();phase='paused';$('river').classList.remove('is-running');if(currentSample.length)draw(currentSample);$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Nghỉ quẩy một chút';$('resume-overlay').hidden=false;$('pause').textContent='▶ Tiếp tục';save();}
+    if(phase==='running'){stop();phase='paused';window.speechSynthesis?.cancel?.();$('river').classList.remove('is-running');if(currentSample.length)draw(currentSample);$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Nghỉ quẩy một chút';$('resume-overlay').hidden=false;$('pause').textContent='▶ Tiếp tục';save();}
     else if(phase==='paused'){activateAudio();phase=current.active.countdownLeft>0?'countdown':'running';lastTime=performance.now();lastSaved=lastTime;$('resume-overlay').hidden=true;$('pause').textContent='Ⅱ Tạm dừng';$('pause').disabled=phase==='countdown';$('race-overlay').hidden=phase==='running';$('overlay-number').textContent=String(Math.ceil(current.active.countdownLeft));$('overlay-text').textContent='Chuẩn bị nào!';$('river').classList.toggle('is-running',phase==='running');$('restore-notice').hidden=true;if(phase==='running'){const sprint=current.active.elapsed>=race.sprintStart;$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('arena-title').textContent=sprint?'NƯỚC RÚT! Cơ hội lật ngược!':'Quạc quạc… tăng tốc nào!';$('sprint-label').textContent=sprint?'⚡ 5 GIÂY CUỐI · BỨT PHÁ!':'CỔ VŨ CHO CHÚ VỊT CỦA BẠN';$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';}schedule();}
   }
   function finish(){
     if(!current.active)return;stop();const type=current.type,a=current.active;
-    const input={id:a.id,picks:{...current.picks},order:race.results.map(r=>r.id),completedAt:new Date().toISOString()};
+    const input={id:a.id,picks:{...current.picks},order:race.results.map(r=>r.id),completedAt:new Date().toISOString(),...(type==='regular'?{stars:starsOf()}:{})};
     try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);}catch(e){phase='paused';toast(`Chưa ghi được điểm: ${e.message}`);return;}
-    if(a.engine===C.version){current.raceReplays??=[];if(!current.raceReplays.some(r=>r.id===a.id))current.raceReplays.push({id:a.id,seed:a.seed,engine:a.engine});}
-    current.active=null;current.stage='result';clearRace();save();render();tone(523,.2);tone(659,.2,.17);tone(784,.3,.34);
+    if(engineFor(a.engine)){current.raceReplays??=[];if(!current.raceReplays.some(r=>r.id===a.id))current.raceReplays.push({id:a.id,seed:a.seed,engine:a.engine});}
+    const [first,second]=race.results,photo=photoFinish;say(window.DuckCommentary?.finish(owners[first.id],owners[second?.id],photo));
+    current.active=null;current.stage='result';current.stars=[];clearRace();save();render();tone(523,.2);tone(659,.2,.17);tone(784,.3,.34);
     const record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);showRound(record,type,true);
+    if(photo)$('result-content').prepend(node('div','photo-finish-card',`📸 PHOTO FINISH · ${playerName(record.entries[0].playerId)} thắng ${playerName(record.entries[1].playerId)} trong gang tấc!`));
   }
   function nextLabel(){if(!current)return '';const s=current.session;if(s.rounds.length<s.roundLimit)return `Chọn vịt vòng ${s.rounds.length+1} →`;return outcome().status==='tie'?'Chọn vịt đua phụ →':'Xem tổng kết ngày ↗';}
   function next(){
     if(!current||current.active)return;close('result-dialog');const status=outcome();
     if(status.status==='resolved'){current.stage='complete';save();render();showFinal();return;}
-    clearRace();current.type=status.status==='tie'?'tie':'regular';current.stage='picking';current.picks={};selected=participants()[0]?.id;save();render();
+    clearRace();current.type=status.status==='tie'?'tie':'regular';current.stage='picking';current.picks={};current.stars=[];starArmed=false;selected=participants()[0]?.id;save();render();
   }
   function table(headers,rows){const wrap=node('div','result-table-wrap'),t=node('table','result-table'),head=node('thead'),tr=node('tr');headers.forEach(h=>tr.append(node('th','',h)));head.append(tr);const body=node('tbody');rows.forEach(row=>{const r=node('tr',row.coffee?'coffee-row':'');row.cells.forEach((cell,i)=>r.append(node('td',i===1?'name':i===row.cells.length-1?'total':'',cell)));body.append(r);});t.append(head,body);wrap.append(t);return wrap;}
   function showRound(record,type,advance){
@@ -255,14 +343,14 @@
     $('result-emoji').textContent=type==='tie'?'⚖':'🏆';$('result-label').textContent=type==='tie'?'KẾT QUẢ LƯỢT PHÂN ĐỊNH':`KẾT QUẢ LƯỢT ${record.number}/${current.session.roundLimit}`;
     const winner=record.entries[0];$('result-title').textContent=playerName(winner.playerId);$('result-subtitle').textContent=`${A.name(winner.duckId)} về nhất${type==='regular'?` · +${winner.points} điểm`:' · Lượt phụ không cộng điểm'}`;
     const totals=new Map(T.standings({...current.session,rounds:type==='regular'?current.session.rounds.slice(0,record.number):current.session.rounds}).map(p=>[p.playerId,p.total]));
-    const status=outcome();const rows=record.entries.map(e=>({coffee:type==='tie'&&status.coffeeIds.includes(e.playerId),cells:type==='regular'?[`#${e.rank}`,playerName(e.playerId),A.name(e.duckId),`+${e.points}`,totals.get(e.playerId)]:[`#${e.rank}`,playerName(e.playerId),A.name(e.duckId),contributionLabel(e.playerId)]}));
+    const status=outcome();const rows=record.entries.map(e=>({coffee:type==='tie'&&status.coffeeIds.includes(e.playerId),cells:type==='regular'?[`#${e.rank}`,playerName(e.playerId),A.name(e.duckId),`+${e.points}${starMark(e,record.entries.length)}`,totals.get(e.playerId)]:[`#${e.rank}`,playerName(e.playerId),A.name(e.duckId),contributionLabel(e.playerId)]}));
     $('result-content').replaceChildren(table(type==='regular'?['Hạng','Người chơi','Vịt','Điểm lượt','Tổng sau lượt']:['Hạng','Người chơi','Vịt','Kết quả'],rows));
     const replay=current.raceReplays?.find(r=>r.id===record.id);
     if(replay){
-      const simulation=C.createRace(record.entries.map((_,i)=>A.name(i)),current.session.duration,replay.seed),picks=Object.fromEntries(record.entries.map(e=>[e.playerId,e.duckId]));
+      const simulation=engineFor(replay.engine).createRace(record.entries.map((_,i)=>A.name(i)),current.session.duration,replay.seed),picks=Object.fromEntries(record.entries.map(e=>[e.playerId,e.duckId]));
       if(simulation.results.every((r,i)=>r.id===record.entries[i].duckId)){
-        const details=node('details','race-recap'),summary=node('summary','','Thiên phú, skill & diễn biến lượt này'),roster=node('div','recap-skills');
-        for(const racer of simulation.racers){const owner=record.entries.find(e=>e.duckId===racer.id);roster.append(node('p','',`${playerName(owner.playerId)} · ${racer.talent.icon} ${racer.talent.name} · ${racer.skill.icon} ${racer.skill.name}`));}
+        const details=node('details','race-recap'),summary=node('summary','',simulation.racers[0].talent?'Thiên phú, skill & diễn biến lượt này':'Skill & diễn biến lượt này'),roster=node('div','recap-skills');
+        for(const racer of simulation.racers){const owner=record.entries.find(e=>e.duckId===racer.id);roster.append(node('p','',`${playerName(owner.playerId)} · ${racer.talent?`${racer.talent.icon} ${racer.talent.name} · `:''}${racer.skill.icon} ${racer.skill.name}`));}
         const events=node('ol','recap-events');events.append(...simulation.events.map(e=>eventItem(e,picks)));details.append(summary,roster,events);$('result-content').append(details);
       }
     }
@@ -276,14 +364,23 @@
     const people=node('div','final-coffee');status.coffeeIds.forEach(id=>people.append(node('strong','',`${playerName(id)}${isLegacy()?'':` · ${money(amountFor(id))}`}`)));
     const rows=T.standings(current.session).map(r=>({coffee:status.coffeeIds.includes(r.playerId),cells:[`#${r.rank}`,r.name,...r.pointsByRound,r.total,contributionLabel(r.playerId)]}));
     $('result-content').replaceChildren(people,table(['Hạng điểm','Người chơi',...current.session.rounds.map(r=>`V${r.number}`),'Tổng',isLegacy()?'Cà phê':'Phải đóng'],rows));
+    const awards=dayAwards();
+    if(awards.length){const box=node('div','day-awards');box.append(node('h3','','🏅 Danh hiệu trong ngày'));for(const a of awards){const card=node('div','award-card');card.append(node('span','award-icon',a.icon),node('strong','award-title',a.title),node('span','award-who',a.playerIds.map(playerName).join(', ')),node('small','award-detail',a.detail));box.append(card);}$('result-content').append(box);}
     $('result-next').textContent='Về bảng điểm';dialogAction=()=>close('result-dialog');open('result-dialog');
+  }
+  // Titles need the replayed races; chaos-v1 rounds use a different event format and are skipped.
+  function dayAwards(){
+    if(!window.DuckAwards)return[];
+    const rounds=current.session.rounds.flatMap(record=>{const replay=current.raceReplays?.find(r=>r.id===record.id),engine=replay&&engineFor(replay.engine);if(!engine||engine===C)return[];
+      return [{race:engine.createRace(record.entries.map((_,i)=>A.name(i)),current.session.duration,replay.seed),ownerOf:Object.fromEntries(record.entries.map(e=>[e.duckId,e.playerId]))}];});
+    return window.DuckAwards.compute(rounds);
   }
   function exportCsv(){
     if(!current)return;const status=outcome(),s=current.session,rows=[['Hạng','Người chơi',...s.rounds.map(r=>`Vòng ${r.number}`),'Tổng điểm',isLegacy()?'Bao cà phê':'Phải đóng (VND)','Ngày']];
     T.standings(s).forEach(r=>rows.push([r.rank,r.name,...r.pointsByRound,r.total,status.status==='resolved'?(isLegacy()?(status.coffeeIds.includes(r.playerId)?'Có':'Không'):amountFor(r.playerId)):'Chưa chốt',s.date]));
-    rows.push([],['CHI TIẾT TỪNG LƯỢT'],['Lượt','Hạng','Người chơi','Vịt','Điểm']);
-    s.rounds.forEach(r=>r.entries.forEach(e=>rows.push([r.number,e.rank,playerName(e.playerId),`${A.name(e.duckId)} #${e.duckId+1}`,e.points])));
-    s.tiebreaks.forEach(r=>r.entries.forEach(e=>rows.push(['Phân định',e.rank,playerName(e.playerId),`${A.name(e.duckId)} #${e.duckId+1}`,0])));
+    rows.push([],['CHI TIẾT TỪNG LƯỢT'],['Lượt','Hạng','Người chơi','Vịt','Điểm','Sao']);
+    s.rounds.forEach(r=>r.entries.forEach(e=>rows.push([r.number,e.rank,playerName(e.playerId),`${A.name(e.duckId)} #${e.duckId+1}`,e.points,e.star?(e.points!==r.entries.length-e.rank+1?'x2':'Có'):''])));
+    s.tiebreaks.forEach(r=>r.entries.forEach(e=>rows.push(['Phân định',e.rank,playerName(e.playerId),`${A.name(e.duckId)} #${e.duckId+1}`,0,''])));
     downloadCsv(rows,`vit-dua-ngay-${s.date}.csv`);
   }
   function downloadCsv(rows,filename){const quote=v=>{let text=String(v);if(/^[=+@\-\t\r]/.test(text))text=`'${text}`;return `"${text.replace(/"/g,'""')}"`;};const csv='\ufeff'+rows.map(row=>row.map(quote).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const a=node('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
@@ -333,7 +430,7 @@
   }
   function restoreCurrent(){
     clearRace();if(!current)return;selected=participants()[0]?.id;
-    if(current.active){race=(current.active.engine===C.version?C:DuckRaceEngine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,current.active.seed);phase='paused';sprintAnnounced=false;leadersKey='';render();makeTrack();$('timer').textContent=clock(race.duration-current.active.elapsed);$('arena-title').textContent='Cuộc đua đang chờ bạn';$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Đã khôi phục. Tiếp tục cùng cuộc đua.';$('resume-overlay').hidden=false;$('race-status').textContent=current.active.engine?'Đã giữ nguyên thiên phú, skill, rune và diễn biến; chưa cộng điểm lượt này.':'Trận đang dở dùng luật cũ; trận tiếp theo sẽ có thiên phú, skill và rune.';$('sprint-label').textContent='ĐANG TẠM DỪNG';}
+    if(current.active){race=(engineFor(current.active.engine)||DuckRaceEngine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,current.active.seed);phase='paused';sprintAnnounced=false;leadersKey='';render();makeTrack();$('timer').textContent=clock(race.duration-current.active.elapsed);$('arena-title').textContent='Cuộc đua đang chờ bạn';$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Đã khôi phục. Tiếp tục cùng cuộc đua.';$('resume-overlay').hidden=false;$('race-status').textContent=current.active.engine?'Đã giữ nguyên thiên phú, skill, rune và diễn biến; chưa cộng điểm lượt này.':'Trận đang dở dùng luật cũ; trận tiếp theo sẽ có thiên phú, skill và rune.';$('sprint-label').textContent='ĐANG TẠM DỪNG';}
     else render();
   }
   function showSessions(){
@@ -346,7 +443,7 @@
 
   $('setup-form').addEventListener('submit',create);$('new-game').onclick=()=>openSetup('season');$('new-day').onclick=()=>openSetup('day');$('setup-close').onclick=()=>close('setup-dialog');$('setup-dialog').addEventListener('cancel',e=>{if(!current)e.preventDefault();});
   $('sample-names').onclick=()=>{$('setup-names').value='Phú\nHiếu\nAn\nBình\nChi\nDũng\nHà';};
-  $('random-picks').onclick=randomPicks;$('undo-last-pick').onclick=undoPick;$('start').onclick=start;$('pause').onclick=pause;$('resume-overlay').onclick=pause;$('next').onclick=next;
+  $('random-picks').onclick=randomPicks;$('undo-last-pick').onclick=undoPick;$('star-toggle').onclick=()=>{if(!current||current.active||current.stage!=='picking'||$('star-toggle').hidden)return;starArmed=!starArmed;render();};$('start').onclick=start;$('pause').onclick=pause;$('resume-overlay').onclick=pause;$('next').onclick=next;
   $('season-fund').onclick=()=>showFund();$('fund-close').onclick=()=>close('fund-dialog');$('export-fund').onclick=exportFund;$('close-season').onclick=requestCloseSeason;$('close-season-close').onclick=()=>close('close-season-dialog');$('confirm-close-season').onclick=confirmCloseSeason;
   $('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
   $('final-summary').onclick=()=>{if(outcome().status==='tie'){if(current.stage==='picking'&&current.type==='tie'){toast('Chọn vịt cho nhóm đồng điểm ở bên dưới.');return;}next();}else{current.stage='complete';save();render();showFinal();}};
