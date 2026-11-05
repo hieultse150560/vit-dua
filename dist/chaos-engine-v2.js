@@ -172,7 +172,8 @@
     // a little jitter) so they never pile up; the last quarter keeps 1-2 order-changing skills.
     if (rules.midSpread) {
       const active = slots.filter(sl => sl.kind === 'skill' && !sl.passive), plot = active.filter(sl => PLOT_TWISTS.has(racers[sl.actorId].skill.id));
-      const pool = plot.length ? plot : active, n = Math.min(pool.length, 1 + scheduleRng.integer(2));
+      // With no plot skill dealt, any active skill may close the race, but never the tornado (too decisive late).
+      const pool = plot.length ? plot : active.filter(sl => racers[sl.actorId].skill.id !== 'tornado'), n = Math.min(pool.length, 1 + scheduleRng.integer(2));
       shuffled(pool, scheduleRng).slice(0, n).forEach(sl => { sl.plot = true; });
       const spread = (list, from, to) => { const w = (to - from) / list.length;
         list.forEach((sl, i) => { sl.time = from + w * (i + .5 + (scheduleRng.unit() - .5) * .3); }); };

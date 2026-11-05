@@ -353,6 +353,13 @@ test('chaos-v3 pacing: twists spread evenly, at least 1 s apart; the last quarte
   assert.ok(worst < 4, `a ${worst.toFixed(1)} s lull mid-race`);
 });
 
+test('chaos-v3 tornado never closes a race, even in small fields with no plot skill', () => {
+  for (const count of [2, 3, 4, 7]) for (let seed = 0; seed < 600; seed++) {
+    const e = V3.createRace(names(count), 25, seed).events.find(x => x.skill === 'tornado' && x.scheduled);
+    assert.ok(!e || e.time < 18.75, `${count} ducks, seed ${seed}: tornado at ${e?.time}`);
+  }
+});
+
 test('chaos-v3 stun attacks skip ducks already stunned, so a hit is almost never wasted', () => {
   const STUN = new Set(['torpedo', 'balloon', 'lightning', 'reverse', 'bees']);
   let tries = 0, wasted = 0;

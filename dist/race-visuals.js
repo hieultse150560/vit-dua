@@ -113,7 +113,7 @@
       const origin = point(event.actorId, sample), target = point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, sample);
       const kind = kindOf(event);
       bursts.push({ time: elapsed, kind, origin, target, blocked: ['shielded', 'immune', 'resisted'].includes(event.outcome), id: event.id.length + event.actorId * 7,
-        affected: (event.affectedIds || []).map(id => point(id, sample)), atActor: AT_ACTOR.has(kind) || event.outcome === 'dropped', life: TWIST[kind] ? TWIST_LIFE : BURST_LIFE,
+        affected: (event.affectedIds || []).map(id => point(id, sample)), shielded: (event.affectedIds || []).map(id => (event.protectedIds || []).includes(id)), atActor: AT_ACTOR.has(kind) || event.outcome === 'dropped', life: TWIST[kind] ? TWIST_LIFE : BURST_LIFE,
         outcome: event.outcome, reflected: event.outcome === 'reflected',
         // Positions just before the jump, so painters move with the ducks' on-screen glide.
         pre: { origin: point(event.actorId, pre), target: point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, pre), affected: (event.affectedIds || []).map(id => point(id, pre)) } });
@@ -382,7 +382,7 @@
         const H = 150 * grow * (1 - f.fade * .7), wide = t => (9 + 48 * t * t) * (.5 + .5 * grow);
         let crown = null;
         before.forEach((p, i) => {
-          const q = after[i]; if (!q) return;
+          const q = after[i]; if (!q || b.shielded?.[i]) return; // guarded or ghosted ducks sit it out
           const x = p.x + (q.x - p.x) * k, base = p.y + 6, sway = t => Math.sin(spin * .35 + t * 4 + i) * 10 * t;
           ctx.globalAlpha = f.alpha * .4; ctx.fillStyle = '#16354a';
           ctx.beginPath(); ctx.ellipse(x, base, 36, 9, 0, 0, TAU); ctx.fill();
