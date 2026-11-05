@@ -10,10 +10,13 @@
     fly: ['🪽', '#fff1a8'], torpedo: ['💣', '#d7b0ff'], wave: ['🌊', '#9fe7ff'], rocket: ['🚀', '#ffd27f'], boom: ['💥', '#ff9b73'],
     mirror: ['🪞', '#e9f7ff'], hook: ['🎣', '#c9f0c1'], tornado: ['🌪️', '#d9e4ff'], banana: ['🍌', '#fff07a'], guard: ['🛟', '#c2fbff'],
     rock: ['🪨', '#d9c6a5'], croc: ['🐊', '#b5e3a1'], wind: ['💨', '#e8fbff'], whirlpool: ['🌀', '#a9dcff'], dolphin: ['🐬', '#a6e4ff'],
+    missile: ['🎯', '#ff7b29'], bees: ['🐝', '#ffd34d'], blackhole: ['🕳️', '#8a5cff'], ghost: ['👻', '#eaf1ff'], balloon: ['🎈', '#ff6b8b'],
+    hippo: ['🦛', '#c9b6d9'], log: ['🪵', '#a0703a'], frog: ['🐸', '#7ed957'],
     magnet: ['🧲', '#ff7a7a'], lightning: ['⚡', '#fff6a0'], flip: ['🔃', '#ffd166'], rewind: ['⏪', '#ffe2a8'], reverse: ['↩️', '#ff6fd8'], freeze: ['🧊', '#c9f3ff']
   };
   const V2_KIND = { wings: 'fly', torpedo: 'torpedo', wave: 'wave', rocket: 'rocket', mirror: 'mirror', hook: 'hook', tornado: 'tornado', banana: 'banana', buoy: 'guard',
     rock: 'rock', croc: 'croc', wind: 'wind', whirlpool: 'whirlpool', dolphin: 'dolphin',
+    missile: 'missile', bees: 'bees', blackhole: 'blackhole', ghost: 'ghost', balloon: 'balloon', hippo: 'hippo', log: 'log', frog: 'frog',
     magnet: 'magnet', lightning: 'lightning', flip: 'flip', rewind: 'rewind', reverse: 'reverse', freeze: 'freeze' };
   // Race seconds. TWIST_MAIN matches the app's slow-motion window (0.15x for 1.8 s = 0.27 race-s),
   // so each twist's main action plays in slow motion; the rest is a slow fade.
@@ -29,7 +32,7 @@
   }
   function context(canvas) { try { return canvas.getContext('2d', { alpha: true }); } catch { return null; } }
 
-  function create({ container, river, nodes, reduced = () => false, seed = 0, weather = null }) {
+  function create({ container, river, nodes, reduced = () => false, seed = 0, weather = null, duration = 0 }) {
     if (!container || !river || !nodes.length) return empty();
     const canvas = document.createElement('canvas');
     canvas.className = 'race-effects';
@@ -160,7 +163,38 @@
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     }
     // Weather ambience (chaos-v3): rain streaks, gusts, storm lightning, sun glints.
-    function drawWeather(time) {
+    function drawWeather(time, sample) {
+      // Night: dark river, moon and stars; each duck carries its own pool of lantern light.
+      if (weather === 'night') {
+        ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(8,14,42,.62)'; ctx.fillRect(0, 0, width, height);
+        ctx.globalCompositeOperation = 'destination-out';
+        for (const r of sample) {
+          const p = point(r.id, sample), g = ctx.createRadialGradient(p.x, p.y - 22, 8, p.x, p.y - 22, 74);
+          g.addColorStop(0, 'rgba(0,0,0,.95)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y - 22, 74, 0, TAU); ctx.fill();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const r of sample) { const p = point(r.id, sample); glow({ x: p.x, y: p.y + 6 }, 60, 'rgba(255,214,140,.35)', 1); }
+        const moon = { x: width - 110, y: 64 };
+        glow({ x: moon.x, y: moon.y + 12 }, 90, 'rgba(255,248,220,.5)', 1);
+        ctx.globalAlpha = 1; ctx.fillStyle = '#fff8dc'; ctx.beginPath(); ctx.arc(moon.x, moon.y, 26, 0, TAU); ctx.fill();
+        ctx.fillStyle = 'rgba(8,14,42,.62)'; ctx.beginPath(); ctx.arc(moon.x + 11, moon.y - 6, 22, 0, TAU); ctx.fill();
+        for (let i = 0; i < 40; i++) {
+          const tw = (Math.sin(time * 2 + i * 2.3) + 1) / 2;
+          ctx.globalAlpha = .3 + tw * .7; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(noise(i + 7) * width, noise(i + 70) * height * .35, .8 + tw * 1.4, 0, TAU); ctx.fill();
+        }
+      }
+      // Fog: drifting banks that thin out for the final 5 s sprint.
+      if (weather === 'fog') {
+        const k = duration ? Math.max(0, Math.min(1, (duration - 3.5 - time) / 1.5)) : 1;
+        ctx.globalAlpha = .35 * k; ctx.fillStyle = '#eef2f5'; ctx.fillRect(0, 0, width, height);
+        for (let i = 0; i < 7; i++) {
+          const w = 240 + noise(i) * 260, x = ((noise(i + 3) * (width + 400) + time * (14 + noise(i + 9) * 18)) % (width + 400)) - 200, y = noise(i + 20) * height;
+          const g = ctx.createRadialGradient(x, y, 10, x, y, w);
+          g.addColorStop(0, 'rgba(240,244,248,.75)'); g.addColorStop(1, 'rgba(240,244,248,0)');
+          ctx.globalAlpha = k; ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, w, w * .45, 0, 0, TAU); ctx.fill();
+        }
+      }
       if (!weather || weather === 'sunny') {
         if (weather === 'sunny') for (let i = 0; i < 14; i++) {
           const twinkle = (Math.sin(time * 3 + i * 1.7) + 1) / 2;
@@ -419,6 +453,129 @@
         splash(from, t * 1.4, f.alpha * (1 - t), b.id, '#e9fbff', 18); ripples(from, t, f.alpha * (1 - t));
         if (t >= 1) { const after = (f.m - .85) * 3 + f.fade; splash(to, after, f.alpha, b.id + 5, '#e9fbff', 22); ripples(to, after, f.alpha); }
       },
+      // Heat-seeking missile: smoke trail curving onto the leader, reticle, then a fireball.
+      missile(b, f) {
+        const a = { x: b.origin.x + 20, y: b.origin.y - 40 }, c = { x: (b.origin.x + b.target.x) / 2, y: Math.min(b.origin.y, b.target.y) - 150 };
+        const at = t => ({ x: (1 - t) ** 2 * a.x + 2 * (1 - t) * t * c.x + t * t * b.target.x, y: (1 - t) ** 2 * a.y + 2 * (1 - t) * t * c.y + t * t * (b.target.y - 20) });
+        const t = clamp01(f.m / .55), hit = { x: b.target.x, y: b.target.y - 20 };
+        for (let i = 14; i >= 1; i--) {
+          const u = t - i * .035; if (u < 0) continue;
+          const p = at(u), age = i / 14;
+          ctx.globalAlpha = f.alpha * (1 - age) * .75; ctx.fillStyle = '#8f98a3';
+          ctx.beginPath(); ctx.arc(p.x + (noise(i + b.id) - .5) * 8, p.y, 5 + age * 14, 0, TAU); ctx.fill();
+        }
+        if (t < 1) {
+          const spin = f.m * TAU * 2;
+          ring(hit.x, hit.y, 30, 30, '#ff3b3b', .9, 3); ring(hit.x, hit.y, 18 + Math.sin(spin) * 3, 18 + Math.sin(spin) * 3, '#ff3b3b', .7, 2);
+          emoji(f.icon, hit.x + 34, hit.y - 26, 26, 1);
+          const p = at(t), q = at(Math.min(1, t + .02));
+          glow(p, 26, '#ffb347', .9);
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(q.y - p.y, q.x - p.x) + Math.PI / 4); emoji('🚀', 0, 12, 44, 1); ctx.restore();
+          return;
+        }
+        const e = clamp01((f.m - .55) / .45) * .7 + f.fade * .6;
+        const g = ctx.createRadialGradient(hit.x, hit.y, 0, hit.x, hit.y, 30 + e * 90);
+        g.addColorStop(0, '#fffbe6'); g.addColorStop(.25, '#ffd166'); g.addColorStop(.55, '#ff7b29'); g.addColorStop(1, 'rgba(200,40,20,0)');
+        ctx.globalAlpha = f.alpha * (1 - clamp01(e)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hit.x, hit.y, 30 + e * 90, 0, TAU); ctx.fill();
+        ring(hit.x, hit.y + 10, 30 + e * 140, 12 + e * 50, '#ffffff', f.alpha * (1 - clamp01(e)), 4);
+        particles(hit, clamp01(e), '#5d5d5d', 16, 110, b.id);
+        capsize(b.target, e, f.alpha, b.id);
+        emoji(f.icon, hit.x + 34, hit.y - 30, 26, f.alpha * (1 - clamp01(e)));
+        pop('💥', b.target, (f.m - .55) / .45, f.alpha, 62);
+      },
+      // A swarm flies from the caster to each target and buzzes around it in figure-eights.
+      bees(b, f) {
+        const spots = b.affected.length ? b.affected : [b.target], time = f.m + f.fade, arrive = clamp01(f.m / .35);
+        spots.forEach((spot, s) => {
+          for (let i = 0; i < 9; i++) {
+            const ph = time * 9 + i * .7 + s, r = 26 + noise(i + s * 9) * 22;
+            const ox = Math.cos(ph) * r, oy = Math.sin(ph * 2) * r * .45 - 34;
+            const home = { x: spot.x + ox, y: spot.y + oy }, from = { x: b.origin.x, y: b.origin.y - 30 };
+            const x = from.x + (home.x - from.x) * arrive, y = from.y + (home.y - from.y) * arrive - Math.sin(arrive * Math.PI) * 40;
+            ctx.fillStyle = '#ffd34d';
+            for (let k = 1; k <= 3; k++) { ctx.globalAlpha = f.alpha * (.35 - k * .1); ctx.beginPath(); ctx.arc(x - Math.cos(ph) * k * 5, y - Math.sin(ph * 2) * k * 3, 2.2, 0, TAU); ctx.fill(); }
+            emoji(f.icon, x, y + 6, 18, f.alpha);
+          }
+          if (arrive >= 1) { ctx.strokeStyle = '#3b2f00'; ctx.lineWidth = 2; for (let k = 0; k < 3; k++) { ctx.globalAlpha = f.alpha * .6; const yy = spot.y - 62 - k * 6; line({ x: spot.x - 10 + k * 8, y: yy }, { x: spot.x - 4 + k * 8, y: yy - 6 }); } }
+        });
+      },
+      // Event horizon with a spinning accretion disk; streaks spiral in from every duck.
+      blackhole(b, f) {
+        const c = { x: b.origin.x, y: b.origin.y - 26 }, grow = clamp01(f.m * 2.5), R = (24 + 38 * grow) * (1 - f.fade * .6), spin = (f.m + f.fade) * TAU * 1.5;
+        const halo = ctx.createRadialGradient(c.x, c.y, R * .3, c.x, c.y, R * 2.4);
+        halo.addColorStop(0, 'rgba(120,60,200,.6)'); halo.addColorStop(1, 'rgba(120,60,200,0)');
+        ctx.globalAlpha = f.alpha; ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(c.x, c.y, R * 2.4, 0, TAU); ctx.fill();
+        b.affected.forEach((p, i) => {
+          const u = (f.m * 1.6 + i * .13) % 1, ang0 = Math.atan2(p.y - 20 - c.y, p.x - c.x);
+          ctx.beginPath();
+          for (let k = 0; k <= 16; k++) {
+            const t = k / 16, rr = Math.hypot(p.x - c.x, p.y - 20 - c.y) * (1 - t), a = ang0 + t * 1.6;
+            const x = c.x + Math.cos(a) * rr, y = c.y + Math.sin(a) * rr;
+            if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+          }
+          ctx.globalAlpha = f.alpha * .35; ctx.strokeStyle = '#c8a6ff'; ctx.lineWidth = 2; ctx.stroke();
+          const rr = Math.hypot(p.x - c.x, p.y - 20 - c.y) * (1 - u), a = ang0 + u * 1.6;
+          ctx.globalAlpha = f.alpha; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(c.x + Math.cos(a) * rr, c.y + Math.sin(a) * rr, 2.6, 0, TAU); ctx.fill();
+        });
+        ['#ffb347', '#ff5ea8', '#8a5cff'].forEach((col, i) => {
+          ctx.globalAlpha = f.alpha * .9; ctx.strokeStyle = col; ctx.lineWidth = 4 - i;
+          for (let k = 0; k < 3; k++) { const st = spin * (1 + i * .3) + k * TAU / 3; ctx.beginPath(); ctx.ellipse(c.x, c.y, R * (1.1 + i * .18), R * (.38 + i * .06), -.25, st, st + 1.4); ctx.stroke(); }
+        });
+        ctx.globalAlpha = f.alpha; ctx.fillStyle = '#050208'; ctx.beginPath(); ctx.arc(c.x, c.y, R * .55, 0, TAU); ctx.fill();
+        ring(c.x, c.y, R * .62, R * .62, '#ffffff', f.alpha * .7, 1.5);
+        emoji(f.icon, c.x, c.y - R - 12, 30, f.alpha);
+      },
+      // Fading after-images, sparkles and rising vapour.
+      ghost(b, f) {
+        const s = b.origin, time = f.m + f.fade;
+        glow({ x: s.x, y: s.y }, 60, '#eaf1ff', f.alpha * .7);
+        for (let k = 4; k >= 1; k--) emoji(f.icon, s.x - k * 26 - (time * 30) % 26, s.y - 30 + Math.sin(time * 6 + k) * 4, 34, f.alpha * (.5 - k * .1));
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+          const x = s.x - 20 + i * 14, rise = (time * 50 + i * 17) % 50;
+          ctx.globalAlpha = f.alpha * (1 - rise / 50) * .7; ctx.beginPath(); ctx.moveTo(x, s.y - 40 - rise);
+          ctx.quadraticCurveTo(x + 8, s.y - 50 - rise, x, s.y - 60 - rise); ctx.stroke();
+        }
+        for (let i = 0; i < 8; i++) {
+          const a = time * 3 + i * .8, r = 34 + noise(i + b.id) * 18, tw = (Math.sin(time * 12 + i) + 1) / 2;
+          ctx.globalAlpha = f.alpha * tw; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(s.x + Math.cos(a) * r, s.y - 30 + Math.sin(a) * r * .5, 1.5 + tw * 2, 0, TAU); ctx.fill();
+        }
+        pop(f.icon, s, f.m, f.alpha, 58);
+      },
+      // A balloon floats up on a string and keeps bobbing over the lifted duck.
+      balloon(b, f) {
+        const s = b.target, rise = 1 - (1 - clamp01(f.m * 1.6)) ** 3, bob = Math.sin((f.m + f.fade) * 9) * 5;
+        const top = { x: s.x + 6 + bob * .6, y: s.y - 66 - 44 * rise + bob };
+        ctx.globalAlpha = f.alpha; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(s.x, s.y - 66); ctx.bezierCurveTo(s.x - 12, s.y - 80, top.x + 12, top.y + 40, top.x, top.y + 22); ctx.stroke();
+        emoji(f.icon, top.x, top.y + 22, 56, f.alpha);
+        ripples(s, f.m + f.fade, f.alpha * .8);
+        for (let i = 0; i < 3; i++) emoji('✨', s.x + (noise(i + b.id) - .5) * 70, s.y - 90 - noise(i + 3) * 60, 14, f.alpha * ((Math.sin((f.m + f.fade) * 10 + i * 2) + 1) / 2));
+      },
+      // The hippo surges up through the surface; the water domes, splashes and rings out.
+      hippo(b, f) {
+        const s = b.target, up = clamp01(f.m / .4), sink = f.fade, y = s.y + 40 - 52 * up + 40 * sink;
+        ctx.globalAlpha = f.alpha * .7; ctx.fillStyle = '#e9fbff';
+        ctx.beginPath(); ctx.ellipse(s.x + 6, s.y + 12, 46 * up + 6, 12 * up + 2, 0, 0, TAU); ctx.fill();
+        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, width, s.y + 14); ctx.clip();
+        emoji(f.icon, s.x + 6, y, 86, f.alpha); ctx.restore();
+        splash(s, up * .6 + f.fade * .9, f.alpha, b.id, '#ffffff', 30);
+        ripples(s, up + f.fade, f.alpha);
+      },
+      // A log rolls in from upstream and slams into the leader.
+      log(b, f) {
+        const s = b.target, k = 1 - (1 - clamp01(f.m / .6)) ** 2, x = s.x + 230 - 172 * k;
+        ctx.save(); ctx.translate(x, s.y - 4); ctx.rotate(-(1 - k) * 6); emoji(f.icon, 0, 18, 66, f.alpha); ctx.restore();
+        for (let i = 0; i < 4; i++) { ctx.globalAlpha = f.alpha * .6; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; line({ x: x + 34 + i * 12, y: s.y - 10 + i * 5 }, { x: x + 54 + i * 16, y: s.y - 10 + i * 5 }); }
+        if (k >= 1) { const e = (f.m - .6) / .4 * .6 + f.fade * .6; splash({ x: x - 24, y: s.y }, e, f.alpha, b.id, '#ffffff', 20); particles({ x: x - 24, y: s.y - 10 }, clamp01(e), '#a0703a', 10, 60, b.id); }
+      },
+      // Three frog hops carry the duck forward, a splash at every landing.
+      frog(b, f) {
+        const s = b.target, t = clamp01(f.m / .9) * 3, hop = Math.min(2, Math.floor(t)), u = t - hop;
+        const x0 = s.x - 90 + hop * 50, p = { x: x0 + 50 * u, y: s.y - Math.sin(u * Math.PI) * 50 };
+        for (let k = 0; k <= hop; k++) { const land = { x: s.x - 40 + k * 50, y: s.y + 6 }; ripples(land, (t - k - 1 + 1) * .5 + f.fade, f.alpha * .8); if (t > k + 1) splash(land, (t - k - 1) * .5, f.alpha, b.id + k, '#e9fbff', 12); }
+        ctx.save(); ctx.translate(p.x, p.y - 20); ctx.rotate((u - .5) * .6); emoji(f.icon, 0, 14, 40, f.alpha); ctx.restore();
+      },
       magnet(b, f) {
         const s = b.origin;
         ctx.strokeStyle = '#ff5a5a'; ctx.lineWidth = 3.5;
@@ -527,7 +684,7 @@
       ctx.clearRect(0, 0, width, height);
       if (reduced()) { bursts = []; return; }
       drawWater(elapsed);
-      drawWeather(elapsed);
+      drawWeather(elapsed, sample);
       for (const racer of sample) drawWake(racer, sample, elapsed, running);
       bursts = bursts.filter(b => elapsed - b.time < b.life);
       bursts.forEach(b => drawBurst(b, elapsed)); ctx.globalAlpha = 1;

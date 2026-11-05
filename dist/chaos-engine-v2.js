@@ -29,9 +29,11 @@
     // chaos-v3 only
     magnet: { lead: 0.3, leaderHop: 2 }, lightning: { stun: 1.5 }, rewind: { seconds: 1 },
     reverse: { time: 1.5, factor: -0.7 }, freeze: { time: 1 },
+    missile: { knock: 4, stun: 1 }, bees: { time: 2, slow: 0.4 }, blackhole: { pull: 0.6 }, ghost: { time: 2, boost: 0.2 }, balloon: { time: 1.5 },
     epic: { hookGap: 0.4, waveGap: 0.4 },
     rune: { boost: 0.4, time: 1.5, slow: 0.6 },
-    hazard: { countMin: 2, countMax: 4, rockStun: 1.5, rockLateWindow: 3, rockLateChance: 0.7, crocPull: 5, windPush: 6, whirlStun: 1.5, dolphinPush: 5, surgeTime: 1, finaleKnock: 0.6 }
+    hazard: { countMin: 2, countMax: 4, rockStun: 1.5, rockLateWindow: 3, rockLateChance: 0.7, crocPull: 5, windPush: 6, whirlStun: 1.5, dolphinPush: 5, surgeTime: 1, finaleKnock: 0.6,
+      hippoKnock: 3, hippoStun: 1, logTime: 1.5, logSlow: 0.1, frogHop: 3 }
   });
   const skills = freeze([
     { id: 'wings', name: 'Cánh vàng', icon: '🪽', description: 'Bay vượt lên 2–3 con phía trước.' },
@@ -51,7 +53,12 @@
     { id: 'flip', name: 'Lộn đầu đuôi', icon: '🔃', description: 'Con dẫn đầu và con chót đổi chỗ cho nhau.' },
     { id: 'rewind', name: 'Tua ngược', icon: '⏪', description: 'Mọi con khác bị tua lùi về chỗ của 1 giây trước.' },
     { id: 'reverse', name: 'Bơi ngược', icon: '↩️', description: 'Hai con dẫn đầu quay đầu bơi ngược chiều 1,5 giây.' },
-    { id: 'freeze', name: 'Đóng băng', icon: '🧊', description: 'Cả sông đóng băng 1 giây, chỉ mình bơi.' }
+    { id: 'freeze', name: 'Đóng băng', icon: '🧊', description: 'Cả sông đóng băng 1 giây, chỉ mình bơi.' },
+    { id: 'missile', name: 'Tên lửa tầm nhiệt', icon: '🎯', description: 'Tên lửa bám đuôi con dẫn đầu, nổ tung hất nó lùi và lật thuyền.' },
+    { id: 'bees', name: 'Đàn ong', icon: '🐝', description: 'Đàn ong đuổi 2 con dẫn đầu, chậm 60% trong 2 giây.' },
+    { id: 'blackhole', name: 'Hố đen', icon: '🕳️', description: 'Hút cả đoàn dồn về phía mình: con trước bị kéo lùi, con sau bị kéo lên.' },
+    { id: 'ghost', name: 'Tàng hình', icon: '👻', description: 'Tàng hình 2 giây: mọi đòn xuyên qua, lướt nhanh hơn 20%.' },
+    { id: 'balloon', name: 'Bóng bay', icon: '🎈', description: 'Buộc bóng bay vào con dẫn đầu, nhấc nó lơ lửng khỏi mặt nước 1,5 giây.' }
   ]);
   const hazards = freeze([
     { id: 'rock', name: 'Vấp đá', icon: '🪨' },
@@ -68,11 +75,19 @@
   const PASSIVE = new Set(['mirror', 'buoy']);
   // chaos-v3 = chaos-v2 + one weather per race. Weather adds hazards and reweights them.
   // chaos-v2 never touches this table, so its replays stay identical.
+  const v3Hazards = freeze([
+    { id: 'hippo', name: 'Hà mã trồi lên', icon: '🦛' },
+    { id: 'log', name: 'Khúc gỗ trôi', icon: '🪵' },
+    { id: 'frog', name: 'Ếch bật nhảy', icon: '🐸' }
+  ]);
   const weathers = freeze([
-    { id: 'sunny', name: 'Nắng đẹp', icon: '☀️', chance: 40, extra: 0, weights: {} },
-    { id: 'rain', name: 'Mưa rào', icon: '🌧️', chance: 25, extra: 1, weights: { whirlpool: 2, croc: 2 } },
-    { id: 'wind', name: 'Gió lớn', icon: '💨', chance: 20, extra: 1, weights: { wind: 5 } },
-    { id: 'storm', name: 'Bão sông', icon: '⛈️', chance: 15, extra: 2, weights: { whirlpool: 2, croc: 2 } }
+    { id: 'sunny', name: 'Nắng đẹp', icon: '☀️', chance: 32, extra: 0, weights: {} },
+    { id: 'rain', name: 'Mưa rào', icon: '🌧️', chance: 20, extra: 1, weights: { whirlpool: 2, croc: 2, frog: 2 } },
+    { id: 'wind', name: 'Gió lớn', icon: '💨', chance: 16, extra: 1, weights: { wind: 5 } },
+    { id: 'storm', name: 'Bão sông', icon: '⛈️', chance: 12, extra: 2, weights: { whirlpool: 2, croc: 2, hippo: 2 } },
+    // Fog hides the rankings until the last 5 s (app side); night lights only the ducks.
+    { id: 'fog', name: 'Sương mù', icon: '🌫️', chance: 10, extra: 1, weights: { log: 3, croc: 2 } },
+    { id: 'night', name: 'Đêm trăng', icon: '🌙', chance: 10, extra: 1, weights: { frog: 3, hippo: 2, whirlpool: 2 } }
   ]);
   function weighted(list, weightOf, rng) {
     const total = list.reduce((sum, item) => sum + weightOf(item), 0);
@@ -139,7 +154,7 @@
     const H = tuning.hazard, count = racers.length;
     const slots = racers.map(r => ({ kind: 'skill', actorId: r.id, passive: PASSIVE.has(r.skill.id) }));
     const hazardCount = (H.countMin + hazardRng.integer(H.countMax - H.countMin + 1) + (weather?.extra || 0)) * Math.ceil(count / 7);
-    const pickHazard = weather ? () => weighted(hazards, h => weather.weights[h.id] || 1, hazardRng) : () => hazards[hazardRng.integer(hazards.length)];
+    const pickHazard = weather ? () => weighted(rules.hazards, h => weather.weights[h.id] || 1, hazardRng) : () => rules.hazards[hazardRng.integer(rules.hazards.length)];
     for (let i = 0; i < hazardCount; i++) slots.push({ kind: 'hazard', hazard: pickHazard() });
     const first = tuning.firstPhase, last = duration - 0.2;
     for (const slot of slots) {
@@ -185,8 +200,8 @@
   // smartTargets (chaos-v3): random picks lean toward the leading ducks.
   // epic (chaos-v3): hook reels in the leader, wave sweeps the top 3 behind the caster.
   // finaleChance (chaos-v3): share of races ending with a decisive rock trip.
-  const V2_RULES = freeze({ skills, weather: false, rockLateChance: tuning.hazard.rockLateChance, lateGuaranteePrefersRock: true, smartTargets: false });
-  const V3_RULES = freeze({ skills: freeze([...skills, ...v3Skills]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4 });
+  const V2_RULES = freeze({ skills, hazards, weather: false, rockLateChance: tuning.hazard.rockLateChance, lateGuaranteePrefersRock: true, smartTargets: false });
+  const V3_RULES = freeze({ skills: freeze([...skills, ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4 });
   function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed()) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;
@@ -213,7 +228,7 @@
       speeds: Array.from({ length: segmentCount }, () => 0.65 + motionRng.unit() * 0.70),
       distance: 0, baseDistance: 0, boost: null, rocketUntil: 0, runeUntil: 0, surges: [],
       impairUntil: 0, impairKind: null, impairFactor: 1, immuneUntil: 0,
-      guard: null, mirror: false, flyUntil: 0, swapUntil: 0, skillUsed: false
+      guard: null, mirror: false, flyUntil: 0, swapUntil: 0, ghostUntil: 0, skillUsed: false
     }));
     const boostCount = 1 + motionRng.integer(Math.min(count - 1, Math.ceil(count * 0.55)));
     const boosts = shuffled(ids, motionRng).slice(0, boostCount).map(id => {
@@ -277,7 +292,7 @@
     const flush = () => { const pending = reactions; reactions = []; pending.forEach(emit); };
     const LABEL = {
       hit: 'LẬT THUYỀN!', immune: 'ĐANG MIỄN NHIỄM!', reflected: 'BỊ GƯƠNG DỘI NGƯỢC!',
-      blocked: guard => guard === 'buoy' ? 'PHAO CHẶN ĐÒN!' : 'BONG BÓNG CHẶN ĐÒN!'
+      blocked: guard => guard === 'buoy' ? 'PHAO CHẶN ĐÒN!' : guard === 'ghost' ? 'TÀNG HÌNH, ĐÒN XUYÊN QUA!' : 'BONG BÓNG CHẶN ĐÒN!'
     };
     // Landing spot just ahead of the duck at `rank`, never past the duck above it.
     function landAhead(rank, lead) {
@@ -296,7 +311,10 @@
     }
     // Returns { outcome: 'blocked' | 'reflected', guard? } or null when the hit lands.
     // Only skill attacks from another duck can be reflected.
+    // A guarded or ghosted duck sits out area effects (tornado, rewind, freeze, black hole).
+    const shielded = r => !!r.guard || now < r.ghostUntil;
     function defend(victim, attacker, reflectable) {
+      if (now < victim.ghostUntil) return { outcome: 'blocked', guard: 'ghost' };
       if (victim.guard) {
         const guard = victim.guard;
         victim.guard = null;
@@ -359,7 +377,7 @@
         });
         const reflected = Object.values(outcomes).includes('reflected');
         if (reflected) jump(actor, actor.distance - pct(V.push));
-        else surge(actor, pct(V.surge), V.surgeTime);
+        else if (!rules.epic) surge(actor, pct(V.surge), V.surgeTime); // the epic sweep is boost enough
         return { affectedIds: top.map(r => r.id), outcomes, outcome: reflected ? 'reflected' : 'hit', label: 'SÓNG THẦN!', before, after: snapshot([actor, ...top]) };
       },
       swap(actor, ranks) {
@@ -429,12 +447,12 @@
           while (out.length < Math.min(3, count)) { const pick = weighted(pool, r => (count - ranks[r.id] + 1) ** 2, effectRng); out.push(pick); pool.splice(pool.indexOf(pick), 1); }
           return out; };
         const picked = rules.smartTargets ? pickTop() : shuffled(ids, effectRng).slice(0, 3).map(id => racers[id]);
-        const movers = picked.filter(r => !r.guard), before = snapshot(picked);
+        const movers = picked.filter(r => !shielded(r)), before = snapshot(picked);
         if (movers.length >= 2) {
           const values = movers.map(r => r.distance), shift = movers.length === 2 ? 1 : 1 + effectRng.integer(2);
           movers.forEach((r, i) => { jump(r, values[(i + shift) % movers.length]); r.swapUntil = tick(now + 0.7) / HZ; });
         }
-        return { affectedIds: picked.map(r => r.id), protectedIds: picked.filter(r => r.guard).map(r => r.id),
+        return { affectedIds: picked.map(r => r.id), protectedIds: picked.filter(shielded).map(r => r.id),
           outcome: movers.length >= 2 ? 'shuffled' : 'none', label: 'LỐC XOÁY XÁO TRỘN!', before, after: snapshot(picked) };
       },
       banana(actor, ranks) {
@@ -490,17 +508,51 @@
       freeze(actor) {
         // Area effect: guarded ducks are left out (guard kept), like tornado and rewind.
         const others = racers.filter(r => r !== actor), outcomes = {};
-        for (const r of others) outcomes[r.id] = r.guard ? 'protected' : impair(r, 'frozen', tuning.freeze.time);
-        return { affectedIds: others.map(r => r.id), protectedIds: others.filter(r => r.guard).map(r => r.id), outcomes,
+        for (const r of others) outcomes[r.id] = shielded(r) ? 'protected' : impair(r, 'frozen', tuning.freeze.time);
+        return { affectedIds: others.map(r => r.id), protectedIds: others.filter(shielded).map(r => r.id), outcomes,
           outcome: Object.values(outcomes).includes('hit') ? 'frozen' : 'none', label: 'ĐÓNG BĂNG CẢ SÔNG!' };
       },
       rewind(actor) {
         // Unguarded rivals jump back to where they were tuning.rewind.seconds ago (never forward).
         const back = Math.max(0, currentStep - Math.round(tuning.rewind.seconds * HZ));
         const others = racers.filter(r => r !== actor), before = snapshot([actor, ...others]);
-        for (const r of others) if (!r.guard) jump(r, Math.min(r.distance, distances[back * count + r.id]));
-        return { affectedIds: others.map(r => r.id), protectedIds: others.filter(r => r.guard).map(r => r.id),
+        for (const r of others) if (!shielded(r)) jump(r, Math.min(r.distance, distances[back * count + r.id]));
+        return { affectedIds: others.map(r => r.id), protectedIds: others.filter(shielded).map(r => r.id),
           outcome: 'rewound', label: 'TUA NGƯỢC THỜI GIAN!', before, after: snapshot([actor, ...others]) };
+      },
+      missile(actor, ranks) {
+        const M = tuning.missile, target = ranks[actor.id] === 1 ? atRank(2) : atRank(1), before = snapshot([actor, target]);
+        // effect: whether the stun landed (a duck still in its immunity window only gets knocked back)
+        const blast = duck => { jump(duck, duck.distance - pct(M.knock)); return impair(duck, 'capsized', M.stun); };
+        const result = strike(actor, target, () => ({ outcome: 'hit', effect: blast(target), label: 'TÊN LỬA TẦM NHIỆT TRÚNG ĐÍCH!' }), () => blast(actor));
+        return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
+      },
+      bees(actor) {
+        const B = tuning.bees, top = ranked().filter(r => r !== actor).slice(0, 2), outcomes = {};
+        for (const target of top) {
+          const defense = defend(target, actor, true);
+          if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'slow', B.time, B.slow)); outcomes[target.id] = 'reflected'; }
+          else outcomes[target.id] = defense ? defense.outcome : impair(target, 'slow', B.time, B.slow);
+        }
+        const results = Object.values(outcomes);
+        return { affectedIds: top.map(r => r.id), outcomes, label: 'ĐÀN ONG TẤN CÔNG!',
+          outcome: results.includes('hit') ? 'hit' : results.includes('reflected') ? 'reflected' : results[0] ?? 'none' };
+      },
+      blackhole(actor) {
+        const center = actor.distance, others = racers.filter(r => r !== actor), before = snapshot([actor, ...others]);
+        for (const r of others) if (!shielded(r)) jump(r, r.distance + (center - r.distance) * tuning.blackhole.pull);
+        return { affectedIds: others.map(r => r.id), protectedIds: others.filter(shielded).map(r => r.id),
+          outcome: 'pulled', label: 'HỐ ĐEN NUỐT CẢ ĐOÀN!', before, after: snapshot([actor, ...others]) };
+      },
+      ghost(actor) {
+        actor.ghostUntil = tick(now + tuning.ghost.time) / HZ;
+        return { outcome: 'ghost', label: 'TÀNG HÌNH!' };
+      },
+      balloon(actor, ranks) {
+        const target = ranks[actor.id] === 1 ? atRank(2) : atRank(1), time = tuning.balloon.time;
+        return { targetId: target.id, ...strike(actor, target,
+          () => { const outcome = impair(target, 'lifted', time); return { outcome, label: outcome === 'hit' ? 'BÓNG BAY NHẤC BỔNG!' : LABEL.immune }; },
+          () => impair(actor, 'lifted', time)) };
       },
       buoy(actor) {
         if (actor.guard === 'buoy') actor.guard = null;
@@ -532,6 +584,19 @@
         const victim = randomDuck();
         return { victim, label: 'XOÁY NƯỚC QUAY TRÒN!', harm: () => impair(victim, 'spinning', HZD.whirlStun) };
       },
+      hippo() {
+        const victim = atRank(1 + hazardRng.integer(Math.ceil(count / 2)));
+        const plan = { victim, label: 'HÀ MÃ TRỒI LÊN, HẤT VĂNG!', harm: () => { jump(victim, victim.distance - pct(HZD.hippoKnock)); plan.effect = impair(victim, 'capsized', HZD.hippoStun); return 'hit'; } };
+        return plan;
+      },
+      log() {
+        const victim = atRank(1);
+        return { victim, label: 'KHÚC GỖ CHẮN ĐƯỜNG!', harm: () => impair(victim, 'slow', HZD.logTime, HZD.logSlow) };
+      },
+      frog() {
+        const half = Math.ceil(count / 2);
+        return { victim: atRank(half + 1 + hazardRng.integer(count - half)), label: 'ẾCH CÕNG NHẢY CÓC!', hop: pct(HZD.frogHop) };
+      },
       dolphin() {
         const half = Math.ceil(count / 2);
         return { victim: atRank(half + 1 + hazardRng.integer(count - half)), label: 'CÁ HEO CÕNG LÊN!', surge: pct(HZD.dolphinPush) };
@@ -552,12 +617,16 @@
       if (plan.surge) {
         surge(victim, plan.surge, HZD.surgeTime);
         result = { outcome: 'boost', surge: plan.surge };
+      } else if (plan.hop) {
+        jump(victim, victim.distance + plan.hop);
+        result = { outcome: 'boost', hop: plan.hop };
       } else {
         const defense = defend(victim, null, false);
         if (defense) result = { outcome: 'blocked', guard: defense.guard, label: LABEL.blocked(defense.guard) };
         else result = plan.harm() === 'hit' ? { outcome: 'hit' } : { outcome: 'immune', label: LABEL.immune };
       }
-      emit({ type: 'hazard', hazard: hazard.id, actorId: victim.id, icon: hazard.icon, label: plan.label, ranksBefore: ranks, scheduled: true, before, after: snapshot([victim]), ...result });
+      emit({ type: 'hazard', hazard: hazard.id, actorId: victim.id, icon: hazard.icon, label: plan.label, ranksBefore: ranks, scheduled: true, before, after: snapshot([victim]), ...result,
+        ...(plan.effect ? { effect: plan.effect } : {}) });
       flush();
     }
     function runeEffect(actor, item) {
@@ -601,12 +670,14 @@
         flags[index] = (boosting ? 1 : 0) | (impaired && r.impairKind === 'slow' ? 2 : 0) | (r.guard ? 4 : 0)
           | (time < r.swapUntil ? 8 : 0) | (r.skillUsed ? 16 : 0) | (impaired && r.impairKind === 'capsized' ? 32 : 0)
           | (impaired && r.impairKind === 'spinning' ? 64 : 0) | (time < r.flyUntil ? 128 : 0)
-          | (impaired && r.impairKind === 'reversed' ? 256 : 0) | (impaired && r.impairKind === 'frozen' ? 512 : 0);
+          | (impaired && r.impairKind === 'reversed' ? 256 : 0) | (impaired && r.impairKind === 'frozen' ? 512 : 0)
+          | (time < r.ghostUntil ? 1024 : 0) | (impaired && r.impairKind === 'lifted' ? 2048 : 0);
       }
     }
     function move(racer, start, end, segment) {
       const base = racer.speeds[segment];
-      const extra = (start < racer.rocketUntil ? tuning.rocket.boost : 0) + (start < racer.runeUntil ? tuning.rune.boost : 0);
+      const extra = (start < racer.rocketUntil ? tuning.rocket.boost : 0) + (start < racer.runeUntil ? tuning.rune.boost : 0)
+        + (start < racer.ghostUntil ? tuning.ghost.boost : 0);
       const pulse = pulseIntegral(racer.boost, end) - pulseIntegral(racer.boost, start);
       let movement = base / HZ * (1 + extra) + pulse;
       for (const s of racer.surges) if (start < s.until) movement += s.rate / HZ;
@@ -659,18 +730,19 @@
           const state = flags[left * count + racer.id];
           let progress = positions[racer.id].distance / finishDistance;
           if (time < duration || finalRanks[racer.id] !== 1) progress = Math.min(progress, 1 - Number.EPSILON * finalRanks[racer.id]);
-          const capsized = !!(state & 32), spinning = !!(state & 64), frozen = !!(state & 512);
+          const capsized = !!(state & 32), spinning = !!(state & 64), frozen = !!(state & 512), lifted = !!(state & 2048);
           return { ...publicRacers[racer.id], rank: finalRanks[racer.id], currentRank: currentRanks[racer.id], progress,
             boosting: !!(state & 1), slowed: !!(state & 2), shielded: !!(state & 4), swapping: !!(state & 8), skillUsed: !!(state & 16),
             // Key order is part of the chaos-v2 golden hash: keep stunned, pose, flying.
-            stunned: capsized || spinning || frozen,
-            pose: capsized ? 'capsized' : spinning ? 'spinning' : state & 256 ? 'reversed' : frozen ? 'frozen' : null, flying: !!(state & 128) };
+            stunned: capsized || spinning || frozen || lifted,
+            pose: capsized ? 'capsized' : spinning ? 'spinning' : state & 256 ? 'reversed' : frozen ? 'frozen' : lifted ? 'lifted' : state & 1024 ? 'ghost' : null,
+            flying: !!(state & 128) };
         });
       }
     });
   }
 
-  const v3 = Object.freeze({ version: 'chaos-v3', skills: V3_RULES.skills, hazards, runeTypes, tuning, weathers,
+  const v3 = Object.freeze({ version: 'chaos-v3', skills: V3_RULES.skills, hazards: V3_RULES.hazards, runeTypes, tuning, weathers,
     createRace: (names, duration, seed) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed) });
   const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3,
     createRace: (names, duration, seed) => createRaceFor(VERSION, V2_RULES, names, duration, seed) });

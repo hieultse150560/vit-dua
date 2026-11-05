@@ -25,7 +25,7 @@ test('chaos-v2 replays stay byte-identical (golden hashes taken before chaos-v3 
 
 test('chaos-v3 deals one of four weathers per race, deterministically', () => {
   assert.equal(V3.version, 'chaos-v3');
-  assert.deepEqual(V3.weathers.map(w => w.id), ['sunny', 'rain', 'wind', 'storm']);
+  assert.deepEqual(V3.weathers.map(w => w.id), ['sunny', 'rain', 'wind', 'storm', 'fog', 'night']);
   for (const w of V3.weathers) assert.ok(w.name && w.icon);
   const counts = {};
   for (let seed = 0; seed < 1000; seed++) {
@@ -33,7 +33,7 @@ test('chaos-v3 deals one of four weathers per race, deterministically', () => {
     counts[r.weather.id] = (counts[r.weather.id] || 0) + 1;
     assert.deepEqual(V3.createRace(names(7), 25, seed).events, r.events);
   }
-  for (const w of V3.weathers) assert.ok(counts[w.id] >= 100, `${w.id}: ${counts[w.id]}`);
+  for (const w of V3.weathers) assert.ok(counts[w.id] >= 60, `${w.id}: ${counts[w.id]}`);
   assert.ok(counts.sunny > counts.storm);
 });
 
@@ -42,7 +42,7 @@ test('weather changes how many hazards come and which kind', () => {
   for (let seed = 0; seed < 2000; seed++) {
     const r = V3.createRace(names(7), 25, seed), list = hazardsOf(r), s = stats[r.weather.id] ??= { races: 0, hazards: 0, wind: 0 };
     s.races++; s.hazards += list.length; s.wind += list.filter(e => e.hazard === 'wind').length;
-    const extra = { sunny: 0, rain: 1, wind: 1, storm: 2 }[r.weather.id];
+    const extra = { sunny: 0, rain: 1, wind: 1, storm: 2, fog: 1, night: 1 }[r.weather.id];
     assert.ok(list.length >= 2 + extra && list.length <= 4 + extra, `${r.weather.id}: ${list.length}`);
   }
   const avg = id => stats[id].hazards / stats[id].races;
@@ -126,9 +126,9 @@ const withRace = (filter, races = 2000) => {
 };
 const order = ranks => ranks.map((rank, id) => ({ rank, id })).sort((a, b) => a.rank - b.rank).map(x => x.id);
 
-test('chaos-v3 deals 16 skills, including magnet, lightning, flip, rewind, reverse and freeze', () => {
-  assert.deepEqual(V3.skills.map(s => s.id).slice(10), ['magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze']);
-  assert.equal(V3.skills.length, 16);
+test('chaos-v3 deals 21 skills on top of the 10 from chaos-v2', () => {
+  assert.deepEqual(V3.skills.map(s => s.id).slice(10), ['magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon']);
+  assert.equal(V3.skills.length, 21);
   for (const s of V3.skills) assert.ok(s.name && s.icon && s.description);
   assert.equal(require('../dist/chaos-engine-v2.js').skills.length, 10, 'chaos-v2 keeps its 10 skills');
 });
@@ -222,4 +222,83 @@ test('freeze stops every other unguarded duck while the caster swims on', () => 
     for (const id of e.affectedIds) if (e.outcomes[id] === 'hit' && e.time + 0.4 < 25) { assert.equal(race.sample(e.time + 0.3)[id].pose, 'frozen'); checked++; }
   }
   assert.ok(checked > 200);
+});
+
+// Second wave of chaos-v3 content: five skills, three river events, two weathers.
+const E2 = require('../dist/chaos-engine-v2.js');
+const pose = (race, t, id) => race.sample(t)[id].pose;
+
+test('chaos-v3 river has eight events; chaos-v2 keeps its five', () => {
+  assert.deepEqual(V3.hazards.map(h => h.id), ['rock', 'croc', 'wind', 'whirlpool', 'dolphin', 'hippo', 'log', 'frog']);
+  assert.equal(E2.hazards.length, 5);
+  for (const h of V3.hazards) assert.ok(h.name && h.icon);
+});
+
+test('heat-seeking missile blows the leader back and capsizes it', () => {
+  const list = withRace(e => e.skill === 'missile' && e.activation);
+  assert.ok(list.length > 150);
+  for (const { race, e } of list) {
+    assert.equal(e.ranksBefore[e.targetId], e.ranksBefore[e.actorId] === 1 ? 2 : 1);
+    if (e.outcome !== 'hit') continue;
+    assert.ok(e.after[e.targetId] < e.before[e.targetId]);
+    if (e.effect === 'hit' && e.time + 0.1 < 25 && !touchedBetween(race, e, e.targetId, e.time + 0.05)) assert.equal(pose(race, e.time + 0.05, e.targetId), 'capsized');
+  }
+});
+
+test('bees swarm the top two and slow them down', () => {
+  const list = withRace(e => e.skill === 'bees' && e.activation);
+  assert.ok(list.length > 150);
+  for (const { race, e } of list) {
+    assert.deepEqual([...e.affectedIds].sort(), order(e.ranksBefore).filter(id => id !== e.actorId).slice(0, 2).sort());
+    for (const id of e.affectedIds) if (e.outcomes[id] === 'hit' && e.time + 0.6 < 25 && !touchedBetween(race, e, id, e.time + 0.5)) assert.equal(race.sample(e.time + 0.5)[id].slowed, true);
+  }
+});
+
+test('black hole pulls every other unguarded duck toward the caster', () => {
+  const list = withRace(e => e.skill === 'blackhole' && e.activation);
+  assert.ok(list.length > 150);
+  for (const { e } of list) {
+    const c = e.before[e.actorId];
+    assert.equal(e.after[e.actorId], c);
+    for (const id of e.affectedIds.filter(i => !e.protectedIds.includes(i))) assert.ok(Math.abs(e.after[id] - c) <= Math.abs(e.before[id] - c) + 1e-9);
+  }
+});
+
+test('ghost turns its duck see-through: attacks pass through for 2 s', () => {
+  const list = withRace(e => e.skill === 'ghost' && e.activation);
+  assert.ok(list.length > 150);
+  // A duck already stunned keeps that pose; check fresh ghosts only.
+  for (const { race, e } of list) if (e.time + 0.6 < 25 && !pose(race, e.time - 0.05, e.actorId) && !touchedBetween(race, e, e.actorId, e.time + 0.5)) assert.equal(pose(race, e.time + 0.5, e.actorId), 'ghost');
+  const passes = withRace(e => e.outcome === 'blocked' && e.guard === 'ghost' || Object.values(e.outcomes || {}).includes('blocked') && e.type === 'skill');
+  assert.ok(passes.some(({ e }) => e.guard === 'ghost'), 'some attack passed through a ghost');
+});
+
+test('balloon lifts the leader out of the water', () => {
+  const list = withRace(e => e.skill === 'balloon' && e.activation && e.outcome === 'hit');
+  assert.ok(list.length > 100);
+  let checked = 0;
+  for (const { race, e } of list) {
+    assert.equal(e.ranksBefore[e.targetId], e.ranksBefore[e.actorId] === 1 ? 2 : 1);
+    if (e.time + 0.6 >= 25 || touchedBetween(race, e, e.targetId, e.time + 0.6)) continue;
+    assert.equal(pose(race, e.time + 0.3, e.targetId), 'lifted');
+    const fd = race.results[0].finalDistance;
+    assert.ok(Math.abs(race.sample(e.time + 0.55)[e.targetId].progress - race.sample(e.time + 0.05)[e.targetId].progress) * fd < 1e-6, 'hangs in the air');
+    checked++;
+  }
+  assert.ok(checked > 30);
+});
+
+test('hippo tosses a top-half duck back, log blocks the leader, frog hops a back-half duck forward', () => {
+  const by = id => withRace(e => e.hazard === id && !e.finale, 1500);
+  const hippo = by('hippo'), log = by('log'), frog = by('frog');
+  assert.ok(hippo.length > 100 && log.length > 100 && frog.length > 100);
+  for (const { race, e } of hippo) {
+    assert.ok(e.ranksBefore[e.actorId] <= 4);
+    if (e.outcome === 'hit') { assert.ok(e.after[e.actorId] < e.before[e.actorId]); if (e.effect === 'hit' && e.time + 0.1 < 25 && !touchedBetween(race, e, e.actorId, e.time + 0.05)) assert.equal(pose(race, e.time + 0.05, e.actorId), 'capsized'); }
+  }
+  for (const { race, e } of log) {
+    assert.equal(e.ranksBefore[e.actorId], 1);
+    if (e.outcome === 'hit' && e.time + 0.6 < 25 && !touchedBetween(race, e, e.actorId, e.time + 0.5)) assert.equal(race.sample(e.time + 0.5)[e.actorId].slowed, true);
+  }
+  for (const { e } of frog) { assert.ok(e.ranksBefore[e.actorId] > 4); assert.ok(e.after[e.actorId] > e.before[e.actorId]); }
 });

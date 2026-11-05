@@ -203,7 +203,9 @@ test('every v2 event kind maps to a visual burst without throwing', async () => 
       ['skill', 'tornado', 'shuffled', '🌪️'], ['skill', 'banana', 'dropped', '🍌'], ['skill', 'banana', 'hit', '🍌'], ['skill', 'buoy', 'blocked', '🛟'],
       ['hazard', 'rock', 'hit', '🪨'], ['hazard', 'croc', 'hit', '🐊'], ['hazard', 'wind', 'boost', '💨'], ['hazard', 'whirlpool', 'hit', '🌀'], ['hazard', 'dolphin', 'boost', '🐬'],
       ['skill', 'magnet', 'pull', '🧲'], ['skill', 'lightning', 'hit', '⚡'], ['skill', 'flip', 'swapped', '🔃'], ['skill', 'rewind', 'rewound', '⏪'],
-      ['skill', 'reverse', 'hit', '↩️'], ['skill', 'freeze', 'frozen', '🧊']
+      ['skill', 'reverse', 'hit', '↩️'], ['skill', 'freeze', 'frozen', '🧊'],
+      ['skill', 'missile', 'hit', '🎯'], ['skill', 'bees', 'hit', '🐝'], ['skill', 'blackhole', 'pulled', '🕳️'], ['skill', 'ghost', 'ghost', '👻'],
+      ['skill', 'balloon', 'hit', '🎈'], ['hazard', 'hippo', 'hit', '🦛'], ['hazard', 'log', 'hit', '🪵'], ['hazard', 'frog', 'boost', '🐸']
     ];
     cases.forEach(([type, id, outcome, icon], index) => {
       game.window.__drawn.length = 0; game.window.__calls.length = 0;
@@ -393,23 +395,42 @@ test('a river ambience plays while racing, pauses with the race, and the crowd c
   } finally { await game.close(); }
 });
 
-test('ducks swimming backwards face the other way; frozen ducks shiver in ice', async () => {
-  const pick = pose => { for (let seed = 1; seed < 600; seed++) {
+test('ducks show the pose of what hit them: backwards, frozen, lifted, ghost', async () => {
+  // [skill, pose, face, which duck]: the caster for ghost, a hit target otherwise.
+  const cases = [['reverse', 'reversed', '😱'], ['freeze', 'frozen', '🥶'], ['balloon', 'lifted', '😨'], ['ghost', 'ghost', '😇']];
+  const pick = skill => { for (let seed = 1; seed < 900; seed++) {
     const race = V2.v3.createRace(names.map((_, id) => A.name(id)), 25, seed), all = twists(race);
-    const e = all.find(t => t.skill === (pose === 'reversed' ? 'reverse' : 'freeze') && t.activation && t.time > 6 && t.time < 20 && !all.some(o => o !== t && Math.abs(o.time - t.time) < 2.5));
-    const id = e && e.affectedIds.find(i => e.outcomes[i] === 'hit');
-    if (id !== undefined) return { seed, e, id };
+    const e = all.find(t => t.skill === skill && t.activation && t.time > 6 && t.time < 20 && !all.some(o => o !== t && Math.abs(o.time - t.time) < 2.5));
+    if (!e) continue;
+    const id = skill === 'ghost' ? e.actorId : e.affectedIds ? e.affectedIds.find(i => e.outcomes[i] === 'hit') : e.outcome === 'hit' ? e.targetId : undefined;
+    if (id !== undefined && !race.sample(e.time - 0.05)[id].pose) return { seed, e, id };
   } };
-  for (const [pose, face] of [['reversed', '😱'], ['frozen', '🥶']]) {
-    const { seed, e, id } = pick(pose);
+  for (const [skill, pose, face] of cases) {
+    const { seed, e, id } = pick(skill);
     const source = v2Fixture(seed, 4); source.sessions[1].active.engine = 'chaos-v3';
     const game = loadGame({ [KEY]: JSON.stringify(source) });
     try {
       game.click('resume-overlay'); advanceToTwist(game, e); game.advance(150, 50);
       const racer = game.window.document.querySelectorAll('.racer')[id];
-      assert.ok(racer.classList.contains(pose), `${pose} class`);
-      assert.equal(racer.querySelector('.racer-emote').textContent, face);
+      assert.ok(racer.classList.contains(pose), `${skill}: ${pose} class`);
+      assert.equal(racer.querySelector('.racer-emote').textContent, face, skill);
       assert.deepEqual(game.errors.map(String), []);
     } finally { await game.close(); }
   }
+});
+
+test('fog hides the rankings until the last 5 seconds', async () => {
+  let seed = 1;
+  while (V2.v3.createRace(names.map((_, id) => A.name(id)), 25, seed).weather.id !== 'fog') seed++;
+  const source = v2Fixture(seed, 8); source.sessions[1].active.engine = 'chaos-v3';
+  const game = loadGame({ [KEY]: JSON.stringify(source) });
+  try {
+    const water = game.window.document.querySelector('.race-water');
+    assert.ok(water.classList.contains('weather-fog'));
+    game.click('resume-overlay'); game.advance(500, 50);
+    assert.equal(water.classList.contains('fog-lifted'), false);
+    for (let i = 0; i < 1200 && current(game).active && current(game).active.elapsed < 20.2; i++) game.advance(50, 50);
+    assert.ok(water.classList.contains('fog-lifted'), 'fog lifts for the final sprint');
+    assert.deepEqual(game.errors.map(String), []);
+  } finally { await game.close(); }
 });

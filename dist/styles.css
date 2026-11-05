@@ -395,3 +395,12 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .racer.twist-focus.reversed .duck-body{scale:-1.5 1.5}
 .racer.frozen .duck-body{filter:saturate(.25) brightness(1.25) drop-shadow(0 0 6px #bff4ff)}
 .racer.frozen::after{content:'';position:absolute;left:14%;right:14%;top:8%;bottom:14%;z-index:3;border-radius:12px;border:2px solid rgba(235,252,255,.95);background:linear-gradient(135deg,rgba(255,255,255,.55),rgba(190,240,255,.25));box-shadow:inset 0 0 12px rgba(255,255,255,.8);pointer-events:none}
+
+/* Ghost ducks go see-through; balloon-lifted ducks hang in the air */
+.racer.ghost .duck-body{opacity:.45;filter:brightness(1.2) drop-shadow(0 0 12px #dfe9ff)}
+.racer.lifted .duck-body{translate:0 -40px;rotate:-6deg;filter:drop-shadow(0 26px 6px rgba(0,0,0,.25))}
+/* Fog hides the rankings until the final sprint; night dims the river under the canvas glow */
+.race-water.weather-fog:not(.fog-lifted) .racer-rank{opacity:0}
+#track:has(.race-water.weather-fog:not(.fog-lifted)) #live-leaders{visibility:hidden}
+.race-water.weather-fog .river{filter:saturate(.7) brightness(1.04)}
+.race-water.weather-night .river{filter:brightness(.82) saturate(.85)}

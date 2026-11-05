@@ -32,7 +32,16 @@
     'reverse:hit': ['Bơi ngược chiều! {a} khiến tốp đầu quay đầu bơi lùi!', '{a} làm hai con dẫn đầu lú lẫn, bơi ngược về sau!'],
     'freeze:frozen': ['Đóng băng! Cả sông đứng hình, chỉ mình {a} còn bơi!', '{a} thổi một luồng gió lạnh, mặt sông đóng băng tức thì!'],
     'rock:finale': ['Trời ơi! {a} vấp đá ngay trước vạch đích, mất trắng chiến thắng!', 'Kịch tính tột độ! {a} sắp về nhất thì vấp đá ngã lăn!', '{a} chỉ còn một sải nữa thôi… và vấp đá! Chiến thắng tuột khỏi tay!'],
+    'missile:hit': ['Tên lửa tầm nhiệt của {a} bám đuôi {b}… BÙM! Nổ tung!', '{b} chạy đằng trời! Tên lửa của {a} trúng ngay giữa lưng!', 'Một vệt khói dài… và {b} bị {a} thổi bay ngược lại!'],
+    'bees:hit': ['Đàn ong của {a} bu kín tốp đầu, chạy không nổi!', 'Vo ve vo ve! {a} thả ong đuổi hai con dẫn đầu!'],
+    'blackhole:pulled': ['Hố đen của {a} nuốt chửng khoảng cách, cả đoàn dồn cục!', '{a} mở hố đen! Ai chạy trước cũng bị hút ngược lại!'],
+    'ghost:ghost': ['{a} tàng hình rồi! Đánh gì cũng xuyên qua!', 'Ma kìa! {a} biến thành bóng ma lướt vèo vèo!'],
+    'balloon:hit': ['{a} buộc bóng bay vào {b}, nhấc bổng lên trời!', '{b} lơ lửng giữa không trung, quà của {a} đấy!'],
+    'hippo:hit': ['Hà mã trồi lên! {a} bị hất văng ra sau!', 'Ầm! Một con hà mã ngóc đầu dậy ngay dưới {a}!'],
+    'log:hit': ['Khúc gỗ trôi chắn ngang mũi {a}, kẹt cứng!', '{a} đâm sầm vào khúc gỗ! Đau quá!'],
+    'frog:boost': ['Ộp ộp! Ếch cõng {a} nhảy cóc lên trước!', '{a} được bầy ếch cho đi nhờ, bật nhảy vèo vèo!'],
     'dolphin:boost': ['Cá heo xuất hiện, cõng {a} lên phía trước!', '{a} được cá heo cho đi nhờ! Vui quá!'],
+    'ghost-pass': ['Đòn của {a} xuyên qua bóng ma {b}!'],
     blocked: ['{b} có lá chắn, đòn của {a} tan biến!', 'Đỡ được rồi! {a} vô vọng trước {b}!', 'Phao cứu {a} một bàn thua trông thấy!'],
     reflected: ['Đòn của {a} bị gương của {b} dội ngược!', '{a} tấn công {b} và… tự hại mình!', 'Gương thần! Đòn của {a} bị dội ngược về chính nó!'],
     immune: ['{b} đang miễn nhiễm, {a} đánh hụt!', '{a} ra đòn nhưng không ăn thua!', '{a} vẫn còn choáng nên không sao!'],
@@ -54,7 +63,7 @@
     const id = event.skill || event.hazard, a = nameOf(event.actorId);
     const hasTarget = Number.isInteger(event.targetId) && event.targetId !== event.actorId;
     const fits = list => (list || []).filter(text => text.includes('{b}') === hasTarget);
-    const pool = [event.finale && LINES['rock:finale'], LINES[`${id}:${event.outcome}`], LINES[event.outcome], LINES.default].map(fits).find(list => list.length)
+    const pool = [event.finale && LINES['rock:finale'], event.guard === 'ghost' && LINES['ghost-pass'], LINES[`${id}:${event.outcome}`], LINES[event.outcome], LINES.default].map(fits).find(list => list.length)
       || [`${a} ${event.label || ''}`.trim()];
     const pick = pool[hash(`${event.id}|${event.time}`) % pool.length];
     return pick.replaceAll('{a}', a).replaceAll('{b}', hasTarget ? nameOf(event.targetId) : '');

@@ -37,7 +37,7 @@ Mở [game trên máy](http://127.0.0.1:8000). Dùng cùng trình duyệt và đ
 
 Các vòng mới dùng cơ chế `chaos-v2`: **chọn đủ vịt → xuất phát mới lộ skill → lật kèo liên tục đến giây cuối**. Mỗi người vẫn chọn lại một vịt mỗi vòng. Không còn thiên phú: chọn vịt không quyết định thắng thua, mọi lợi thế đến từ skill bốc ngẫu nhiên lúc xuất phát. Không thể xem skill rồi hoàn tác lựa chọn.
 
-Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ skill; đông hơn thì mỗi skill dùng tối đa `ceil(N / số skill)` lần). `chaos-v2` có 10 skill, `chaos-v3` có 16. Skill tự kích hoạt đúng một lần:
+Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ skill; đông hơn thì mỗi skill dùng tối đa `ceil(N / số skill)` lần). `chaos-v2` có 10 skill, `chaos-v3` có 21. Skill tự kích hoạt đúng một lần:
 
 | Skill | Hiệu ứng |
 | --- | --- |
@@ -57,6 +57,11 @@ Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ 
 | ⏪ Tua ngược (`chaos-v3`) | Mọi con khác (trừ con có phao/bong bóng) bị tua lùi về chỗ của 1 giây trước. |
 | ↩️ Bơi ngược (`chaos-v3`) | Hai con dẫn đầu quay đầu bơi ngược chiều 1,5 giây. |
 | 🧊 Đóng băng (`chaos-v3`) | Cả sông đóng băng 1 giây, chỉ mình bơi; con có phao/bong bóng không bị đóng băng. |
+| 🎯 Tên lửa tầm nhiệt (`chaos-v3`) | Bám đuôi con dẫn đầu rồi nổ, hất nó lùi 4% và lật 1 giây. |
+| 🐝 Đàn ong (`chaos-v3`) | Ong đuổi 2 con dẫn đầu, chậm 60% trong 2 giây. |
+| 🕳️ Hố đen (`chaos-v3`) | Hút mọi con khác dồn về phía mình 60% khoảng cách: con trước bị kéo lùi, con sau bị kéo lên. |
+| 👻 Tàng hình (`chaos-v3`) | 2 giây mọi đòn và sự kiện xuyên qua (trừ cú vấp đá cuối), lướt nhanh hơn 20%; đứng ngoài lốc xoáy, tua ngược, đóng băng, hố đen. |
+| 🎈 Bóng bay (`chaos-v3`) | Nhấc con dẫn đầu lơ lửng khỏi mặt nước 1,5 giây, đứng yên. |
 
 Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 7)` khi đông vịt):
 
@@ -65,6 +70,9 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 - 💨 **Gió thuận:** con đang bét được đẩy lên 6% trong 1 giây.
 - 🌀 **Xoáy nước:** một con ngẫu nhiên quay tròn tại chỗ 1,5 giây.
 - 🐬 **Cá heo cõng:** một con ở nửa cuối được cõng lên 5% trong 1 giây.
+- 🦛 **Hà mã trồi lên** (`chaos-v3`): một con ở nửa trên bị hất lùi 3% và lật 1 giây.
+- 🪵 **Khúc gỗ trôi** (`chaos-v3`): chắn con đang dẫn, chậm 90% trong 1,5 giây.
+- 🐸 **Ếch bật nhảy** (`chaos-v3`): một con ở nửa cuối nhảy cóc lên 3%.
 
 **Lịch lật kèo:** pha lật kèo (skill hoặc sự kiện) rải từ giây thứ 2 đến cuối trận, càng về cuối càng dày, và vòng nào cũng có ít nhất một pha ở 1/3 đầu và một pha trong 2 giây cuối. Hai pha cách nhau ít nhất 0,4 giây; khi quá đông vịt khoảng cách co lại và banner gộp "N pha liên tiếp!".
 
@@ -82,10 +90,12 @@ Mỗi vòng mới bốc một kiểu thời tiết, hiện trên đầu sông v�
 
 | Thời tiết | Tỉ lệ | Ảnh hưởng |
 | --- | --- | --- |
-| ☀️ Nắng đẹp | 40% | Như bình thường |
-| 🌧️ Mưa rào | 25% | Thêm 1 sự kiện; xoáy nước và cá sấu hay xuất hiện hơn |
-| 💨 Gió lớn | 20% | Thêm 1 sự kiện; gió thuận chiếm phần lớn |
-| ⛈️ Bão sông | 15% | Thêm 2 sự kiện; xoáy nước và cá sấu nhiều gấp đôi |
+| ☀️ Nắng đẹp | 32% | Như bình thường |
+| 🌧️ Mưa rào | 20% | Thêm 1 sự kiện; xoáy nước, cá sấu và ếch hay xuất hiện hơn |
+| 💨 Gió lớn | 16% | Thêm 1 sự kiện; gió thuận chiếm phần lớn |
+| ⛈️ Bão sông | 12% | Thêm 2 sự kiện; xoáy nước, cá sấu và hà mã nhiều gấp đôi |
+| 🌫️ Sương mù | 10% | Thêm 1 sự kiện, nhiều khúc gỗ trôi; giấu thứ hạng (số hạng trên vịt và bảng dẫn đầu) đến 5 giây cuối |
+| 🌙 Đêm trăng | 10% | Thêm 1 sự kiện, nhiều ếch và hà mã; sông tối, mỗi con vịt có quầng đèn riêng, trăng và sao |
 
 Mặt sông đổi màu theo thời tiết, có mưa rơi, gió thổi và chớp giật khi bão.
 

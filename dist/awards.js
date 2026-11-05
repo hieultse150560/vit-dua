@@ -8,8 +8,8 @@
     { id: 'dodger', icon: '🛡️', title: 'Thánh né đòn', detail: v => `né ${v} đòn` },
     { id: 'unlucky', icon: '😭', title: 'Kẻ xui nhất', detail: v => `dính ${v} đòn` }
   ];
-  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana']);
-  const HAZARD_HITS = new Set(['rock', 'croc', 'whirlpool']);
+  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana', 'missile', 'balloon']);
+  const HAZARD_HITS = new Set(['rock', 'croc', 'whirlpool', 'hippo', 'log']);
   const movedBack = e => Object.keys(e.before || {}).map(Number).filter(id => e.after?.[id] < e.before[id]);
 
   // Who suffered, who struck, who dodged in one event (duck ids).
@@ -17,7 +17,7 @@
     const out = { victims: [], strikes: 0, dodgers: [] };
     if (e.type === 'hazard') {
       if (e.outcome === 'hit' && HAZARD_HITS.has(e.hazard)) out.victims.push(e.actorId);
-      if (e.outcome === 'blocked' && e.guard === 'bubble') out.dodgers.push(e.actorId);
+      if (e.outcome === 'blocked' && ['bubble', 'ghost'].includes(e.guard)) out.dodgers.push(e.actorId);
       return out;
     }
     if (e.type !== 'skill') return out;
@@ -27,7 +27,7 @@
       if (e.effect === 'hit') { out.victims.push(e.targetId); out.strikes++; }
       return out;
     }
-    if (e.outcome === 'blocked' && e.guard === 'bubble') out.dodgers.push(e.targetId ?? e.actorId);
+    if (e.outcome === 'blocked' && ['bubble', 'ghost'].includes(e.guard)) out.dodgers.push(e.targetId ?? e.actorId);
     if (SINGLE_HITS.has(e.skill) && e.outcome === 'hit') { out.victims.push(e.targetId); out.strikes++; }
     if (e.skill === 'mirror' && e.outcome === 'fallback' && e.effect === 'hit') { out.victims.push(e.targetId); out.strikes++; }
     if (e.skill === 'rocket' && e.outcome === 'exploded') out.victims.push(e.actorId);
@@ -37,7 +37,7 @@
         if (result === 'blocked' && !buoyReactions.has(`${e.time}|${id}`)) out.dodgers.push(Number(id));
       }
     }
-    if ((['swap', 'flip'].includes(e.skill) && e.outcome === 'swapped') || (e.skill === 'tornado' && e.outcome === 'shuffled') || e.skill === 'rewind') {
+    if ((['swap', 'flip'].includes(e.skill) && e.outcome === 'swapped') || (e.skill === 'tornado' && e.outcome === 'shuffled') || ['rewind', 'blackhole'].includes(e.skill)) {
       out.victims.push(...movedBack(e));
       if (e.skill === 'swap' && e.after?.[e.actorId] > e.before?.[e.actorId]) out.strikes++;
     }
