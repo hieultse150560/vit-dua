@@ -40,6 +40,16 @@
     'hippo:hit': ['Hà mã trồi lên! {a} bị hất văng ra sau!', 'Ầm! Một con hà mã ngóc đầu dậy ngay dưới {a}!'],
     'log:hit': ['Khúc gỗ trôi chắn ngang mũi {a}, kẹt cứng!', '{a} đâm sầm vào khúc gỗ! Đau quá!'],
     'frog:boost': ['Ộp ộp! Ếch cõng {a} nhảy cóc lên trước!', '{a} được bầy ếch cho đi nhờ, bật nhảy vèo vèo!'],
+    'bomb:armed': ['{a} gắn bom hẹn giờ lên {b}! Tích tắc… tích tắc…', 'Bom của {a} dính lên {b}! Ai dẫn đầu thì người đó ôm bom!'],
+    'bomb:hit': ['BÙM! Bom của {a} nổ tung ngay trên đầu {b}!', 'Hết giờ! {b} ôm trọn quả bom của {a}!', 'BÙM! {a} tự ôm bom của chính mình, nổ tung!'],
+    'dice:roll': ['{a} gieo xúc xắc ra {n}! Vọt lên ngay!', 'Lốc cốc lốc cốc… {a} được {n} điểm, lướt lên phía trước!'],
+    'dice:bust': ['{a} gieo ra 1… tự lật thuyền! Đen thôi đỏ quên đi!', 'Xúc xắc phản chủ! {a} ra 1, lật nhào!'],
+    'lullaby:asleep': ['{a} cất giọng ru, cả đám xung quanh ngủ gật!', 'Ầu ơ… {a} hát ru, mấy con gần đó gục đầu ngủ say!'],
+    'lullaby:none': ['{a} hát ru nhưng ai cũng có phao, chẳng ai buồn ngủ!'],
+    'hex:hit': ['{a} vung đũa phép, {b} hóa thành ếch!', 'Úm ba la! {b} biến thành ếch nhảy cà nhắc, phép của {a} đấy!'],
+    'giant:giant': ['{a} ăn nấm hóa khổng lồ, giẫm bẹp mấy con phía trước!', 'Ầm ầm! {a} to như núi, lao lên như xe tăng!'],
+    'dodge-pass': ['{b} lắt léo né gọn đòn của {a}!', 'Né đẹp! Đòn của {a} trượt khỏi {b} trong gang tấc!'],
+    'lucky-pass': ['{a} tốt số thật, thoát nạn trong gang tấc!', 'Trời thương {a}! Tai họa đi lướt qua!'],
     'dolphin:boost': ['Cá heo xuất hiện, cõng {a} lên phía trước!', '{a} được cá heo cho đi nhờ! Vui quá!'],
     'ghost-pass': ['Đòn của {a} xuyên qua bóng ma {b}!'],
     blocked: ['{b} có lá chắn, đòn của {a} tan biến!', 'Đỡ được rồi! {a} vô vọng trước {b}!', 'Phao cứu {a} một bàn thua trông thấy!'],
@@ -63,10 +73,13 @@
     const id = event.skill || event.hazard, a = nameOf(event.actorId);
     const hasTarget = Number.isInteger(event.targetId) && event.targetId !== event.actorId;
     const fits = list => (list || []).filter(text => text.includes('{b}') === hasTarget);
-    const pool = [event.finale && LINES['rock:finale'], event.guard === 'ghost' && LINES['ghost-pass'], LINES[`${id}:${event.outcome}`], LINES[event.outcome], LINES.default].map(fits).find(list => list.length)
+    // Copycat: credit the thief, then call the move it copied.
+    if (event.skill === 'copycat' && event.copied) return `${a} học lỏm chiêu ${event.copiedName}! ${line({ ...event, skill: event.copied }, nameOf)}`;
+    const guardLines = { ghost: LINES['ghost-pass'], dodge: LINES['dodge-pass'], lucky: LINES['lucky-pass'] };
+    const pool = [event.finale && LINES['rock:finale'], guardLines[event.guard], LINES[`${id}:${event.outcome}`], LINES[event.outcome], LINES.default].map(fits).find(list => list.length)
       || [`${a} ${event.label || ''}`.trim()];
     const pick = pool[hash(`${event.id}|${event.time}`) % pool.length];
-    return pick.replaceAll('{a}', a).replaceAll('{b}', hasTarget ? nameOf(event.targetId) : '');
+    return pick.replaceAll('{a}', a).replaceAll('{b}', hasTarget ? nameOf(event.targetId) : '').replaceAll('{n}', String(event.roll ?? ''));
   }
   function start(race) {
     const opener = OPENERS[hash(race?.seed ?? 0) % OPENERS.length];

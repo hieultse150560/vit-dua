@@ -73,6 +73,14 @@
     }
     writeSaved(checkpoint.prefix+JSON.stringify(active)+checkpoint.suffix);
   }
+  // chaos-v3 lineup: one skill and one trait per duck, dealt before the picks and shown on the duck cards.
+  const lineupOk=(l,count)=>!!l&&typeof l==='object'&&['skills','traits'].every(k=>Array.isArray(l[k])&&l[k].length===count)&&l.skills.every(id=>C3.skills.some(s=>s.id===id))&&l.traits.every(id=>C3.traits.some(t=>t.id===id));
+  const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits]});
+  const skillOf=id=>C3.skills.find(s=>s.id===id), traitOf=id=>C3.traits.find(t=>t.id===id);
+  function ensureLineup(){
+    if(!current||current.active||current.stage!=='picking'||isLegacy())return;
+    if(!lineupOk(current.lineup,participants().length)){current.lineup=plainLineup(C3.deal(participants().length));save();}
+  }
   function validateEnvelope(raw){
     if(!raw||!['regular','tie'].includes(raw.type)||!['picking','result','complete'].includes(raw.stage))throw Error('Trạng thái giải không hợp lệ.');
     const clean={seasonId:raw.seasonId??null,session:T.validateSession(raw.session),type:raw.type,stage:raw.stage,picks:{},active:null,raceReplays:[]};
@@ -82,10 +90,12 @@
     const stars=raw.stars===undefined?[]:raw.stars;
     if(!Array.isArray(stars)||new Set(stars).size!==stars.length||stars.some(id=>typeof id!=='string'||!Object.hasOwn(clean.picks,id)||!T.starAvailable(clean.session,id))||(stars.length&&(clean.type!=='regular'||clean.stage!=='picking')))throw Error('Ngôi sao hy vọng đã lưu không hợp lệ.');
     if(stars.length)clean.stars=[...stars]; // ponytail: absent means none, so old saves keep their exact shape
+    if(clean.stage==='picking'&&lineupOk(raw.lineup,players.length))clean.lineup=plainLineup(raw.lineup); // invalid or missing: dealt again
     if(raw.active){const a=raw.active;T.validatePicks(players,clean.picks);if(clean.stage!=='picking'||!Number.isInteger(a.seed)||a.seed<0||a.seed>4294967295||typeof a.id!=='string'||!a.id||a.id.length>128||!Number.isFinite(a.elapsed)||a.elapsed<0||a.elapsed>clean.session.duration||!Number.isFinite(a.countdownLeft)||a.countdownLeft<0||a.countdownLeft>3)throw Error('Lượt đang đua không hợp lệ.');if(clean.type==='regular'&&clean.session.rounds.length>=clean.session.roundLimit)throw Error('Lượt đã hoàn tất.');if(clean.type==='tie'&&T.coffeeStatus(clean.session).status!=='tie')throw Error('Lượt phụ không hợp lệ.');if([...clean.session.rounds,...clean.session.tiebreaks].some(r=>r.id===a.id))throw Error('Lượt bị trùng.');clean.active={id:a.id,seed:a.seed,elapsed:a.elapsed,countdownLeft:a.countdownLeft};}
     if(raw.active?.engine!==undefined){if(!engineFor(raw.active.engine))throw Error('Phiên bản cuộc đua chưa được hỗ trợ.');clean.active.engine=raw.active.engine;}
-    const records=new Set([...clean.session.rounds,...clean.session.tiebreaks].map(r=>r.id));
-    if(Array.isArray(raw.raceReplays)){const seen=new Set();for(const r of raw.raceReplays){if(r&&records.has(r.id)&&!seen.has(r.id)&&engineFor(r.engine)&&Number.isInteger(r.seed)&&r.seed>=0&&r.seed<=4294967295){clean.raceReplays.push({id:r.id,seed:r.seed,engine:r.engine});seen.add(r.id);}}}
+    if(raw.active?.lineup!==undefined){if(!lineupOk(raw.active.lineup,players.length))throw Error('Đội hình skill của lượt đang đua không hợp lệ.');clean.active.lineup=plainLineup(raw.active.lineup);}
+    const recordSizes=new Map([...clean.session.rounds,...clean.session.tiebreaks].map(r=>[r.id,r.entries.length])),records=new Set(recordSizes.keys());
+    if(Array.isArray(raw.raceReplays)){const seen=new Set();for(const r of raw.raceReplays){if(r&&records.has(r.id)&&!seen.has(r.id)&&engineFor(r.engine)&&Number.isInteger(r.seed)&&r.seed>=0&&r.seed<=4294967295&&(r.lineup===undefined||lineupOk(r.lineup,recordSizes.get(r.id)))){clean.raceReplays.push({id:r.id,seed:r.seed,engine:r.engine,...(r.lineup?{lineup:plainLineup(r.lineup)}:{})});seen.add(r.id);}}}
     if(clean.stage==='picking')T.selectionState(clean.session,clean.type,clean.picks);
     return clean;
   }
@@ -137,11 +147,13 @@
     const starOpen=picking&&!!selected&&current.type==='regular'&&T.starAvailable(s,selected);if(!starOpen)starArmed=false;
     const starForced=starOpen&&T.starForced(s,selected);if(starForced)starArmed=true;
     $('star-toggle').hidden=!starOpen;$('star-toggle').disabled=starForced;$('star-toggle').setAttribute('aria-pressed',String(starArmed));$('star-toggle').textContent=starForced?'⭐ Vòng cuối: bắt buộc dùng sao':starArmed?'⭐ Sao đang bật cho lượt này':'☆ Dùng sao lượt này';
+    ensureLineup();
     $('duck-grid').replaceChildren(...players.map((_,id)=>{
       const owner=players.find(p=>current.picks[p.id]===id);
-      const b=node('button',`duck-card${owner?' claimed':''}`);b.dataset.duckId=String(id);b.disabled=!picking||!!owner||!selected;b.setAttribute('aria-label',`${A.name(id)} số ${id+1}${isLegacy()?'':' · Skill bí mật'}${owner?` — ${owner.name} đã chọn`:' — còn trống'}`);b.setAttribute('aria-pressed',String(!!owner));
+      const b=node('button',`duck-card${owner?' claimed':''}`);b.dataset.duckId=String(id);b.disabled=!picking||!!owner||!selected;b.setAttribute('aria-label',`${A.name(id)} số ${id+1}${owner?` — ${owner.name} đã chọn`:' — còn trống'}`);b.setAttribute('aria-pressed',String(!!owner));
       const art=node('span');art.innerHTML=A.svg(id);b.append(node('span','duck-number',`#${String(id+1).padStart(2,'0')}`),art,node('strong','',A.name(id)),node('small','',owner?`${owner.name} ✓`:'Chọn vịt này'));
-      if(!isLegacy())b.append(node('small','secret-skill','🔒 Skill bí mật · lộ khi xuất phát'));
+      const sk=!isLegacy()&&current.lineup&&skillOf(current.lineup.skills[id]),tr=sk&&traitOf(current.lineup.traits[id]);
+      if(sk){b.append(node('small','skill-tag',`${sk.icon} ${sk.name}`),node('small','skill-detail',sk.description),node('small','talent-tag',`${tr.icon} ${tr.name}`),node('small','talent-detail',tr.description));b.setAttribute('aria-label',`${b.getAttribute('aria-label')} · Skill ${sk.name}: ${sk.description} · Đặc tính ${tr.name}: ${tr.description}`);}
       b.onclick=()=>pick(id);return b;
     }));
     $('random-picks').disabled=!picking||chosen===players.length;
@@ -185,10 +197,11 @@
       const lane=node('div','lane'),runway=node('div','runway'),racer=node('div','racer'),art=node('span','duck-body');art.innerHTML=A.svg(r.id);
       racer.style.setProperty('--duck-color',A.colors[r.id%A.colors.length]);racer.style.setProperty('--bob-delay',`${-(r.id*.31).toFixed(2)}s`);
       const rankBadge=node('span','racer-rank'),stateBadge=node('span','racer-state'),emote=node('span','racer-emote');
-      racer.append(node('span','wake'),art,node('span','racer-label',owners[r.id]),rankBadge,emote);
+      racer.append(node('span','wake'),art,node('span','racer-label',owners[r.id]),rankBadge,emote,node('span','racer-bomb','💣'));
       const ownerId=players.find(p=>current.picks[p.id]===r.id)?.id;if(ownerId&&starsOf().includes(ownerId)){racer.classList.add('has-star');racer.append(node('span','racer-star','⭐'));racer.title=`⭐ ${racer.title}`;}
       racer.title=`${A.name(r.id)} — ${owners[r.id]}`;
-      if(r.skill){const badge=node('span','racer-skill',r.skill.icon);badge.title=`${r.skill.name}: ${r.skill.description}`;racer.append(badge,stateBadge);racer.title+=`${r.talent?` · ${r.talent.name}`:''} · ${r.skill.name}`;}
+      if(r.skill){const badge=node('span','racer-skill',r.skill.icon);badge.title=`${r.skill.name}: ${r.skill.description}`;racer.append(badge,stateBadge);racer.title+=`${r.talent?` · ${r.talent.name}`:''} · ${r.skill.name}${r.trait?` · ${r.trait.icon} ${r.trait.name}`:''}`;}
+      if(r.trait){const t=node('span','racer-trait',r.trait.icon);t.title=`${r.trait.name}: ${r.trait.description}`;racer.append(t);}
       runway.append(racer);lane.append(node('span','lane-number',String(r.id+1).padStart(2,'0')),runway);nodes.push(racer);
       racerViews[r.id]={element:racer,stateBadge,rankBadge,emote,face:'',flags:-1,rank:0};return lane;
     }));
@@ -278,13 +291,13 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   }
   // Jumps are instant in the simulation; on screen the ducks glide there (eased) so a wave
   // visibly sweeps them back and a hook visibly reels the leader in. Results are untouched.
-  const GLIDE={hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25},tornado:{delay:.07,dur:.2},blackhole:{delay:.1,dur:.1},ghost:{delay:.03,dur:.2},buoy:{delay:0,dur:.25}};let glides={};
+  const GLIDE={hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25},tornado:{delay:.07,dur:.2},blackhole:{delay:.1,dur:.1},ghost:{delay:.03,dur:.2},buoy:{delay:0,dur:.25},dice:{delay:.12,dur:.15},giant:{delay:.05,dur:.18}};let glides={};
   // Ducks thrown back by a tornado are lifted and twirled; by a black hole they shrink into it and pop out behind
   // (CSS, real time; matches the 1.8 s slow motion).
   // A buoy bounce hops the duck forward three times. [class, direction of the move it decorates]
   const BODY_FX={tornado:['swept',-1],blackhole:['swallowed',-1],buoy:['bouncy',1]};
   function sweep(event){
-    const [cls,dir]=BODY_FX[event.skill]||[];if(!cls||reduced.matches)return;
+    const [cls,dir]=BODY_FX[event.copied||event.skill]||[];if(!cls||reduced.matches)return;
     for(const [id,d] of Object.entries(event.after||{}))if((d-event.before[id])*dir>1e-9&&nodes[id]){const n=nodes[id];n.classList.remove(cls);void n.offsetWidth;n.classList.add(cls);setTimeout(()=>n.classList.remove(cls),slowmoMs()+100);}
   }
   // Boosts show how many ducks they overtook: "⏩ +N" pops over the duck once the move is done
@@ -303,7 +316,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function startGlides(event,pre){
     sweep(event);
     if(!event.before||!event.after)return;
-    const g=GLIDE[event.skill]||{delay:0,dur:.18};
+    const g=GLIDE[event.copied||event.skill]||{delay:0,dur:.18};
     for(const [id,d] of Object.entries(event.after))if(Math.abs(d-event.before[id])>1e-9&&pre[id])glides[id]={from:pre[id].progress,start:event.time+g.delay,end:event.time+g.delay+g.dur};
   }
   function glided(r,elapsed){
@@ -326,8 +339,8 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;
     // Last round: any star still unused is spent now (covers random picks and older saves).
     if(current.type==='regular'){const forced=participants().map(p=>p.id).filter(id=>T.starForced(current.session,id)&&!starsOf().includes(id));if(forced.length)current.stars=[...starsOf(),...forced];}
-    try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);race=(isLegacy()?DuckRaceEngine:C3).createRace(participants().map((_,i)=>A.name(i)),current.session.duration);}catch(e){toast(e.message);return;}
-    stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C3.version})};phase='countdown';lastTime=performance.now();lastSaved=lastTime;lastTick=3;sprintAnnounced=false;leadersKey='';save();render();makeTrack();activateAudio();tone(520);
+    try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);ensureLineup();race=isLegacy()?DuckRaceEngine.createRace(participants().map((_,i)=>A.name(i)),current.session.duration):C3.createRace(participants().map((_,i)=>A.name(i)),current.session.duration,undefined,current.lineup);}catch(e){toast(e.message);return;}
+    stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C3.version,lineup:plainLineup(current.lineup)})};phase='countdown';lastTime=performance.now();lastSaved=lastTime;lastTick=3;sprintAnnounced=false;leadersKey='';save();render();makeTrack();activateAudio();tone(520);
     $('restore-notice').hidden=true;$('arena-title').textContent='Chuẩn bị xuất phát…';$('race-overlay').hidden=false;$('overlay-number').textContent='3';$('overlay-text').textContent=race.weather?`Chuẩn bị nào! · ${race.weather.icon} ${race.weather.name}`:'Chuẩn bị nào!';$('resume-overlay').hidden=true;$('sprint-label').textContent='ĐANG VÀO VỊ TRÍ';$('live-leaders').replaceChildren();
     document.querySelector('.arena-panel').scrollIntoView({block:'start',behavior:reduced.matches?'instant':'smooth'});
     schedule();
@@ -340,10 +353,10 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
       // on this transform: easing chases a moving target and makes overtakes lag.
       e.style.transform=`translate3d(${(glided(r,current.active?.elapsed??race.duration)*runwayWidth).toFixed(3)}px,0,0)`;
       const boosting=!!r.boosting&&phase==='running',leading=current.active.elapsed>0&&r.currentRank===1;
-      const flags=(boosting?1:0)|(leading?2:0)|(r.slowed?4:0)|(r.shielded?8:0)|(r.swapping?16:0)|(r.skillUsed?32:0)|(r.pose==='capsized'?64:0)|(r.pose==='spinning'?128:0)|(r.flying?256:0)|(r.pose==='reversed'?512:0)|(r.pose==='frozen'?1024:0)|(r.pose==='ghost'?2048:0)|(r.pose==='lifted'?4096:0);
-      if(flags!==view.flags){view.flags=flags;e.classList.toggle('boosting',boosting);e.classList.toggle('leading',leading);e.classList.toggle('slowed',!!r.slowed);e.classList.toggle('shielded',!!r.shielded);e.classList.toggle('swapping',!!r.swapping);e.classList.toggle('skill-used',!!r.skillUsed);e.classList.toggle('stunned',!!r.stunned);e.classList.toggle('capsized',r.pose==='capsized');e.classList.toggle('spinning',r.pose==='spinning');e.classList.toggle('flying',!!r.flying);e.classList.toggle('reversed',r.pose==='reversed');e.classList.toggle('frozen',r.pose==='frozen');e.classList.toggle('ghost',r.pose==='ghost');e.classList.toggle('lifted',r.pose==='lifted');view.stateBadge.textContent=r.pose==='lifted'?'🎈':r.pose==='ghost'?'👻':r.pose==='reversed'?'↩️':r.pose==='frozen'?'🧊':r.pose==='capsized'?'🙃':r.pose==='spinning'?'💫':r.flying?'🪽':r.swapping?'🔄':r.shielded?'🛟':r.slowed?'💫':boosting?'⚡':'';skillNodes[r.id]?.classList.toggle('skill-used',!!r.skillUsed);}
+      const flags=(boosting?1:0)|(leading?2:0)|(r.slowed?4:0)|(r.shielded?8:0)|(r.swapping?16:0)|(r.skillUsed?32:0)|(r.pose==='capsized'?64:0)|(r.pose==='spinning'?128:0)|(r.flying?256:0)|(r.pose==='reversed'?512:0)|(r.pose==='frozen'?1024:0)|(r.pose==='ghost'?2048:0)|(r.pose==='lifted'?4096:0)|(r.pose==='asleep'?8192:0)|(r.pose==='hex'?16384:0)|(r.pose==='giant'?32768:0)|(r.bomb?65536:0)|(r.mirror?131072:0);
+      if(flags!==view.flags){view.flags=flags;e.classList.toggle('boosting',boosting);e.classList.toggle('leading',leading);e.classList.toggle('slowed',!!r.slowed);e.classList.toggle('shielded',!!r.shielded);e.classList.toggle('swapping',!!r.swapping);e.classList.toggle('skill-used',!!r.skillUsed);e.classList.toggle('stunned',!!r.stunned);e.classList.toggle('capsized',r.pose==='capsized');e.classList.toggle('spinning',r.pose==='spinning');e.classList.toggle('flying',!!r.flying);e.classList.toggle('reversed',r.pose==='reversed');e.classList.toggle('frozen',r.pose==='frozen');e.classList.toggle('ghost',r.pose==='ghost');e.classList.toggle('lifted',r.pose==='lifted');e.classList.toggle('asleep',r.pose==='asleep');e.classList.toggle('hex',r.pose==='hex');e.classList.toggle('giant',r.pose==='giant');e.classList.toggle('has-bomb',!!r.bomb);e.classList.toggle('has-mirror',!!r.mirror);view.stateBadge.textContent=r.pose==='asleep'?'💤':r.pose==='hex'?'🐸':r.pose==='giant'?'🍄':r.pose==='lifted'?'🎈':r.pose==='ghost'?'👻':r.pose==='reversed'?'↩️':r.pose==='frozen'?'🧊':r.pose==='capsized'?'🙃':r.pose==='spinning'?'💫':r.flying?'🪽':r.swapping?'🔄':r.shielded?'🛟':r.mirror?'🪞':r.slowed?'💫':boosting?'⚡':'';skillNodes[r.id]?.classList.toggle('skill-used',!!r.skillUsed);}
       // Faces: dizzy when knocked over, silly when spun, cool when flying, grumpy when slowed, party when winning.
-      const face=r.pose==='lifted'?'😨':r.pose==='ghost'?'😇':r.pose==='reversed'?'😱':r.pose==='frozen'?'🥶':r.pose==='capsized'?'😵':r.pose==='spinning'?'🤪':r.flying?'😎':r.slowed?'😣':current.active.elapsed>=race.duration&&r.rank===1?'🥳':'';
+      const face=r.pose==='asleep'?'😴':r.pose==='hex'?'🐸':r.pose==='giant'?'😈':r.bomb?'😰':r.pose==='lifted'?'😨':r.pose==='ghost'?'😇':r.pose==='reversed'?'😱':r.pose==='frozen'?'🥶':r.pose==='capsized'?'😵':r.pose==='spinning'?'🤪':r.flying?'😎':r.slowed?'😣':current.active.elapsed>=race.duration&&r.rank===1?'🥳':'';
       if(face!==view.face){view.face=face;view.emote.textContent=face;view.emote.classList.toggle('show',!!face);}
       if(view.rank!==r.currentRank){view.rank=r.currentRank;view.rankBadge.textContent=String(r.currentRank);view.rankBadge.title=`Đang hạng ${r.currentRank}`;}
     }
@@ -377,7 +390,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     if(!current.active)return;stop();const type=current.type,a=current.active;
     const input={id:a.id,picks:{...current.picks},order:race.results.map(r=>r.id),completedAt:new Date().toISOString(),...(type==='regular'?{stars:starsOf()}:{})};
     try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);}catch(e){phase='paused';toast(`Chưa ghi được điểm: ${e.message}`);return;}
-    if(engineFor(a.engine)){current.raceReplays??=[];if(!current.raceReplays.some(r=>r.id===a.id))current.raceReplays.push({id:a.id,seed:a.seed,engine:a.engine});}
+    if(engineFor(a.engine)){current.raceReplays??=[];if(!current.raceReplays.some(r=>r.id===a.id))current.raceReplays.push({id:a.id,seed:a.seed,engine:a.engine,...(a.lineup?{lineup:plainLineup(a.lineup)}:{})});}
     endAmbience();if(sound&&audio&&audio.state==='running')window.DuckSfx?.play(audio,'cheer');
     const [first,second]=race.results,photo=photoFinish;say(window.DuckCommentary?.finish(owners[first.id],owners[second?.id],photo));
     current.active=null;current.stage='result';current.stars=[];clearRace();save();render();tone(523,.2);tone(659,.2,.17);tone(784,.3,.34);
@@ -388,7 +401,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function next(){
     if(!current||current.active)return;close('result-dialog');const status=outcome();
     if(status.status==='resolved'){current.stage='complete';save();render();showFinal();return;}
-    clearRace();current.type=status.status==='tie'?'tie':'regular';current.stage='picking';current.picks={};current.stars=[];starArmed=false;selected=participants()[0]?.id;save();render();
+    clearRace();current.type=status.status==='tie'?'tie':'regular';current.stage='picking';current.picks={};current.stars=[];delete current.lineup;starArmed=false;selected=participants()[0]?.id;save();render();
   }
   function table(headers,rows){const wrap=node('div','result-table-wrap'),t=node('table','result-table'),head=node('thead'),tr=node('tr');headers.forEach(h=>tr.append(node('th','',h)));head.append(tr);const body=node('tbody');rows.forEach(row=>{const r=node('tr',row.coffee?'coffee-row':'');row.cells.forEach((cell,i)=>r.append(node('td',i===1?'name':i===row.cells.length-1?'total':'',cell)));body.append(r);});t.append(head,body);wrap.append(t);return wrap;}
   function showRound(record,type,advance){
@@ -400,7 +413,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     $('result-content').replaceChildren(table(type==='regular'?['Hạng','Người chơi','Vịt','Điểm lượt','Tổng sau lượt']:['Hạng','Người chơi','Vịt','Kết quả'],rows));
     const replay=current.raceReplays?.find(r=>r.id===record.id);
     if(replay){
-      const simulation=engineFor(replay.engine).createRace(record.entries.map((_,i)=>A.name(i)),current.session.duration,replay.seed),picks=Object.fromEntries(record.entries.map(e=>[e.playerId,e.duckId]));
+      const simulation=engineFor(replay.engine).createRace(record.entries.map((_,i)=>A.name(i)),current.session.duration,replay.seed,replay.lineup),picks=Object.fromEntries(record.entries.map(e=>[e.playerId,e.duckId]));
       if(simulation.results.every((r,i)=>r.id===record.entries[i].duckId)){
         const details=node('details','race-recap'),summary=node('summary','',simulation.racers[0].talent?'Thiên phú, skill & diễn biến lượt này':'Skill & diễn biến lượt này'),roster=node('div','recap-skills');
         for(const racer of simulation.racers){const owner=record.entries.find(e=>e.duckId===racer.id);roster.append(node('p','',`${playerName(owner.playerId)} · ${racer.talent?`${racer.talent.icon} ${racer.talent.name} · `:''}${racer.skill.icon} ${racer.skill.name}`));}
@@ -425,7 +438,9 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function dayAwards(){
     if(!window.DuckAwards)return[];
     const rounds=current.session.rounds.flatMap(record=>{const replay=current.raceReplays?.find(r=>r.id===record.id),engine=replay&&engineFor(replay.engine);if(!engine||engine===C)return[];
-      return [{race:engine.createRace(record.entries.map((_,i)=>A.name(i)),current.session.duration,replay.seed),ownerOf:Object.fromEntries(record.entries.map(e=>[e.duckId,e.playerId]))}];});
+      // Rebuilt races that no longer match the stored finish (an older engine build) are left out, as in the recap.
+      try{const race=engine.createRace(record.entries.map((_,i)=>A.name(i)),current.session.duration,replay.seed,replay.lineup);
+        return race.results.every((r,i)=>r.id===record.entries[i].duckId)?[{race,ownerOf:Object.fromEntries(record.entries.map(e=>[e.duckId,e.playerId]))}]:[];}catch{return[];}});
     return window.DuckAwards.compute(rounds);
   }
   function exportCsv(){
@@ -484,7 +499,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   }
   function restoreCurrent(){
     clearRace();if(!current)return;selected=participants()[0]?.id;
-    if(current.active){race=(engineFor(current.active.engine)||DuckRaceEngine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,current.active.seed);phase='paused';sprintAnnounced=false;leadersKey='';render();makeTrack();$('timer').textContent=clock(race.duration-current.active.elapsed);$('arena-title').textContent='Cuộc đua đang chờ bạn';$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Đã khôi phục. Tiếp tục cùng cuộc đua.';$('resume-overlay').hidden=false;$('race-status').textContent=current.active.engine?'Đã giữ nguyên thiên phú, skill, rune và diễn biến; chưa cộng điểm lượt này.':'Trận đang dở dùng luật cũ; trận tiếp theo sẽ có thiên phú, skill và rune.';$('sprint-label').textContent='ĐANG TẠM DỪNG';}
+    if(current.active){race=(engineFor(current.active.engine)||DuckRaceEngine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,current.active.seed,current.active.lineup);phase='paused';sprintAnnounced=false;leadersKey='';render();makeTrack();$('timer').textContent=clock(race.duration-current.active.elapsed);$('arena-title').textContent='Cuộc đua đang chờ bạn';$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Đã khôi phục. Tiếp tục cùng cuộc đua.';$('resume-overlay').hidden=false;$('race-status').textContent=current.active.engine?'Đã giữ nguyên thiên phú, skill, rune và diễn biến; chưa cộng điểm lượt này.':'Trận đang dở dùng luật cũ; trận tiếp theo sẽ có thiên phú, skill và rune.';$('sprint-label').textContent='ĐANG TẠM DỪNG';}
     else render();
   }
   function showSessions(){

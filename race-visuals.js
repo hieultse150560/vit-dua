@@ -12,12 +12,14 @@
     rock: ['🪨', '#d9c6a5'], croc: ['🐊', '#b5e3a1'], wind: ['💨', '#e8fbff'], whirlpool: ['🌀', '#a9dcff'], dolphin: ['🐬', '#a6e4ff'],
     missile: ['🎯', '#ff7b29'], bees: ['🐝', '#ffd34d'], blackhole: ['🕳️', '#8a5cff'], ghost: ['👻', '#eaf1ff'], balloon: ['🎈', '#ff6b8b'],
     hippo: ['🦛', '#c9b6d9'], log: ['🪵', '#a0703a'], frog: ['🐸', '#7ed957'],
-    magnet: ['🧲', '#ff7a7a'], lightning: ['⚡', '#fff6a0'], flip: ['🔃', '#ffd166'], rewind: ['⏪', '#ffe2a8'], reverse: ['↩️', '#ff6fd8'], freeze: ['🧊', '#c9f3ff']
+    magnet: ['🧲', '#ff7a7a'], lightning: ['⚡', '#fff6a0'], flip: ['🔃', '#ffd166'], rewind: ['⏪', '#ffe2a8'], reverse: ['↩️', '#ff6fd8'], freeze: ['🧊', '#c9f3ff'],
+    timebomb: ['💣', '#ff9b4a'], dice: ['🎲', '#ffffff'], lullaby: ['💤', '#c7b8ff'], hex: ['🪄', '#9cff8a'], giant: ['🍄', '#ff7070']
   };
   const V2_KIND = { wings: 'fly', torpedo: 'torpedo', wave: 'wave', rocket: 'rocket', mirror: 'mirror', hook: 'hook', tornado: 'tornado', banana: 'banana', buoy: 'guard',
     rock: 'rock', croc: 'croc', wind: 'wind', whirlpool: 'whirlpool', dolphin: 'dolphin',
     missile: 'missile', bees: 'bees', blackhole: 'blackhole', ghost: 'ghost', balloon: 'balloon', hippo: 'hippo', log: 'log', frog: 'frog',
-    magnet: 'magnet', lightning: 'lightning', flip: 'flip', rewind: 'rewind', reverse: 'reverse', freeze: 'freeze' };
+    magnet: 'magnet', lightning: 'lightning', flip: 'flip', rewind: 'rewind', reverse: 'reverse', freeze: 'freeze',
+    bomb: 'timebomb', dice: 'dice', lullaby: 'lullaby', hex: 'hex', giant: 'giant' }; // 'bomb' is the chaos-v1 burst kind
   // Race seconds. TWIST_MAIN matches the app's slow-motion window (0.27 race-s, played over 1.8 s or 3 s),
   // so each twist's main action plays in slow motion; the rest is a slow fade.
   const BURST_LIFE = .85, TWIST_LIFE = 1.7, TWIST_MAIN = .27;
@@ -25,6 +27,7 @@
   const CAMERA_ZOOM = 1.35;
   const THROWN = new Set(['torpedo', 'hook']), SPREAD = new Set(['wave', 'tornado']), AT_ACTOR = new Set(['fly', 'rocket', 'boom', 'guard']);
   function kindOf(event) {
+    if (event.skill === 'copycat' && event.copied) return kindOf({ ...event, skill: event.copied }); // draws what it copied
     const v2 = V2_KIND[event.skill || event.hazard];
     if (v2) return event.skill === 'rocket' && event.outcome === 'exploded' ? 'boom' : v2;
     return event.skill === 'swap' ? (event.outcome === 'swapped' ? 'swap' : 'shield')
@@ -117,7 +120,7 @@
       const kind = kindOf(event);
       bursts.push({ time: elapsed, kind, origin, target, blocked: ['shielded', 'immune', 'resisted'].includes(event.outcome), id: event.id.length + event.actorId * 7,
         affected: (event.affectedIds || []).map(id => point(id, sample)), shielded: (event.affectedIds || []).map(id => (event.protectedIds || []).includes(id)), atActor: AT_ACTOR.has(kind) || event.outcome === 'dropped', life: TWIST[kind] ? TWIST_LIFE : BURST_LIFE,
-        outcome: event.outcome, reflected: event.outcome === 'reflected',
+        outcome: event.outcome, reflected: event.outcome === 'reflected', roll: event.roll,
         // Positions just before the jump, so painters move with the ducks' on-screen glide.
         pre: { origin: point(event.actorId, pre), target: point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, pre), affected: (event.affectedIds || []).map(id => point(id, pre)) } });
       if (bursts.length > 24) bursts = bursts.slice(-24);
@@ -414,6 +417,80 @@
           if (!crown || base - H < crown.y) crown = { x: x + sway(1), y: base - H };
         });
         if (crown) pop(f.icon, { x: crown.x, y: crown.y + 30 }, f.m, f.alpha, 52);
+      },
+      // Armed: the bomb is lobbed onto the leader (the fuse then rides the leader via CSS). Boom: a fireball where it went off.
+      timebomb(b, f) {
+        if (b.outcome === 'armed') {
+          const t = clamp01(f.m / .7), p = flight({ x: b.origin.x, y: b.origin.y - 10 }, { x: b.target.x, y: b.target.y - 40 }, t, 90);
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(t * TAU * 1.5); emoji(f.icon, 0, 0, 40, f.alpha); ctx.restore();
+          for (let i = 0; i < 8; i++) { const u = (f.m * 3 + i / 8) % 1; ctx.globalAlpha = f.alpha * (1 - u); ctx.fillStyle = i % 2 ? '#ffd84d' : '#ff6a1e'; ctx.beginPath(); ctx.arc(p.x - 14 + (noise(i + b.id) - .5) * 20 * u, p.y - 18 - u * 26, 2.5 * (1 - u) + .6, 0, TAU); ctx.fill(); }
+          if (t >= 1) ripples(b.target, (f.m - .7) * 2 + f.fade, f.alpha * .7, '#ffd84d');
+          return;
+        }
+        const s = b.target, t = f.m * .8 + f.fade * .9;
+        glow({ x: s.x, y: s.y - 20 }, 40 + t * 110, '#ffe08a', f.alpha * (1 - clamp01(t)));
+        const fire = ctx.createRadialGradient(s.x, s.y - 26, 0, s.x, s.y - 26, 30 + t * 90);
+        fire.addColorStop(0, 'rgba(255,250,210,.95)'); fire.addColorStop(.35, 'rgba(255,170,40,.85)'); fire.addColorStop(.7, 'rgba(230,60,20,.55)'); fire.addColorStop(1, 'rgba(60,30,20,0)');
+        ctx.globalAlpha = f.alpha * (1 - clamp01(t * .8)); ctx.fillStyle = fire; ctx.beginPath(); ctx.arc(s.x, s.y - 26, 30 + t * 90, 0, TAU); ctx.fill();
+        for (let k = 0; k < 2; k++) { const r = t * 1.3 - k * .2; if (r > 0 && r < 1) ring(s.x, s.y - 10, 30 + r * 150, (30 + r * 150) * .35, '#ffffff', f.alpha * (1 - r), 4); }
+        particles({ x: s.x, y: s.y - 26 }, clamp01(t), '#4a3a30', 18, 130, b.id);
+        particles({ x: s.x, y: s.y - 26 }, clamp01(t * 1.2), '#ffb02e', 14, 95, b.id + 3);
+        splash(s, t, f.alpha, b.id, '#fff2d0', 22);
+        pop('💥', s, f.m, f.alpha, 70);
+      },
+      // A die tumbles over the roller and lands on its number (the duck then glides: delay .12 s → m .44).
+      dice(b, f) {
+        const s = b.pre.origin, land = clamp01(f.m / .44), y = s.y - 70 - Math.abs(Math.sin(land * Math.PI * 2.5)) * 50 * (1 - land), size = 46;
+        ctx.save(); ctx.translate(s.x, y); ctx.rotate((1 - land) * TAU * 2.2);
+        ctx.globalAlpha = f.alpha; ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-size / 2, -size / 2, size, size, 10) : ctx.rect(-size / 2, -size / 2, size, size); ctx.fill(); ctx.stroke();
+        const face = land < 1 ? 1 + Math.floor(f.m * 40) % 6 : b.roll || 1, pip = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] }[face];
+        ctx.fillStyle = face === 1 && land >= 1 ? '#e0302a' : '#1d1d1d';
+        for (const [px, py] of pip) { ctx.beginPath(); ctx.arc(px * 12, py * 12, face === 1 ? 7 : 5, 0, TAU); ctx.fill(); }
+        ctx.restore();
+        pop(f.icon, { x: s.x - 44, y: s.y - 10 }, f.m, f.alpha, 30);
+        if (land >= 1) {
+          glow({ x: s.x, y: y + 20 }, 50, b.roll === 6 ? '#ffe36a' : b.roll === 1 ? '#ff7b7b' : '#ffffff', f.alpha * .8);
+          emoji(b.roll === 1 ? '💀' : b.roll === 6 ? '🌟' : '✨', s.x + 36, y - 20, 30, f.alpha);
+          if (b.roll === 1) capsize(b.origin, (f.m - .44) + f.fade * .8, f.alpha, b.id);
+        }
+      },
+      // Sound waves ripple out from the singer, notes drift to each sleeper, then Z's float up.
+      lullaby(b, f) {
+        const s = b.origin, time = f.m + f.fade;
+        for (let k = 0; k < 4; k++) { const r = (f.m * 1.6 + k / 4) % 1; ring(s.x, s.y - 20, 30 + r * 220, (30 + r * 220) * .55, '#d9ccff', f.alpha * (1 - r) * .8, 3); }
+        b.affected.forEach((p, i) => {
+          const u = clamp01((f.m - i * .08) / .6), q = flight({ x: s.x, y: s.y - 30 }, { x: p.x, y: p.y - 40 }, u, 40);
+          if (u < 1) emoji(i % 2 ? '🎶' : '🎵', q.x, q.y, 26, f.alpha);
+          else for (let z = 0; z < 3; z++) { const rise = (time * .9 + z / 3) % 1; emoji('💤', p.x + 22 + rise * 18, p.y - 50 - rise * 40, 18 + z * 4, f.alpha * (1 - rise)); }
+        });
+        pop(f.icon, s, f.m, f.alpha, 52);
+      },
+      // A wand sparkles over the caster, a bolt of glitter flies to the leader, and a green puff turns it into a frog.
+      hex(b, f) {
+        const from = { x: (b.reflected ? b.target : b.origin).x + 30, y: (b.reflected ? b.target : b.origin).y - 50 }, to = b.reflected ? b.origin : b.target;
+        emoji(f.icon, b.origin.x + 26, b.origin.y - 56, 40, f.alpha);
+        const t = clamp01(f.m / .45), p = flight(from, { x: to.x, y: to.y - 30 }, t, 50);
+        for (let i = 0; i < 10; i++) { const u = Math.max(0, t - i * .04), q = flight(from, { x: to.x, y: to.y - 30 }, u, 50); ctx.globalAlpha = f.alpha * (1 - i / 10); ctx.fillStyle = i % 2 ? '#d7ff7a' : '#ffffff'; ctx.beginPath(); ctx.arc(q.x, q.y, 4 - i * .3, 0, TAU); ctx.fill(); }
+        if (t < 1) emoji('✨', p.x, p.y, 24, f.alpha);
+        else {
+          const u = (f.m - .45) / .55 * .7 + f.fade * .6;
+          for (let i = 0; i < 9; i++) { const a = i / 9 * TAU, r = 20 + u * 50; ctx.globalAlpha = f.alpha * (1 - clamp01(u)) * .8; ctx.fillStyle = i % 2 ? '#7ed957' : '#b8f58e'; ctx.beginPath(); ctx.arc(to.x + Math.cos(a) * r, to.y - 26 + Math.sin(a) * r * .6, 14 * (1 - clamp01(u)) + 4, 0, TAU); ctx.fill(); }
+          pop('🐸', to, f.m - .45, f.alpha, 56);
+        }
+      },
+      // A mushroom pops, the caster swells, and each duck just ahead is stomped aside with dust and stars.
+      giant(b, f) {
+        const s = b.origin;
+        pop(f.icon, { x: s.x - 30, y: s.y - 20 }, f.m, f.alpha, 54);
+        glow({ x: s.x, y: s.y - 30 }, 70 + 30 * Math.sin(f.m * 12), '#ffb3b3', f.alpha * .6);
+        for (let k = 0; k < 3; k++) { const r = (f.m * 2 + k / 3) % 1; ring(s.x, s.y + 6, 30 + r * 160, 8 + r * 34, '#ffffff', f.alpha * (1 - r) * .7, 3); }
+        b.pre.affected.forEach((p, i) => {
+          const hit = clamp01((f.m - .2 - i * .1) / .3);
+          if (hit <= 0) return;
+          particles({ x: p.x, y: p.y }, clamp01(hit * .8 + f.fade * .5), '#c9a77a', 12, 60, b.id + i);
+          for (let k = 0; k < 4; k++) { const a = (f.m + f.fade) * 6 + k * TAU / 4; emoji('⭐', p.x + Math.cos(a) * 26, p.y - 46 + Math.sin(a) * 9, 14, f.alpha); }
+        });
       },
       banana(b, f) {
         const spot = b.atActor ? b.origin : b.target, spin = (f.m + f.fade) * TAU * 3;
