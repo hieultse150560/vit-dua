@@ -21,7 +21,7 @@ function setup(game, rounds = 10, date = '2026-11-04') {
   game.fill('setup-names', 'Phú\nAn\nBình');
   game.fill('setup-date', date);
   game.fill('setup-rounds', String(rounds));
-  game.fill('setup-duration', '30');
+  game.fill('setup-duration', '40');
   submit(game, 'setup-form');
   assert.equal(game.$('setup-error').textContent, '');
   assert.equal(game.$('setup-dialog').open, false);
@@ -47,7 +47,7 @@ function chooseAll(game) {
   assert.equal(game.$('start').disabled, false);
 }
 
-function runRound(game) { game.click('start'); game.advance(60000, 50); }
+function runRound(game) { game.click('start'); game.advance(120000, 50); }
 function completeDay(game, rounds) {
   for (let i = 0; i < rounds; i++) {
     chooseAll(game); runRound(game);
@@ -99,7 +99,7 @@ test('ten rounds score once, daily contributions total100k, reload retains total
     const saved = game.storage(); restored = loadGame(saved);
     assert.equal(restored.$('resume-overlay').hidden, false);
     assert.equal(current(restored).active.seed, current(game).active.seed);
-    game.advance(45000, 50); restored.click('resume-overlay'); restored.advance(45000, 50);
+    game.advance(100000, 50); restored.click('resume-overlay'); restored.advance(100000, 50);
     assert.deepEqual(current(restored).session.rounds[0].entries, current(game).session.rounds[0].entries);
     restored.click('result-next');
     for (let round = 1; round < 10; round++) {
@@ -137,7 +137,7 @@ test('legacy v2 active race migrates without changing seed, awarding money, or o
     assert.equal(current(game).seasonId, null);
     assert.equal(current(game).active.seed, 24680);
     assert.equal(game.$('resume-overlay').hidden, false);
-    game.click('resume-overlay'); game.advance(45000,50);
+    game.click('resume-overlay'); game.advance(100000,50);
     assert.equal(current(game).session.rounds.length, 1);
     assert.equal(game.storage()[OLD_KEY], original);
     assert.equal(state(game).seasons.length, 0);
@@ -208,7 +208,7 @@ test('two days accumulate a season fund, paid receipts persist, close starts a c
     assert.equal(game.$('setup-dialog').open,true);
     assert.equal(game.$('setup-names').disabled,true);
     assert.equal(game.$('setup-rounds').value,'10');
-    assert.equal(game.$('setup-duration').value,'30');
+    assert.equal(game.$('setup-duration').value,'40');
     game.fill('setup-date','2026-11-04');submit(game,'setup-form');
     assert.match(game.$('setup-error').textContent,/không được trùng|phải sau/);
     assert.equal(state(game).sessions.length,1);

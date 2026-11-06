@@ -4,12 +4,16 @@
   // Saved races replay with the engine version they were started on.
   const ENGINES={[C.version]:C,[C2.version]:C2,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
-  // Slow motion: each twist plays the race at SLOWMO_RATE for SLOWMO_MS of real time.
+  // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
   // slowmoUntil is on the race clock, so pausing keeps the remaining slow motion.
-  const SLOWMO_RATE=.15, SLOWMO_MS=1800;
+  // "Slow effects" (on by default, for Teams screen sharing that drops frames) stretches it to 3 s,
+  // slows the duck animations to match and draws the effects canvas at a lighter resolution.
+  const SLOWMO_WINDOW=.27, SLOW_FX_KEY='vit-dua-slow-fx';
+  let slowFx=(()=>{try{return localStorage.getItem(SLOW_FX_KEY)!=='0';}catch{return true;}})();
+  const slowmoMs=()=>slowFx?3000:1800, slowmoRate=()=>SLOWMO_WINDOW*1000/slowmoMs();
   // New days race at least this long so every twist has room to play out (older days keep their length).
-  const MIN_RACE_SECONDS=30;let slowmoUntil=0;
+  const MIN_RACE_SECONDS=40;let slowmoUntil=0;
   // Photo finish: when the runner-up ends within PHOTO_GAP of the line, the last
   // PHOTO_WINDOW race-seconds play at PHOTO_RATE with the camera on the finish line.
   const PHOTO_GAP=.015, PHOTO_WINDOW=1.2, PHOTO_RATE=.3;let photoFinish=false, photoActive=false;
@@ -102,6 +106,7 @@
   }
   function close(id){if($(id).open)$(id).close();}
   function open(id){if(!$(id).open)$(id).showModal();}
+  function setSlowFx(){$('slow-fx').setAttribute('aria-pressed',String(slowFx));$('slow-fx').querySelector('span').textContent=slowFx?'Hiệu ứng chậm':'Hiệu ứng nhanh';$('slow-fx').title=slowFx?'Đang chiếu chậm từng pha (hợp khi share màn hình Teams). Bấm để chiếu nhanh.':'Bấm để chiếu chậm từng pha, hợp khi share màn hình Teams.';document.documentElement.style.setProperty('--fx-time',`${slowmoMs()/1000}s`);}
   function setSound(){const span=$('sound').querySelector('span');span.textContent=sound?'Âm thanh bật':'Âm thanh tắt';$('sound').setAttribute('aria-pressed',String(sound));$('sound').setAttribute('aria-label',sound?'Tắt âm thanh':'Bật âm thanh');}
   function activateAudio(){if(!sound)return;try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume().catch(()=>{});}catch{sound=false;setSound();toast('Trình duyệt chưa hỗ trợ âm thanh.');}}
   function tone(f,d=.12,delay=0){if(!sound||!audio||audio.state!=='running')return;const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime+delay;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.10,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+d+.02);o.onended=()=>{o.disconnect();g.disconnect();};}
@@ -193,7 +198,7 @@
     $('event-feed').hidden=!chaotic;
     $('event-history').replaceChildren();$('event-feed').replaceChildren();
     $('skill-reveal').replaceChildren(...(chaotic?race.racers.map(r=>{const owner=players.find(p=>current.picks[p.id]===r.id),chip=node('div','skill-chip');chip.dataset.duckId=String(r.id);chip.dataset.skillId=r.skill.id;chip.title=r.talent?`${r.skill.description} · Thiên phú: ${r.talent.description}`:r.skill.description;chip.append(node('strong','skill-owner',`${owner?.name||A.name(r.id)} · #${r.id+1}`),node('span','skill-name',`${r.skill.icon} ${r.skill.name}`));skillNodes[r.id]=chip;return chip;}):[]));
-    visuals?.destroy();showWeather();visuals=window.DuckRaceVisuals?.create({container:document.querySelector('.race-water'),river:$('river'),nodes,reduced:()=>reduced.matches,seed:race.seed,weather:race.weather?.id,duration:race.duration})||null;
+    visuals?.destroy();showWeather();visuals=window.DuckRaceVisuals?.create({lite:slowFx,container:document.querySelector('.race-water'),river:$('river'),nodes,reduced:()=>reduced.matches,seed:race.seed,weather:race.weather?.id,duration:race.duration})||null;
     $('river').scrollTop=0;measure();
   }
   function eventText(event,picks=current.picks){
@@ -235,10 +240,11 @@
     water.classList.add('slowmo');water.classList.remove('shake','flash');void water.offsetWidth;water.classList.add('flash');
     // Camera: zoom toward the centre of the ducks involved (river and effects canvas share the origin).
     const focus=nodes.filter(n=>n.classList.contains('twist-focus')),box=water.getBoundingClientRect();
-    if(focus.length&&!reduced.matches){const c=focus.map(n=>n.getBoundingClientRect()).reduce((s,r)=>({x:s.x+(r.left+r.width/2-box.left)/focus.length,y:s.y+(r.top+r.height/2-box.top)/focus.length}),{x:0,y:0});
+    // Slow effects (screen sharing): no zoom or shake, which repaint the whole frame and stutter on Teams.
+if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingClientRect()).reduce((s,r)=>({x:s.x+(r.left+r.width/2-box.left)/focus.length,y:s.y+(r.top+r.height/2-box.top)/focus.length}),{x:0,y:0});
       water.style.setProperty('--zx',`${Math.round(c.x)}px`);water.style.setProperty('--zy',`${Math.round(c.y)}px`);water.classList.add('zoom');}
-    if(kind==='harm'&&!reduced.matches){void water.offsetWidth;water.classList.add('shake');} // reflow restarts the shake
-    slowmoUntil=current.active.elapsed+SLOWMO_RATE*SLOWMO_MS/1000;
+    if(kind==='harm'&&!reduced.matches&&!slowFx){void water.offsetWidth;water.classList.add('shake');} // reflow restarts the shake
+    slowmoUntil=current.active.elapsed+SLOWMO_WINDOW;
   }
   function endSlowmo(){slowmoUntil=0;document.querySelector('.race-water')?.classList.remove('slowmo','shake','flash',...(photoActive?[]:['zoom']));$('twist-banner')?.classList.add('settled');nodes.forEach(n=>n.classList.remove('twist-focus'));}
   function showWeather(){
@@ -258,7 +264,7 @@
     const end=[...r.sample(r.duration)].sort((a,b)=>a.rank-b.rank);return 1-end[1].progress<PHOTO_GAP;
   }
   function playbackRate(t){
-    let rate=t<slowmoUntil?SLOWMO_RATE:1;
+    let rate=t<slowmoUntil?slowmoRate():1;
     if(photoFinish&&t>=race.duration-PHOTO_WINDOW){rate=Math.min(rate,PHOTO_RATE);if(!photoActive)startPhoto();}
     return rate;
   }
@@ -279,7 +285,7 @@
   const BODY_FX={tornado:['swept',-1],blackhole:['swallowed',-1],buoy:['bouncy',1]};
   function sweep(event){
     const [cls,dir]=BODY_FX[event.skill]||[];if(!cls||reduced.matches)return;
-    for(const [id,d] of Object.entries(event.after||{}))if((d-event.before[id])*dir>1e-9&&nodes[id]){const n=nodes[id];n.classList.remove(cls);void n.offsetWidth;n.classList.add(cls);setTimeout(()=>n.classList.remove(cls),SLOWMO_MS+100);}
+    for(const [id,d] of Object.entries(event.after||{}))if((d-event.before[id])*dir>1e-9&&nodes[id]){const n=nodes[id];n.classList.remove(cls);void n.offsetWidth;n.classList.add(cls);setTimeout(()=>n.classList.remove(cls),slowmoMs()+100);}
   }
   // Boosts show how many ducks they overtook: "⏩ +N" pops over the duck once the move is done
   // (a jump right after its glide, a surge such as wind, dolphin or rocket when it has run).
@@ -292,7 +298,7 @@
   }
   function showGains(elapsed){
     if(!gains.length)return;
-    gains=gains.filter(g=>{if(elapsed<g.at)return true;const n=nodes[g.id];if(n){n.querySelector('.racer-gain')?.remove();const badge=node('span','racer-gain',`⏩ VƯỢT +${g.gain}`);n.append(badge);setTimeout(()=>badge.remove(),1700);}return false;});
+    gains=gains.filter(g=>{if(elapsed<g.at)return true;const n=nodes[g.id];if(n){n.querySelector('.racer-gain')?.remove();const badge=node('span','racer-gain',`⏩ VƯỢT +${g.gain}`);n.append(badge);setTimeout(()=>badge.remove(),slowmoMs());}return false;});
   }
   function startGlides(event,pre){
     sweep(event);
@@ -495,10 +501,11 @@
   $('season-fund').onclick=()=>showFund();$('fund-close').onclick=()=>close('fund-dialog');$('export-fund').onclick=exportFund;$('close-season').onclick=requestCloseSeason;$('close-season-close').onclick=()=>close('close-season-dialog');$('confirm-close-season').onclick=confirmCloseSeason;
   $('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
   $('final-summary').onclick=()=>{if(outcome().status==='tie'){if(current.stage==='picking'&&current.type==='tie'){toast('Chọn vịt cho nhóm đồng điểm ở bên dưới.');return;}next();}else{current.stage='complete';save();render();showFinal();}};
+  $('slow-fx').onclick=()=>{slowFx=!slowFx;try{localStorage.setItem(SLOW_FX_KEY,slowFx?'1':'0');}catch{}setSlowFx();};
   $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem(SOUND_KEY,sound?'1':'0');}catch{}if(!sound){endAmbience();window.speechSynthesis?.cancel?.();}setSound();activateAudio();tone(700);};
   $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.body.requestFullscreen)await document.body.requestFullscreen();else toast('Dùng phím F11 để mở toàn màn hình.');}catch{toast('Dùng phím F11 để mở toàn màn hình.');}};
   document.addEventListener('keydown',e=>{if(e.code!=='Space'||e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,button,a,select')||document.querySelector('dialog[open]'))return;e.preventDefault();if(current?.active)pause();else if(current?.stage==='picking')start();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&current?.active)save();});window.addEventListener('pagehide',()=>{if(current)save();});
   new ResizeObserver(measure).observe($('river'));
-  load();setSound();if(current){restoreCurrent();$('restore-notice').textContent=current.active?'Đã khôi phục lượt đang đua ở trạng thái tạm dừng. Bấm Tiếp tục; lựa chọn và mô phỏng được giữ nguyên.':isLegacy()?'Dữ liệu trước mùa giải được giữ nguyên trong Lịch sử; không tính tiền hồi tố. Bấm Mùa mới để bắt đầu quỹ.':'Đã khôi phục mùa giải, điểm và quỹ. Mùa chỉ kết thúc khi bạn bấm Chốt mùa.';$('restore-notice').hidden=false;}else openSetup('season');
+  load();setSound();setSlowFx();if(current){restoreCurrent();$('restore-notice').textContent=current.active?'Đã khôi phục lượt đang đua ở trạng thái tạm dừng. Bấm Tiếp tục; lựa chọn và mô phỏng được giữ nguyên.':isLegacy()?'Dữ liệu trước mùa giải được giữ nguyên trong Lịch sử; không tính tiền hồi tố. Bấm Mùa mới để bắt đầu quỹ.':'Đã khôi phục mùa giải, điểm và quỹ. Mùa chỉ kết thúc khi bạn bấm Chốt mùa.';$('restore-notice').hidden=false;}else openSetup('season');
 })();

@@ -21,7 +21,7 @@ function setup(game, rounds = 10) {
   game.fill('setup-names', names.join('\n'));
   game.fill('setup-date', '2026-11-04');
   game.fill('setup-rounds', String(rounds));
-  game.fill('setup-duration', '30');
+  game.fill('setup-duration', '40');
   game.$('setup-form').dispatchEvent(new game.window.Event('submit', { bubbles: true, cancelable: true }));
   assert.equal(game.$('setup-error').textContent, '');
   assert.equal(game.$('setup-dialog').open, false);
@@ -41,7 +41,7 @@ function chooseAll(game) {
 }
 
 // Slow-motion twists stretch a 25 s race in real time; 60 s always covers it.
-function runRound(game) { game.click('start'); game.advance(60000, 50); }
+function runRound(game) { game.click('start'); game.advance(120000, 50); }
 function activeFixture({ version = 3, engine, elapsed = 8, seed = 24680, roundLimit = 2 } = {}) {
   const session = T.createSession({ version, names, date: '2026-11-04', duration: 25, roundLimit });
   const season = version === 3 ? S.createSeason({ name: 'Trận đang dở', names, date: session.date }) : null;
@@ -100,17 +100,17 @@ test('F5 mid-race preserves revealed skills, event chronology, result and one-ti
     assert.ok(visible.every(n => Number(n.dataset.eventTime) <= original.elapsed), 'future events must not be exposed');
     const ids = visible.map(n => n.dataset.eventId);
     assert.equal(new Set(ids).size, ids.length, 'restoration must not duplicate prior events');
-    game.advance(45000, 50); restored.click('resume-overlay');
+    game.advance(100000, 50); restored.click('resume-overlay');
     assert.match(restored.$('arena-label').textContent, /ĐANG ĐUA/, 'resuming an in-flight race restores its running heading');
     assert.doesNotMatch(restored.$('sprint-label').textContent, /TẠM DỪNG/, 'resuming clears the paused race caption');
     assert.equal(restored.$('restore-notice').hidden, true, 'the resume notice disappears once racing resumes');
-    restored.advance(45000, 50);
+    restored.advance(100000, 50);
     const round = current(restored).session.rounds[0];
     assert.deepEqual(round.entries, current(game).session.rounds[0].entries);
     assert.deepEqual(round.entries.map(e => e.points), [7, 6, 5, 4, 3, 2, 1]);
     assert.equal(current(restored).raceReplays.length, 1);
     assert.deepEqual(current(restored).raceReplays[0], { id: round.id, seed: original.seed, engine: 'chaos-v3' });
-    restored.advance(45000);
+    restored.advance(100000);
     assert.equal(current(restored).session.rounds.length, 1);
     after = loadGame(restored.storage());
     assert.deepEqual(current(after).session.rounds[0].entries, round.entries);
@@ -130,7 +130,7 @@ test('pre-update active season race keeps legacy simulation, then next round opt
   try {
     assert.equal(current(game).active.engine, undefined);
     assert.equal(game.$('skill-reveal').querySelectorAll('[data-skill-id]').length, 0);
-    game.click('resume-overlay'); game.advance(45000, 50);
+    game.click('resume-overlay'); game.advance(100000, 50);
     assert.deepEqual(current(game).session.rounds[0].entries.map(e => e.duckId), expected.results.map(r => r.id));
     assert.equal(current(game).raceReplays?.length ?? 0, 0);
     game.click('result-next'); chooseAll(game); game.click('start');
@@ -144,7 +144,7 @@ test('old coffee v2 session retains legacy engine for new rounds and original st
   const old = { version: 2, currentId: fixture.currentId, sessions: fixture.sessions.map(({ seasonId, ...e }) => e) };
   const encoded = JSON.stringify(old), game = loadGame({ [OLD_KEY]: encoded });
   try {
-    game.click('resume-overlay'); game.advance(45000, 50);
+    game.click('resume-overlay'); game.advance(100000, 50);
     game.click('result-next'); chooseAll(game); game.click('start');
     assert.equal(current(game).active.engine, undefined);
     assert.equal(game.$('skill-reveal').querySelectorAll('[data-skill-id]').length, 0);
@@ -213,7 +213,7 @@ test('saved chaos-v1 active race restores with chaos-v1 and keeps its recap', as
   const game = loadGame({ [KEY]: JSON.stringify(fixture) });
   try {
     assert.equal(current(game).active.engine, 'chaos-v1');
-    game.click('resume-overlay'); game.advance(45000, 50);
+    game.click('resume-overlay'); game.advance(100000, 50);
     const rounds = current(game).session.rounds;
     assert.deepEqual(rounds[1].entries.map(e => e.duckId), expected.results.map(r => r.id));
     assert.deepEqual(current(game).raceReplays.map(r => r.engine), ['chaos-v1', 'chaos-v1']);

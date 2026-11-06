@@ -18,7 +18,7 @@
     rock: 'rock', croc: 'croc', wind: 'wind', whirlpool: 'whirlpool', dolphin: 'dolphin',
     missile: 'missile', bees: 'bees', blackhole: 'blackhole', ghost: 'ghost', balloon: 'balloon', hippo: 'hippo', log: 'log', frog: 'frog',
     magnet: 'magnet', lightning: 'lightning', flip: 'flip', rewind: 'rewind', reverse: 'reverse', freeze: 'freeze' };
-  // Race seconds. TWIST_MAIN matches the app's slow-motion window (0.15x for 1.8 s = 0.27 race-s),
+  // Race seconds. TWIST_MAIN matches the app's slow-motion window (0.27 race-s, played over 1.8 s or 3 s),
   // so each twist's main action plays in slow motion; the rest is a slow fade.
   const BURST_LIFE = .85, TWIST_LIFE = 1.7, TWIST_MAIN = .27;
   // The app's camera zooms the canvas by CAMERA_ZOOM (CSS scale), so draw at that much extra resolution.
@@ -32,7 +32,8 @@
   }
   function context(canvas) { try { return canvas.getContext('2d', { alpha: true }); } catch { return null; } }
 
-  function create({ container, river, nodes, reduced = () => false, seed = 0, weather = null, duration = 0 }) {
+  // lite: draw at a lower resolution so a machine that is also screen-sharing keeps its frame rate.
+  function create({ container, river, nodes, reduced = () => false, seed = 0, weather = null, duration = 0, lite = false }) {
     if (!container || !river || !nodes.length) return empty();
     const canvas = document.createElement('canvas');
     canvas.className = 'race-effects';
@@ -47,7 +48,7 @@
       if (destroyed) return;
       const rect = container.getBoundingClientRect();
       width = Math.max(1, Math.round(rect.width)); height = Math.max(1, Math.round(rect.height));
-      const dpr = Math.min(2.5, (root.devicePixelRatio || 1) * CAMERA_ZOOM);
+      const dpr = Math.min(lite ? 1.25 : 2.5, (root.devicePixelRatio || 1) * CAMERA_ZOOM);
       canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       metrics = nodes.map(node => {

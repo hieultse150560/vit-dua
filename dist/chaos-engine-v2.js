@@ -226,7 +226,7 @@
   const V2_RULES = freeze({ skills, hazards, weather: false, rockLateChance: tuning.hazard.rockLateChance, lateGuaranteePrefersRock: true, smartTargets: false });
   // chaos-v2 skills that work differently in chaos-v3 get their own description there.
   const V3_TEXT = { tornado: 'Cuốn 3 con dẫn đầu lên trời, quăng văng về cuối đoàn, quay mòng mòng.', buoy: 'Chặn đòn đầu tiên rồi nảy tưng tưng vượt 2 con.' };
-  const V3_RULES = freeze({ skills: freeze([...skills.map(s => (V3_TEXT[s.id] ? { ...s, description: V3_TEXT[s.id] } : s)), ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 1.5 });
+  const V3_RULES = freeze({ skills: freeze([...skills.map(s => (V3_TEXT[s.id] ? { ...s, description: V3_TEXT[s.id] } : s)), ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 2 });
   function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed()) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;

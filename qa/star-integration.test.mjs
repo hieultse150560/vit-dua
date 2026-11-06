@@ -20,7 +20,7 @@ function setup(game) {
   game.fill('setup-names', names.join('\n'));
   game.fill('setup-date', '2026-11-04');
   game.fill('setup-rounds', '10');
-  game.fill('setup-duration', '30');
+  game.fill('setup-duration', '40');
   game.$('setup-form').dispatchEvent(new game.window.Event('submit', { bubbles: true, cancelable: true }));
   assert.equal(game.$('setup-error').textContent, '');
 }
@@ -51,7 +51,7 @@ test('star toggle arms before picking and doubles top-half points', async () => 
     pickRest(game);
     game.click('start');
     assert.equal(game.window.document.querySelectorAll('.racer.has-star').length, 1);
-    game.advance(60000, 50);
+    game.advance(120000, 50);
     const round = current(game).session.rounds[0], mine = round.entries.find(e => e.playerId === 'p0');
     assert.equal(mine.star, true);
     assert.equal(mine.points, (7 - mine.rank + 1) * (mine.rank <= 3 ? 2 : 1));

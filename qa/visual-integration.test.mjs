@@ -57,7 +57,7 @@ test('fast checkpoints preserve prior days and quoted names while updating only 
     restored = loadGame(game.storage());
     assert.deepEqual(current(restored).active, afterActive);
     assert.deepEqual(current(restored).session.players.map(p => p.name), names);
-    game.advance(45000, 50);
+    game.advance(100000, 50);
     assert.equal(current(game).active, null);
     assert.equal(current(game).session.rounds.length, 1);
     game.click('result-next');
@@ -96,7 +96,7 @@ test('visual lifecycle skips restored old bursts, freezes while paused, emits ne
     const pausedCount = calls().filter(c => c.kind === 'draw').length;
     game.advance(2000, 50);
     assert.equal(calls().filter(c => c.kind === 'draw').length, pausedCount);
-    game.click('pause'); game.advance(45000, 50);
+    game.click('pause'); game.advance(100000, 50);
     assert.ok(calls().some(c => c.kind === 'destroy'));
     assert.equal(current(game).session.rounds.length, 1);
     assert.equal(game.raf.size, 0, 'no racing RAF may remain after finishing');
@@ -108,7 +108,7 @@ test('missing 2D canvas context does not prevent exact physics, finishing or sco
   const game = loadGame({ [KEY]: JSON.stringify(fixture(22)) }, { beforeScripts(window) { window.HTMLCanvasElement.prototype.getContext = () => null; } });
   try {
     assert.equal(game.$('resume-overlay').hidden, false);
-    game.click('resume-overlay'); game.advance(5000, 50);
+    game.click('resume-overlay'); game.advance(15000, 50);
     const e = current(game);
     assert.equal(e.session.rounds.length, 1);
     assert.deepEqual(e.session.rounds[0].entries.map(p => p.points), [7, 6, 5, 4, 3, 2, 1]);
@@ -159,7 +159,7 @@ test('twist banner shows owner name and label, then hides on race clock', async 
     assert.equal(banner.hidden, false);
     assert.ok(banner.textContent.includes(names[e.actorId]), banner.textContent);
     assert.ok(banner.textContent.includes(e.label), banner.textContent);
-    game.advance(3000, 50); // 1.8 s slow motion (0.27 race-s) + 1.2 s normal > 1.2 race-s banner
+    game.advance(4500, 50); // 3 s slow motion (0.27 race-s) + 1.5 s normal > 1.2 race-s banner
     assert.equal(banner.hidden, true);
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
@@ -220,11 +220,37 @@ test('every v2 event kind maps to a visual burst without throwing', async () => 
   } finally { await game.close(); }
 });
 
-test('twists play in slow motion, then the race clock returns to normal speed', async () => {
+test('slow effects (default, for screen sharing): each twist plays 3 s of slow motion, then normal speed', async () => {
   const { e } = loneTwist(4242, 4);
   const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) });
   const elapsedNow = () => { game.click('pause'); const value = current(game).active.elapsed; game.click('pause'); return value; };
   try {
+    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'true', 'on by default');
+    assert.equal(game.window.document.documentElement.style.getPropertyValue('--fx-time'), '3s');
+    game.click('resume-overlay'); advanceToTwist(game, e);
+    const start = elapsedNow();
+    game.advance(500, 50);
+    const slow = elapsedNow() - start;
+    assert.ok(slow > 0.03 && slow < 0.06, `slow motion (0.09x) advanced ${slow} race-s in 0.5 s`);
+    assert.equal(game.window.document.querySelector('.race-water').classList.contains('zoom'), false, 'no camera zoom while screen sharing');
+    assert.equal(game.window.document.querySelector('.race-water').classList.contains('shake'), false, 'no shake while screen sharing');
+    game.advance(2200, 50);
+    assert.ok(game.window.document.querySelector('.race-water').classList.contains('slowmo'), 'slow motion still on at 2.7 s');
+    game.advance(500, 50);
+    assert.equal(game.window.document.querySelector('.race-water').classList.contains('slowmo'), false);
+    assert.deepEqual(game.errors.map(String), []);
+  } finally { await game.close(); }
+});
+
+test('turning slow effects off brings back the 1.8 s slow motion and remembers the choice', async () => {
+  const { e } = loneTwist(4242, 4);
+  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) });
+  const elapsedNow = () => { game.click('pause'); const value = current(game).active.elapsed; game.click('pause'); return value; };
+  try {
+    game.click('slow-fx');
+    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'false');
+    assert.equal(game.storage()['vit-dua-slow-fx'], '0');
+    assert.equal(game.window.document.documentElement.style.getPropertyValue('--fx-time'), '1.8s');
     game.click('resume-overlay'); advanceToTwist(game, e);
     assert.ok(game.$('twist-banner').hidden === false, 'twist reached');
     assert.ok(game.window.document.querySelector('.race-water').classList.contains('slowmo'));
@@ -300,9 +326,9 @@ test('twists play their synthesized sound effect when sound is on', async () => 
   } finally { await game.close(); }
 });
 
-test('slow motion zooms the camera onto the twist, then zooms back out', async () => {
+test('fast effects: slow motion zooms the camera onto the twist, then zooms back out', async () => {
   const { e } = loneTwist(4242, 4);
-  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) });
+  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)), 'vit-dua-slow-fx': '0' }); // zoom is for fast effects only
   try {
     const water = game.window.document.querySelector('.race-water');
     game.click('resume-overlay'); advanceToTwist(game, e);
@@ -352,13 +378,13 @@ test('ducks pull faces: dizzy when knocked over', async () => {
     const racers = game.window.document.querySelectorAll('.racer');
     assert.equal(racers[e.targetId].querySelector('.racer-emote').textContent, '😵');
     assert.equal(racers[e.actorId].querySelector('.racer-emote').textContent === '😵', false);
-    game.advance(45000, 50);
+    game.advance(100000, 50);
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
 });
 
-test('effects canvas renders above screen resolution so the camera zoom stays sharp', async () => {
-  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) }, { beforeScripts(window) { window.devicePixelRatio = 1; window.eval(`HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => k in t ? t[k] : (k === 'createLinearGradient' || k === 'createRadialGradient') ? () => ({ addColorStop() {} }) : () => {}, set: (t, k, v) => { t[k] = v; return true; } });`); } });
+test('fast effects: canvas renders above screen resolution so the camera zoom stays sharp; slow effects draw lighter', async () => {
+  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)), 'vit-dua-slow-fx': '0' }, { beforeScripts(window) { window.devicePixelRatio = 1; window.eval(`HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => k in t ? t[k] : (k === 'createLinearGradient' || k === 'createRadialGradient') ? () => ({ addColorStop() {} }) : () => {}, set: (t, k, v) => { t[k] = v; return true; } });`); } });
   try {
     const canvas = game.window.document.querySelector('.race-effects');
     assert.ok(canvas, 'effects canvas exists');
@@ -388,7 +414,7 @@ test('a river ambience plays while racing, pauses with the race, and the crowd c
     assert.deepEqual(plain(game.window.__amb), ['start']);
     game.click('pause');
     assert.deepEqual(plain(game.window.__amb), ['start', 'stop']);
-    game.click('pause'); game.advance(45000, 50);
+    game.click('pause'); game.advance(100000, 50);
     assert.equal(game.window.__amb.at(-1), 'stop');
     assert.ok(game.window.__sfx.includes('cheer'), JSON.stringify(game.window.__sfx));
     assert.deepEqual(game.errors.map(String), []);

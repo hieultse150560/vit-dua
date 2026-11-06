@@ -365,7 +365,7 @@ test('chaos-v3 pacing (30 s): twists start early, never overlap (1.5 s apart), a
   assert.ok(mid / all >= 0.8, `only ${(mid / all * 100).toFixed(0)}% of twists before the last quarter`);
   assert.ok(worst < 4, `a ${worst.toFixed(1)} s lull mid-race`);
   // Shorter (older 25 s) days and bigger fields squeeze the stride but still never stack twists.
-  for (const [count, duration, least] of [[7, 25, 1.2], [14, 30, 0.6]]) for (let seed = 0; seed < 300; seed++) {
+  for (const [count, duration, least] of [[7, 40, 2], [7, 25, 1.2], [14, 30, 0.6]]) for (let seed = 0; seed < 300; seed++) {
     const t = V3.createRace(names(count), duration, seed).events.filter(e => e.scheduled).map(e => e.time);
     for (let i = 1; i < t.length; i++) assert.ok(t[i] - t[i - 1] >= least - 0.01, `${count} ducks ${duration} s seed ${seed}: ${(t[i] - t[i - 1]).toFixed(2)} s apart`);
   }
