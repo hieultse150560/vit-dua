@@ -7,7 +7,9 @@
   // Slow motion: each twist plays the race at SLOWMO_RATE for SLOWMO_MS of real time.
   // Only the display clock slows; the simulated result never changes.
   // slowmoUntil is on the race clock, so pausing keeps the remaining slow motion.
-  const SLOWMO_RATE=.15, SLOWMO_MS=1800;let slowmoUntil=0;
+  const SLOWMO_RATE=.15, SLOWMO_MS=1800;
+  // New days race at least this long so every twist has room to play out (older days keep their length).
+  const MIN_RACE_SECONDS=30;let slowmoUntil=0;
   // Photo finish: when the runner-up ends within PHOTO_GAP of the line, the last
   // PHOTO_WINDOW race-seconds play at PHOTO_RATE with the camera on the finish line.
   const PHOTO_GAP=.015, PHOTO_WINDOW=1.2, PHOTO_RATE=.3;let photoFinish=false, photoActive=false;
@@ -128,7 +130,8 @@
     $('selected-player').textContent=players.find(p=>p.id===selected)?.name||(chosen===players.length?'Cả hội đã chọn xong':'—');
     $('selection-hint').textContent=picking&&selected?`Lượt chọn ${chosen+1}/${players.length}`:'Đội hình đã chốt';
     const starOpen=picking&&!!selected&&current.type==='regular'&&T.starAvailable(s,selected);if(!starOpen)starArmed=false;
-    $('star-toggle').hidden=!starOpen;$('star-toggle').setAttribute('aria-pressed',String(starArmed));$('star-toggle').textContent=starArmed?'⭐ Sao đang bật cho lượt này':'☆ Dùng sao lượt này';
+    const starForced=starOpen&&T.starForced(s,selected);if(starForced)starArmed=true;
+    $('star-toggle').hidden=!starOpen;$('star-toggle').disabled=starForced;$('star-toggle').setAttribute('aria-pressed',String(starArmed));$('star-toggle').textContent=starForced?'⭐ Vòng cuối: bắt buộc dùng sao':starArmed?'⭐ Sao đang bật cho lượt này':'☆ Dùng sao lượt này';
     $('duck-grid').replaceChildren(...players.map((_,id)=>{
       const owner=players.find(p=>current.picks[p.id]===id);
       const b=node('button',`duck-card${owner?' claimed':''}`);b.dataset.duckId=String(id);b.disabled=!picking||!!owner||!selected;b.setAttribute('aria-label',`${A.name(id)} số ${id+1}${isLegacy()?'':' · Skill bí mật'}${owner?` — ${owner.name} đã chọn`:' — còn trống'}`);b.setAttribute('aria-pressed',String(!!owner));
@@ -162,7 +165,7 @@
     $('round-history').replaceChildren(...(records.length?records.map(({r,type})=>{const b=node('button','history-card'),winner=r.entries[0];b.disabled=!!current.active;b.append(node('span','',type==='tie'?'⚖ LƯỢT PHÂN ĐỊNH':`VÒNG ${String(r.number).padStart(2,'0')}`),node('strong','',`🥇 ${playerName(winner.playerId)}`),node('small','',`${A.name(winner.duckId)}${type==='regular'?` · +${winner.points} điểm`:' · Không cộng điểm'}`));b.onclick=()=>showRound(r,type,false);return b;}):[node('p','empty','Chưa có vòng đua nào. Cả hội sẵn sàng chưa?')]));
   }
   function focusDuck(id){const target=id===undefined?null:$('duck-grid').querySelector(`[data-duck-id="${id}"]:not(:disabled)`);(target||$('duck-grid').querySelector('button:not(:disabled)'))?.focus({preventScroll:true});}
-  function pick(duck){if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const players=participants(),nextId=queue().nextPlayerId;if(!nextId||!Number.isInteger(duck)||duck<0||duck>=players.length||Object.values(current.picks).includes(duck))return;current.picks[nextId]=duck;if(starArmed&&current.type==='regular'&&T.starAvailable(current.session,nextId))current.stars=[...starsOf(),nextId];starArmed=false;save();render();if(Object.keys(current.picks).length===players.length)$('start').focus({preventScroll:true});else focusDuck();}
+  function pick(duck){if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const players=participants(),nextId=queue().nextPlayerId;if(!nextId||!Number.isInteger(duck)||duck<0||duck>=players.length||Object.values(current.picks).includes(duck))return;current.picks[nextId]=duck;if((starArmed||T.starForced(current.session,nextId))&&current.type==='regular'&&T.starAvailable(current.session,nextId))current.stars=[...starsOf(),nextId];starArmed=false;save();render();if(Object.keys(current.picks).length===players.length)$('start').focus({preventScroll:true});else focusDuck();}
   function undoPick(){if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const last=queue().order.filter(id=>current.picks[id]!==undefined).at(-1);if(!last)return;const duck=current.picks[last];delete current.picks[last];current.stars=starsOf().filter(id=>id!==last);starArmed=false;save();render();focusDuck(duck);}
   function randomPicks(){
     if(!current||current.active||current.stage!=='picking')return;
@@ -299,6 +302,8 @@
   function measure(){runwayWidth=$('lanes').querySelector('.runway')?.getBoundingClientRect().width||0;visuals?.resize();if(race&&current?.active)draw(race.sample(current.active.elapsed));}
   function start(){
     if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;
+    // Last round: any star still unused is spent now (covers random picks and older saves).
+    if(current.type==='regular'){const forced=participants().map(p=>p.id).filter(id=>T.starForced(current.session,id)&&!starsOf().includes(id));if(forced.length)current.stars=[...starsOf(),...forced];}
     try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);race=(isLegacy()?DuckRaceEngine:C3).createRace(participants().map((_,i)=>A.name(i)),current.session.duration);}catch(e){toast(e.message);return;}
     stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C3.version})};phase='countdown';lastTime=performance.now();lastSaved=lastTime;lastTick=3;sprintAnnounced=false;leadersKey='';save();render();makeTrack();activateAudio();tone(520);
     $('restore-notice').hidden=true;$('arena-title').textContent='Chuẩn bị xuất phát…';$('race-overlay').hidden=false;$('overlay-number').textContent='3';$('overlay-text').textContent=race.weather?`Chuẩn bị nào! · ${race.weather.icon} ${race.weather.name}`:'Chuẩn bị nào!';$('resume-overlay').hidden=true;$('sprint-label').textContent='ĐANG VÀO VỊ TRÍ';$('live-leaders').replaceChildren();
@@ -439,7 +444,7 @@
   function openSetup(mode='season'){
     if(current?.active)return;const season=openSeason();if(mode==='season'&&season){toast('Chốt mùa hiện tại trước khi mở mùa mới.');return;}if(mode==='day'&&!season)return;
     if(mode==='day'&&seasonDays(season).some(s=>T.coffeeStatus(s).status!=='resolved')){toast('Hoàn tất ngày đang chơi trước khi thêm ngày mới.');return;}
-    setupMode=mode;$('setup-close').hidden=!current;$('setup-error').textContent='';$('setup-date').value=today();$('setup-duration').value='25';$('setup-rounds').value='10';$('setup-season-group').hidden=mode==='day';$('setup-roster-group').hidden=mode==='day';$('setup-names').required=mode==='season';$('setup-names').disabled=mode==='day';$('setup-season-name').required=mode==='season';$('setup-season-name').disabled=mode==='day';
+    setupMode=mode;$('setup-close').hidden=!current;$('setup-error').textContent='';$('setup-date').value=today();$('setup-duration').value=String(MIN_RACE_SECONDS);$('setup-rounds').value='10';$('setup-season-group').hidden=mode==='day';$('setup-roster-group').hidden=mode==='day';$('setup-names').required=mode==='season';$('setup-names').disabled=mode==='day';$('setup-season-name').required=mode==='season';$('setup-season-name').disabled=mode==='day';
     $('setup-title').textContent=mode==='day'?'Thêm ngày đua mới':'Mở mùa giải mới';$('setup-description').textContent=mode==='day'?`${season.name} · ${season.players.length} người. Điểm ngày mới bắt đầu từ 0, quỹ mùa tiếp tục cộng dồn.`:'Không giới hạn số ngày. Danh sách người chơi giữ nguyên trong mùa.';$('setup-submit').textContent=mode==='day'?'Tạo ngày & chọn vịt ↗':'Tạo mùa & bắt đầu ngày đầu ↗';
     if(mode==='day'){const days=seasonDays(season).sort((a,b)=>a.date.localeCompare(b.date)),last=days.at(-1)?.date;if(last&&last>=$('setup-date').value){const d=new Date(`${last}T12:00:00`);d.setDate(d.getDate()+1);$('setup-date').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}}
     else{$('setup-season-name').value=`Mùa giải ${store.seasons.length+1}`;if(current)$('setup-names').value=current.session.players.map(p=>p.name).join('\n');}
@@ -450,7 +455,8 @@
       const date=$('setup-date').value;let season;
       if(setupMode==='season'){if(openSeason())throw Error('Cần chốt mùa đang mở trước.');season=S.createSeason({name:$('setup-season-name').value,names:$('setup-names').value.split(/\r?\n/).map(n=>n.trim()).filter(Boolean),date});}
       else{season=openSeason();if(!season)throw Error('Không có mùa đang mở.');const days=seasonDays(season);if(days.some(s=>T.coffeeStatus(s).status!=='resolved'))throw Error('Hoàn tất ngày đang chơi trước.');if(days.some(s=>s.date>=date))throw Error('Ngày mới phải sau ngày thi đấu gần nhất và không được trùng ngày.');}
-      const s=T.createSession({names:season.players.map(p=>p.name),date,duration:Number($('setup-duration').value),roundLimit:Number($('setup-rounds').value)});S.validateSeason(season,[...seasonDays(season),s]);
+      const duration=Number($('setup-duration').value);if(!(duration>=MIN_RACE_SECONDS))throw Error(`Mỗi lượt đua tối thiểu ${MIN_RACE_SECONDS} giây để kịp xem hết hiệu ứng.`);
+      const s=T.createSession({names:season.players.map(p=>p.name),date,duration,roundLimit:Number($('setup-rounds').value)});S.validateSeason(season,[...seasonDays(season),s]);
       if(setupMode==='season')store.seasons.push(season);clearRace();current={seasonId:season.id,session:s,type:'regular',stage:'picking',picks:{},active:null};store.sessions.push(current);store.currentId=s.id;store.currentSeasonId=season.id;selected=s.players[0].id;save();close('setup-dialog');$('restore-notice').hidden=true;render();
     }catch(e){$('setup-error').textContent=e.message;}
   }
@@ -469,7 +475,7 @@
 
   $('setup-form').addEventListener('submit',create);$('new-game').onclick=()=>openSetup('season');$('new-day').onclick=()=>openSetup('day');$('setup-close').onclick=()=>close('setup-dialog');$('setup-dialog').addEventListener('cancel',e=>{if(!current)e.preventDefault();});
   $('sample-names').onclick=()=>{$('setup-names').value='Phú\nHiếu\nAn\nBình\nChi\nDũng\nHà';};
-  $('random-picks').onclick=randomPicks;$('undo-last-pick').onclick=undoPick;$('star-toggle').onclick=()=>{if(!current||current.active||current.stage!=='picking'||$('star-toggle').hidden)return;starArmed=!starArmed;render();};$('start').onclick=start;$('pause').onclick=pause;$('resume-overlay').onclick=pause;$('next').onclick=next;
+  $('random-picks').onclick=randomPicks;$('undo-last-pick').onclick=undoPick;$('star-toggle').onclick=()=>{if(!current||current.active||current.stage!=='picking'||$('star-toggle').hidden||$('star-toggle').disabled)return;starArmed=!starArmed;render();};$('start').onclick=start;$('pause').onclick=pause;$('resume-overlay').onclick=pause;$('next').onclick=next;
   $('season-fund').onclick=()=>showFund();$('fund-close').onclick=()=>close('fund-dialog');$('export-fund').onclick=exportFund;$('close-season').onclick=requestCloseSeason;$('close-season-close').onclick=()=>close('close-season-dialog');$('confirm-close-season').onclick=confirmCloseSeason;
   $('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
   $('final-summary').onclick=()=>{if(outcome().status==='tie'){if(current.stage==='picking'&&current.type==='tie'){toast('Chọn vịt cho nhóm đồng điểm ở bên dưới.');return;}next();}else{current.stage='complete';save();render();showFinal();}};

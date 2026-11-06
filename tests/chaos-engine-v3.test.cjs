@@ -50,11 +50,11 @@ test('weather changes how many hazards come and which kind', () => {
   assert.ok(stats.wind.wind / stats.wind.hazards > 0.4, 'windy races are mostly tailwinds');
 });
 
-test('chaos-v3 keeps every chaos-v2 guarantee', () => {
+test('chaos-v3 keeps every skill firing once, with twists early and in the last quarter', () => {
   for (let seed = 0; seed < 200; seed++) {
-    const r = V3.createRace(names(7), 25, seed), phases = r.events.filter(e => e.scheduled);
+    const r = V3.createRace(names(7), 30, seed), phases = r.events.filter(e => e.scheduled);
     assert.equal(r.events.filter(e => e.activation).length, 7);
-    assert.ok(phases.some(e => e.time < 25 / 3) && phases.some(e => e.time >= 23), `seed ${seed}`);
+    assert.ok(phases.some(e => e.time < 30 / 5) && phases.some(e => e.time >= 30 * 3 / 4), `seed ${seed}`);
   }
   for (const [count, duration] of [[100, 10], [3, 600]]) assert.equal(V3.createRace(names(count), duration, 5).events.filter(e => e.activation).length, count);
 });
@@ -334,23 +334,28 @@ test('hippo tosses a top-half duck back, log blocks the leader, frog hops a back
   for (const { e } of frog) { assert.ok(e.ranksBefore[e.actorId] > 4); assert.ok(e.after[e.actorId] > e.before[e.actorId]); }
 });
 
-test('chaos-v3 pacing: twists spread evenly, at least 1 s apart; the last quarter keeps 1-3 real plot twists', () => {
-  const PLOT = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook']);
+test('chaos-v3 pacing (30 s): twists start early, never overlap (1.5 s apart), and the last quarter keeps 1-2 plot twists', () => {
+  const PLOT = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook']), D = 30;
   let mid = 0, all = 0, worst = 0;
   for (let seed = 0; seed < 1000; seed++) {
-    const r = V3.createRace(names(7), 25, seed), twists = r.events.filter(e => e.scheduled && !e.finale);
-    const times = r.events.filter(e => e.scheduled).map(e => e.time);
-    for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 0.999, `seed ${seed}: twists ${(times[i] - times[i - 1]).toFixed(2)} s apart`);
-    const middle = times.filter(t => t >= 5 && t < 18.75);
+    const r = V3.createRace(names(7), D, seed), times = r.events.filter(e => e.scheduled).map(e => e.time);
+    for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 1.49, `seed ${seed}: twists ${(times[i] - times[i - 1]).toFixed(2)} s apart`);
+    assert.ok(times[0] < D / 5, `seed ${seed}: first twist only at ${times[0]} s`);
+    const middle = times.filter(t => t >= D / 5 && t < D * 3 / 4);
     for (let i = 1; i < middle.length; i++) worst = Math.max(worst, middle[i] - middle[i - 1]);
-    const lastQuarter = r.events.filter(e => e.scheduled && e.time >= 18.75);
-    all += twists.length; mid += twists.filter(e => e.time >= 5 && e.time < 18.75).length;
-    assert.ok(lastQuarter.length >= 1 && lastQuarter.length <= 3, `seed ${seed}: ${lastQuarter.length} twists in the last quarter`);
+    const lastQuarter = r.events.filter(e => e.scheduled && e.time >= D * 3 / 4);
+    all += times.length; mid += times.filter(t => t < D * 3 / 4).length;
+    assert.ok(lastQuarter.length >= 1 && lastQuarter.length <= 2, `seed ${seed}: ${lastQuarter.length} twists in the last quarter`);
     const hasPlot = r.racers.some(x => PLOT.has(x.skill.id)); // a field with no order-changing skill falls back to any active skill
     for (const e of lastQuarter) assert.ok(e.finale || PLOT.has(e.skill) || !hasPlot, `seed ${seed}: ${e.skill || e.hazard} is not a plot twist`);
   }
-  assert.ok(mid / all >= 0.75, `only ${(mid / all * 100).toFixed(0)}% of twists between 1/5 and 3/4`);
+  assert.ok(mid / all >= 0.8, `only ${(mid / all * 100).toFixed(0)}% of twists before the last quarter`);
   assert.ok(worst < 4, `a ${worst.toFixed(1)} s lull mid-race`);
+  // Shorter (older 25 s) days and bigger fields squeeze the stride but still never stack twists.
+  for (const [count, duration, least] of [[7, 25, 1.2], [14, 30, 0.6]]) for (let seed = 0; seed < 300; seed++) {
+    const t = V3.createRace(names(count), duration, seed).events.filter(e => e.scheduled).map(e => e.time);
+    for (let i = 1; i < t.length; i++) assert.ok(t[i] - t[i - 1] >= least - 0.01, `${count} ducks ${duration} s seed ${seed}: ${(t[i] - t[i - 1]).toFixed(2)} s apart`);
+  }
 });
 
 test('chaos-v3 tornado never closes a race, even in small fields with no plot skill', () => {

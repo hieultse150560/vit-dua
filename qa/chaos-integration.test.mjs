@@ -21,7 +21,7 @@ function setup(game, rounds = 10) {
   game.fill('setup-names', names.join('\n'));
   game.fill('setup-date', '2026-11-04');
   game.fill('setup-rounds', String(rounds));
-  game.fill('setup-duration', '25');
+  game.fill('setup-duration', '30');
   game.$('setup-form').dispatchEvent(new game.window.Event('submit', { bubbles: true, cancelable: true }));
   assert.equal(game.$('setup-error').textContent, '');
   assert.equal(game.$('setup-dialog').open, false);
@@ -185,7 +185,8 @@ test('ten seven-player chaos rounds retain daily points and only assess60k/40k a
     }
     const e = current(game), s = state(game), status = T.coffeeStatus(e.session);
     assert.equal(status.status, 'resolved');
-    assert.equal(T.standings(e.session).reduce((sum, row) => sum + row.total, 0), 280);
+    // 10 rounds × 28, plus the last round's forced stars doubling the top three (7 + 6 + 5).
+    assert.equal(T.standings(e.session).reduce((sum, row) => sum + row.total, 0), 280 + 18);
     assert.deepEqual(status.contributions.map(c => c.amount), [60000, 40000]);
     const summary = S.summary(s.seasons[0], [e.session]);
     assert.equal(summary.assessed, 100000);

@@ -20,7 +20,7 @@ function setup(game) {
   game.fill('setup-names', names.join('\n'));
   game.fill('setup-date', '2026-11-04');
   game.fill('setup-rounds', '10');
-  game.fill('setup-duration', '25');
+  game.fill('setup-duration', '30');
   game.$('setup-form').dispatchEvent(new game.window.Event('submit', { bubbles: true, cancelable: true }));
   assert.equal(game.$('setup-error').textContent, '');
 }
@@ -59,6 +59,25 @@ test('star toggle arms before picking and doubles top-half points', async () => 
     assert.deepEqual(current(game).stars, []);
     game.click('result-next');
     pickRest(game, id => { if (id === 'p0') assert.equal(toggle(game).hidden, true, 'p0 already used the star'); else assert.equal(toggle(game).hidden, false); });
+    noErrors(game);
+  } finally { await game.close(); }
+});
+
+test('last round: an unused star is forced on and cannot be turned off', async () => {
+  const game = loadGame({ [KEY]: JSON.stringify(fixture({ roundLimit: 2, rounds: [[0, 1, 2, 3, 4, 5, 6]] })) });
+  try {
+    const first = selectedId(game);
+    assert.equal(toggle(game).hidden, false);
+    assert.equal(toggle(game).disabled, true);
+    assert.equal(toggle(game).getAttribute('aria-pressed'), 'true');
+    assert.match(toggle(game).textContent, /bắt buộc/);
+    freeCard(game).click();
+    assert.deepEqual(current(game).stars, [first]);
+    game.click('random-picks');
+    for (let i = 0; i < 10 && freeCard(game); i++) game.click('random-picks');
+    game.click('start');
+    assert.deepEqual([...current(game).stars].sort(), names.map((_, i) => `p${i}`).sort(), 'everyone still holding a star uses it');
+    assert.equal(game.window.document.querySelectorAll('.racer.has-star').length, 7);
     noErrors(game);
   } finally { await game.close(); }
 });

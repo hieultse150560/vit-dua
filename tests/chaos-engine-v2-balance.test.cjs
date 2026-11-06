@@ -7,10 +7,10 @@ const E = require('../dist/chaos-engine-v2.js');
 const names = count => Array.from({ length: count }, (_, i) => `Vịt ${i + 1}`);
 const D = 25;
 
-function skillTable(count, races, engine = E) {
+function skillTable(count, races, engine = E, duration = D) {
   const stats = Object.fromEntries(engine.skills.map(s => [s.id, { held: 0, wins: 0, top3: 0 }]));
   for (let seed = 0; seed < races; seed++) {
-    for (const r of engine.createRace(names(count), D, seed).results) {
+    for (const r of engine.createRace(names(count), duration, seed).results) {
       const row = stats[r.skill.id];
       row.held++;
       if (r.rank === 1) row.wins++;
@@ -60,8 +60,8 @@ test('comebacks and busy races at 7 ducks × 25 s', () => {
   assert.ok(leadChanges / RACES >= 3, report);
 });
 
-test('chaos-v3 (weather) 7 ducks × 25 s: each skill holder wins 0.7–1.3 × 1/7', () => {
-  const stats = skillTable(7, 5000, E.v3), table = format(stats, 7);
+for (const duration of [25, 30]) test(`chaos-v3 (weather) 7 ducks × ${duration} s: each skill holder wins 0.7–1.3 × 1/7`, () => {
+  const stats = skillTable(7, 5000, E.v3, duration), table = format(stats, 7);
   for (const s of Object.values(stats)) {
     const win = s.wins / s.held * 7;
     assert.ok(win >= 0.7 && win <= 1.3, table);

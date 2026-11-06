@@ -21,7 +21,7 @@ function setup(game, rounds = 10, date = '2026-11-04') {
   game.fill('setup-names', 'Phú\nAn\nBình');
   game.fill('setup-date', date);
   game.fill('setup-rounds', String(rounds));
-  game.fill('setup-duration', '25');
+  game.fill('setup-duration', '30');
   submit(game, 'setup-form');
   assert.equal(game.$('setup-error').textContent, '');
   assert.equal(game.$('setup-dialog').open, false);
@@ -113,7 +113,8 @@ test('ten rounds score once, daily contributions total100k, reload retains total
       restored.click('result-next'); chooseAll(restored); runRound(restored);
     }
     const session = current(restored).session;
-    assert.equal(restored.window.DuckTournament.standings(session).reduce((sum, r) => sum + r.total, 0), 60);
+    // 10 rounds × 6, plus the last round's forced stars doubling the winner's 3 points.
+    assert.equal(restored.window.DuckTournament.standings(session).reduce((sum, r) => sum + r.total, 0), 60 + 3);
     const status = restored.window.DuckTournament.coffeeStatus(session);
     assert.equal(status.status, 'resolved');
     assert.deepEqual(plain(status.contributions.map(c => c.amount).sort((a,b) => a-b)), [40000,60000]);
@@ -207,7 +208,7 @@ test('two days accumulate a season fund, paid receipts persist, close starts a c
     assert.equal(game.$('setup-dialog').open,true);
     assert.equal(game.$('setup-names').disabled,true);
     assert.equal(game.$('setup-rounds').value,'10');
-    assert.equal(game.$('setup-duration').value,'25');
+    assert.equal(game.$('setup-duration').value,'30');
     game.fill('setup-date','2026-11-04');submit(game,'setup-form');
     assert.match(game.$('setup-error').textContent,/không được trùng|phải sau/);
     assert.equal(state(game).sessions.length,1);

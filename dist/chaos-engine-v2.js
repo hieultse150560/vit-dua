@@ -27,7 +27,7 @@
     banana: { stun: 1.5 },
     buoy: { lead: 0.3, leaderHop: 2 },
     // chaos-v3 only
-    magnet: { lead: 0.3, leaderHop: 2 }, lightning: { stun: 1.5 }, rewind: { seconds: 1.2 },
+    magnet: { lead: 0.3, leaderHop: 2 }, lightning: { stun: 1.2 }, rewind: { seconds: 1.2 },
     reverse: { time: 1.5, factor: -0.7 }, freeze: { time: 1 },
     missile: { knock: 4, stun: 1 }, bees: { time: 2, slow: 0.4 }, blackhole: { pull: 0.6 }, ghost: { time: 2, boost: 0.2 }, balloon: { time: 1.5 },
     epic: { hookGap: 0.4, waveGap: 0.4, wavePush: 7, hookPull: 6 }, // minimum knockback, % of the course
@@ -50,7 +50,7 @@
   ]);
   const v3Skills = freeze([
     { id: 'magnet', name: 'Nam châm', icon: '🧲', description: 'Hút mình lên ngay sau con dẫn đầu; đang nhì thì vọt lên dẫn luôn.' },
-    { id: 'lightning', name: 'Sét đánh', icon: '⚡', description: 'Sét đánh trúng 2 con dẫn đầu, lật thuyền 1,5 giây.' },
+    { id: 'lightning', name: 'Sét đánh', icon: '⚡', description: 'Sét đánh trúng 2 con dẫn đầu, lật thuyền 1,2 giây.' },
     { id: 'flip', name: 'Lộn đầu đuôi', icon: '🔃', description: 'Con dẫn đầu và con chót đổi chỗ cho nhau.' },
     { id: 'rewind', name: 'Tua ngược', icon: '⏪', description: 'Mọi con khác bị tua lùi về chỗ của 1,2 giây trước.' },
     { id: 'reverse', name: 'Bơi ngược', icon: '↩️', description: 'Hai con dẫn đầu quay đầu bơi ngược chiều 1,5 giây.' },
@@ -161,6 +161,7 @@
     const pickHazard = weather ? () => weighted(rules.hazards, h => weather.weights[h.id] || 1, hazardRng) : () => rules.hazards[hazardRng.integer(rules.hazards.length)];
     for (let i = 0; i < hazardCount; i++) slots.push({ kind: 'hazard', hazard: pickHazard() });
     const first = tuning.firstPhase, last = duration - 0.2, minGap = rules.gap ?? tuning.minGap;
+    let stride = minGap; // seconds between twists; chaos-v3 shrinks it only when the field is too big to fit
     if (!rules.midSpread) for (const slot of slots) {
       const lateRock = slot.hazard?.id === 'rock' && scheduleRng.unit() < rules.rockLateChance;
       const end = rules.finaleChance && slot.hazard?.id === 'rock' ? duration - H.rockLateWindow : duration;
@@ -168,20 +169,22 @@
         ? duration - H.rockLateWindow + scheduleRng.unit() * (H.rockLateWindow - 0.3)
         : first + (end - first) * scheduleRng.unit() ** TIME_EXPONENT;
     }
-    // chaos-v3 pacing: twists spread evenly from 1/5 to ~3/4 (one equal stratum each, random order,
-    // a little jitter) so they never pile up; the last quarter keeps 1-2 order-changing skills.
+    // chaos-v3 pacing: twists spread evenly from ~1/8 to ~3/4 (one equal stratum each, random order),
+    // jittered only as far as keeps them `stride` apart, so no two ever overlap; the last quarter
+    // keeps one order-changing skill (plus the finale rock in some races).
     if (rules.midSpread) {
       const active = slots.filter(sl => sl.kind === 'skill' && !sl.passive), plot = active.filter(sl => PLOT_TWISTS.has(racers[sl.actorId].skill.id));
       // With no plot skill dealt, any active skill may close the race, but never the tornado (too decisive late).
-      const pool = plot.length ? plot : active.filter(sl => racers[sl.actorId].skill.id !== 'tornado'), n = Math.min(pool.length, 1 + scheduleRng.integer(2));
-      shuffled(pool, scheduleRng).slice(0, n).forEach(sl => { sl.plot = true; });
-      const spread = (list, from, to) => { const w = (to - from) / list.length;
-        list.forEach((sl, i) => { sl.time = from + w * (i + .5 + (scheduleRng.unit() - .5) * .3); }); };
+      const pool = plot.length ? plot : active.filter(sl => racers[sl.actorId].skill.id !== 'tornado');
+      shuffled(pool, scheduleRng).slice(0, 1).forEach(sl => { sl.plot = true; });
+      const ordinary = slots.filter(sl => !sl.plot), from = duration * .12, to = duration * .74;
+      stride = Math.min(minGap, (to - from) / ordinary.length);
+      const spread = (list, a, b) => { const w = (b - a) / list.length, slack = Math.max(0, w - stride);
+        list.forEach((sl, i) => { sl.time = a + w * (i + .5) + (scheduleRng.unit() - .5) * slack; }); };
       // Passive slots (mirror, buoy) take the first strata: they often fire earlier as a reaction,
       // and an empty stratum then reads as a calm start rather than a mid-race lull.
-      const ordinary = slots.filter(sl => !sl.plot);
-      spread([...ordinary.filter(sl => sl.passive), ...shuffled(ordinary.filter(sl => !sl.passive), scheduleRng)], duration / 5, duration * .72);
-      spread(shuffled(slots.filter(sl => sl.plot), scheduleRng), duration * 3 / 4 + .5, duration - .8);
+      spread([...ordinary.filter(sl => sl.passive), ...shuffled(ordinary.filter(sl => !sl.passive), scheduleRng)], from, to);
+      spread(slots.filter(sl => sl.plot), duration * .8, duration - 1);
     }
     // chaos-v3 finale: a rock in the last 2 s that always trips the leader out of the win.
     if (finaleRng && finaleRng.unit() < rules.finaleChance) slots.push({ kind: 'hazard', hazard: hazards[0], finale: true, time: duration - 0.6 - finaleRng.unit() * 1.4 });
@@ -189,12 +192,12 @@
     const byTime = () => slots.sort((a, b) => a.time - b.time);
     byTime();
     // Late guarantee first: it may pull an early slot, which the early guarantee then refills.
-    if (!slots.some(s => visible(s) && s.time >= duration - 2)) {
+    // (chaos-v3 skips both: its even spread already covers the start and the last quarter.)
+    if (!rules.midSpread && !slots.some(s => visible(s) && s.time >= duration - 2)) {
       const late = [...slots].reverse();
-      const pick = (rules.midSpread ? late.find(s => s.plot) : rules.lateGuaranteePrefersRock ? late.find(s => s.hazard?.id === 'rock') : late.find(s => s.kind === 'hazard' && s.hazard.id !== 'rock'))
+      const pick = (rules.lateGuaranteePrefersRock ? late.find(s => s.hazard?.id === 'rock') : late.find(s => s.kind === 'hazard' && s.hazard.id !== 'rock'))
         || late.find(s => s.kind === 'hazard') || late.find(visible);
       pick.time = duration - 2 + scheduleRng.unit() * 1.7;
-      if (rules.midSpread) pick.plot = true;
       byTime();
     }
     // Spacing can push a slot later by one gap per earlier (passive) slot, so the
@@ -206,7 +209,7 @@
     }
     // Whole-tick spacing keeps the gap exact after quantization.
     const firstTick = Math.round(first * HZ), lastTick = Math.round(last * HZ);
-    const gap = Math.max(0, Math.min(Math.round(minGap * HZ), Math.floor((lastTick - firstTick) / slots.length)));
+    const gap = Math.max(0, Math.min(Math.floor(stride * HZ + 1e-6), Math.floor((lastTick - firstTick) / slots.length)));
     slots.forEach(s => { s.tick = Math.min(lastTick, Math.max(firstTick, Math.round(s.time * HZ))); });
     for (let i = 1; i < slots.length; i++) slots[i].tick = Math.max(slots[i].tick, slots[i - 1].tick + gap);
     slots[slots.length - 1].tick = Math.min(slots[slots.length - 1].tick, lastTick);
@@ -222,7 +225,7 @@
   // finaleChance (chaos-v3): share of races ending with a decisive rock trip.
   const V2_RULES = freeze({ skills, hazards, weather: false, rockLateChance: tuning.hazard.rockLateChance, lateGuaranteePrefersRock: true, smartTargets: false });
   const v3Tornado = { ...skills.find(s => s.id === 'tornado'), description: 'Cuốn 3 con dẫn đầu lên trời, quăng văng về cuối đoàn, quay mòng mòng.' };
-  const V3_RULES = freeze({ skills: freeze([...skills.map(s => (s.id === 'tornado' ? v3Tornado : s)), ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 1 });
+  const V3_RULES = freeze({ skills: freeze([...skills.map(s => (s.id === 'tornado' ? v3Tornado : s)), ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 1.5 });
   function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed()) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;

@@ -211,6 +211,19 @@ test('one star per player per day', () => {
   assert.throws(() => starRound(s, [0, 1, 2, 3], ['p9']), /sao/i);
 });
 
+test('the last regular round forces every unused star', () => {
+  let s = T.createSession({ names: ['A', 'B', 'C', 'D'], date: '2026-11-04', duration: 30, roundLimit: 3 });
+  const order = [0, 1, 2, 3], picks = Object.fromEntries(s.players.map((p, i) => [p.id, i]));
+  const play = stars => { s = T.recordRound(s, { id: `r${s.rounds.length + 1}`, picks, order, completedAt: '2026-11-04T05:00:00.000Z', stars }); };
+  assert.equal(T.starForced(s, 'p0'), false, 'round 1 of 3: free choice');
+  play(['p0']);
+  assert.equal(T.starForced(s, 'p1'), false, 'round 2 of 3: free choice');
+  play([]);
+  assert.equal(T.starForced(s, 'p1'), true, 'last round: unused star is forced');
+  assert.equal(T.starForced(s, 'p0'), false, 'already spent');
+  assert.equal(T.starForced(T.createSession({ version: 3, names: ['A', 'B', 'C'], date: '2026-11-04', duration: 30, roundLimit: 1 }), 'p0'), false, 'v3 days have no stars');
+});
+
 test('v3 session rejects stars and keeps old points', () => {
   const s = T.createSession({ version: 3, names: people(3), date: '2026-11-04' });
   assert.equal(T.starAvailable(s, 'p0'), false);

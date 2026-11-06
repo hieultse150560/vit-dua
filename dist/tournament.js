@@ -103,6 +103,11 @@
     return session.version === 4 && !session.rounds.some(round => round.entries.some(entry => entry.playerId === playerId && entry.star === true));
   }
 
+  // The day's last regular round spends every star still unused.
+  function starForced(session, playerId) {
+    return starAvailable(session, playerId) && session.rounds.length === session.roundLimit - 1;
+  }
+
   function validateStars(session, stars) {
     if (!Array.isArray(stars) || new Set(stars).size !== stars.length) fail('Danh sách ngôi sao hy vọng không hợp lệ.');
     if (stars.length && session.version !== 4) fail('Ngày đua này không dùng ngôi sao hy vọng.');
@@ -277,7 +282,7 @@
     return rebuilt;
   }
 
-  const api = Object.freeze({ createSession, validatePicks, standings, recordRound, coffeeStatus, recordTiebreak, validateSession, selectionOrder, selectionState, starAvailable });
+  const api = Object.freeze({ createSession, validatePicks, standings, recordRound, coffeeStatus, recordTiebreak, validateSession, selectionOrder, selectionState, starAvailable, starForced });
   root.DuckTournament = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
