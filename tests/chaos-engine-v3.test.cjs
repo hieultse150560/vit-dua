@@ -283,19 +283,32 @@ test('bees swarm the top two and slow them down', () => {
   }
 });
 
-test('black hole pulls every other unguarded duck toward the caster', () => {
+test('black hole swallows the top rival and spits it out behind the last duck', () => {
   const list = withRace(e => e.skill === 'blackhole' && e.activation);
   assert.ok(list.length > 150);
-  for (const { e } of list) {
-    const c = e.before[e.actorId];
-    assert.equal(e.after[e.actorId], c);
-    for (const id of e.affectedIds.filter(i => !e.protectedIds.includes(i))) assert.ok(Math.abs(e.after[id] - c) <= Math.abs(e.before[id] - c) + 1e-9);
+  let last = 0;
+  for (const { race, e } of list) {
+    assert.equal(e.targetId, order(e.ranksBefore).find(id => id !== e.actorId));
+    if (e.outcome !== 'hit') continue;
+    assert.equal(e.after[e.actorId], e.before[e.actorId], 'the caster stays put');
+    assert.ok(e.after[e.targetId] < e.before[e.targetId], 'swallowed duck goes back');
+    if (lone(race, e)) { assert.equal(race.sample(e.time)[e.targetId].currentRank, 7, 'spat out last'); last++; }
   }
+  assert.ok(last > 50, `only ${last} checked`);
 });
 
-test('ghost turns its duck see-through: attacks pass through for 2 s', () => {
+test('ghost glides through the two ducks ahead, spooks them (slowed), then attacks pass through for 2 s', () => {
   const list = withRace(e => e.skill === 'ghost' && e.activation);
   assert.ok(list.length > 150);
+  let passed = 0, spooked = 0;
+  for (const { race, e } of list) {
+    const rank = e.ranksBefore[e.actorId], ahead = order(e.ranksBefore).slice(Math.max(0, rank - 3), rank - 1);
+    assert.ok(e.after[e.actorId] > e.before[e.actorId], 'the ghost moves forward');
+    sameSet(e.affectedIds, rank > 1 ? ahead : order(e.ranksBefore).slice(1, 2));
+    if (rank > 1 && lone(race, e)) { assert.ok(race.sample(e.time)[e.actorId].currentRank <= rank - ahead.length, 'passed them'); passed++; }
+    for (const id of e.affectedIds) if (e.outcomes[id] === 'hit' && e.time + 0.6 < 25 && !touchedBetween(race, e, id, e.time + 0.5)) { assert.equal(race.sample(e.time + 0.5)[id].slowed, true); spooked++; }
+  }
+  assert.ok(passed > 50 && spooked > 100, `passed ${passed}, spooked ${spooked}`);
   // A duck already stunned keeps that pose; check fresh ghosts only.
   for (const { race, e } of list) if (e.time + 0.6 < 25 && !pose(race, e.time - 0.05, e.actorId) && !touchedBetween(race, e, e.actorId, e.time + 0.5)) assert.equal(pose(race, e.time + 0.5, e.actorId), 'ghost');
   const passes = withRace(e => e.outcome === 'blocked' && e.guard === 'ghost' || Object.values(e.outcomes || {}).includes('blocked') && e.type === 'skill');
@@ -363,6 +376,20 @@ test('chaos-v3 tornado never closes a race, even in small fields with no plot sk
     const e = V3.createRace(names(count), 25, seed).events.find(x => x.skill === 'tornado' && x.scheduled);
     assert.ok(!e || e.time < 18.75, `${count} ducks, seed ${seed}: tornado at ${e?.time}`);
   }
+});
+
+test('chaos-v3 buoy bounce springs past two ducks (one in chaos-v2)', () => {
+  const list = withRace(e => e.skill === 'buoy' && e.activation && e.before && e.ranksBefore[e.actorId] > 2);
+  assert.ok(list.length > 100);
+  let checked = 0;
+  for (const { race, e } of list) {
+    if (!lone(race, e) && e.outcome !== 'blocked') continue;
+    const ranks = Object.fromEntries(race.sample(e.time).map(d => [d.id, d.currentRank]));
+    if (race.events.some(o => o !== e && Math.abs(o.time - e.time) < 1e-9 && o.type !== 'rune-spawn' && o.actorId !== e.actorId && o.targetId !== e.actorId)) continue;
+    assert.ok(ranks[e.actorId] <= e.ranksBefore[e.actorId] - 2, `rank ${e.ranksBefore[e.actorId]} -> ${ranks[e.actorId]}`);
+    checked++;
+  }
+  assert.ok(checked > 50, `only ${checked} checked`);
 });
 
 test('chaos-v3 stun attacks skip ducks already stunned, so a hit is almost never wasted', () => {

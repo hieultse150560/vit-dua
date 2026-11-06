@@ -8,7 +8,7 @@
     { id: 'dodger', icon: '🛡️', title: 'Thánh né đòn', detail: v => `né ${v} đòn` },
     { id: 'unlucky', icon: '😭', title: 'Kẻ xui nhất', detail: v => `dính ${v} đòn` }
   ];
-  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana', 'missile', 'balloon']);
+  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana', 'missile', 'balloon', 'blackhole']);
   const HAZARD_HITS = new Set(['rock', 'croc', 'whirlpool', 'hippo', 'log']);
   const movedBack = e => Object.keys(e.before || {}).map(Number).filter(id => e.after?.[id] < e.before[id]);
 
@@ -31,13 +31,13 @@
     if (SINGLE_HITS.has(e.skill) && e.outcome === 'hit') { out.victims.push(e.targetId); out.strikes++; }
     if (e.skill === 'mirror' && e.outcome === 'fallback' && e.effect === 'hit') { out.victims.push(e.targetId); out.strikes++; }
     if (e.skill === 'rocket' && e.outcome === 'exploded') out.victims.push(e.actorId);
-    if (e.outcomes) { // wave, lightning, reverse, freeze: per-duck results
+    if (e.outcomes) { // wave, lightning, reverse, freeze, bees, ghost: per-duck results
       for (const [id, result] of Object.entries(e.outcomes)) {
         if (result === 'hit') { out.victims.push(Number(id)); out.strikes++; }
         if (result === 'blocked' && !buoyReactions.has(`${e.time}|${id}`)) out.dodgers.push(Number(id));
       }
     }
-    if ((['swap', 'flip'].includes(e.skill) && e.outcome === 'swapped') || (e.skill === 'tornado' && e.outcome === 'shuffled') || ['rewind', 'blackhole'].includes(e.skill)) {
+    if ((['swap', 'flip'].includes(e.skill) && e.outcome === 'swapped') || (e.skill === 'tornado' && e.outcome === 'shuffled') || e.skill === 'rewind') {
       out.victims.push(...movedBack(e));
       if (e.skill === 'swap' && e.after?.[e.actorId] > e.before?.[e.actorId]) out.strikes++;
     }

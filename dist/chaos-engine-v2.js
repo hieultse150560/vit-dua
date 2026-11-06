@@ -29,8 +29,8 @@
     // chaos-v3 only
     magnet: { lead: 0.3, leaderHop: 2 }, lightning: { stun: 1.2 }, rewind: { seconds: 1.2 },
     reverse: { time: 1.5, factor: -0.7 }, freeze: { time: 1 },
-    missile: { knock: 4, stun: 1 }, bees: { time: 2, slow: 0.4 }, blackhole: { pull: 0.6 }, ghost: { time: 2, boost: 0.2 }, balloon: { time: 1.5 },
-    epic: { hookGap: 0.4, waveGap: 0.4, wavePush: 7, hookPull: 6 }, // minimum knockback, % of the course
+    missile: { knock: 4, stun: 1 }, bees: { time: 2, slow: 0.4 }, blackhole: { behind: 1 }, ghost: { time: 2, pass: 2, lead: 0.3, leaderHop: 2, spookTime: 1.2, spookSlow: 0.5 }, balloon: { time: 1.5 },
+    epic: { hookGap: 0.4, waveGap: 0.4, wavePush: 7, hookPull: 6, buoyPass: 2 }, // knockbacks: % of the course; buoyPass: ducks a v3 buoy bounce springs past
     tornado: { keep: 0.5, behind: 2, spin: 0.8 }, // chaos-v3: victims land from `behind` % past the last duck up to `keep` of their lead over it
     rune: { boost: 0.4, time: 1.5, slow: 0.6 },
     hazard: { countMin: 2, countMax: 4, rockStun: 1.5, rockLateWindow: 3, rockLateChance: 0.7, crocPull: 5, windPush: 6, whirlStun: 1.5, dolphinPush: 5, surgeTime: 1, finaleKnock: 0.6,
@@ -57,8 +57,8 @@
     { id: 'freeze', name: 'Đóng băng', icon: '🧊', description: 'Cả sông đóng băng 1 giây, chỉ mình bơi.' },
     { id: 'missile', name: 'Tên lửa tầm nhiệt', icon: '🎯', description: 'Tên lửa bám đuôi con dẫn đầu, nổ tung hất nó lùi và lật thuyền.' },
     { id: 'bees', name: 'Đàn ong', icon: '🐝', description: 'Đàn ong đuổi 2 con dẫn đầu, chậm 60% trong 2 giây.' },
-    { id: 'blackhole', name: 'Hố đen', icon: '🕳️', description: 'Hút cả đoàn dồn về phía mình: con trước bị kéo lùi, con sau bị kéo lên.' },
-    { id: 'ghost', name: 'Tàng hình', icon: '👻', description: 'Tàng hình 2 giây: mọi đòn xuyên qua, lướt nhanh hơn 20%.' },
+    { id: 'blackhole', name: 'Hố đen', icon: '🕳️', description: 'Hố đen mở ngay trên con dẫn đầu, nuốt chửng nó rồi nhả ra ở cuối đoàn.' },
+    { id: 'ghost', name: 'Tàng hình', icon: '👻', description: 'Hóa ma lướt xuyên qua 2 con phía trước, hù chúng chậm lại, rồi tàng hình 2 giây: mọi đòn xuyên qua.' },
     { id: 'balloon', name: 'Bóng bay', icon: '🎈', description: 'Buộc bóng bay vào con dẫn đầu, nhấc nó lơ lửng khỏi mặt nước 1,5 giây.' }
   ]);
   const hazards = freeze([
@@ -224,8 +224,9 @@
   // epic (chaos-v3): hook reels in the leader, wave sweeps the top 3 behind the caster.
   // finaleChance (chaos-v3): share of races ending with a decisive rock trip.
   const V2_RULES = freeze({ skills, hazards, weather: false, rockLateChance: tuning.hazard.rockLateChance, lateGuaranteePrefersRock: true, smartTargets: false });
-  const v3Tornado = { ...skills.find(s => s.id === 'tornado'), description: 'Cuốn 3 con dẫn đầu lên trời, quăng văng về cuối đoàn, quay mòng mòng.' };
-  const V3_RULES = freeze({ skills: freeze([...skills.map(s => (s.id === 'tornado' ? v3Tornado : s)), ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 1.5 });
+  // chaos-v2 skills that work differently in chaos-v3 get their own description there.
+  const V3_TEXT = { tornado: 'Cuốn 3 con dẫn đầu lên trời, quăng văng về cuối đoàn, quay mòng mòng.', buoy: 'Chặn đòn đầu tiên rồi nảy tưng tưng vượt 2 con.' };
+  const V3_RULES = freeze({ skills: freeze([...skills.map(s => (V3_TEXT[s.id] ? { ...s, description: V3_TEXT[s.id] } : s)), ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 1.5 });
   function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed()) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;
@@ -331,8 +332,8 @@
       return above ? Math.max(passed.distance, Math.min(spot, (passed.distance + above.distance) / 2)) : spot;
     }
     function bounce(holder) {
-      const ranks = ranksNow(), before = snapshot([holder]), rank = ranks[holder.id];
-      jump(holder, rank > 1 ? landAhead(rank - 1, tuning.buoy.lead) : holder.distance + pct(tuning.buoy.leaderHop));
+      const ranks = ranksNow(), before = snapshot([holder]), rank = ranks[holder.id], pass = rules.epic ? Math.min(tuning.epic.buoyPass, rank - 1) : 1;
+      jump(holder, rank > 1 ? landAhead(rank - pass, tuning.buoy.lead) : holder.distance + pct(tuning.buoy.leaderHop));
       return { ranksBefore: ranks, before, after: snapshot([holder]) };
     }
     function reflect(holder, attacker, effect) {
@@ -578,14 +579,22 @@
           outcome: results.includes('hit') ? 'hit' : results.includes('reflected') ? 'reflected' : results[0] ?? 'none' };
       },
       blackhole(actor) {
-        const center = actor.distance, others = racers.filter(r => r !== actor), before = snapshot([actor, ...others]);
-        for (const r of others) if (!shielded(r)) jump(r, r.distance + (center - r.distance) * tuning.blackhole.pull);
-        return { affectedIds: others.map(r => r.id), protectedIds: others.filter(shielded).map(r => r.id),
-          outcome: 'pulled', label: 'HỐ ĐEN NUỐT CẢ ĐOÀN!', before, after: snapshot([actor, ...others]) };
+        // A black hole opens on the top rival, swallows it and spits it out behind the last duck.
+        const target = ranked().find(r => r !== actor), before = snapshot([actor, target]);
+        const swallow = duck => { const tail = ranked().filter(r => r !== duck).at(-1); jump(duck, Math.min(duck.distance, tail.distance - pct(tuning.blackhole.behind))); return 'hit'; };
+        const result = strike(actor, target, () => ({ outcome: swallow(target), label: 'HỐ ĐEN NUỐT CHỬNG!' }), () => swallow(actor));
+        return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
       },
-      ghost(actor) {
-        actor.ghostUntil = tick(now + tuning.ghost.time) / HZ;
-        return { outcome: 'ghost', label: 'TÀNG HÌNH!' };
+      ghost(actor, ranks) {
+        // Turns into a ghost: glides through the (up to) 2 ducks ahead, spooking each one, then stays untouchable.
+        // The leader hops ahead and spooks the duck right behind it.
+        const G = tuning.ghost, rank = ranks[actor.id], before = snapshot([actor]);
+        const pass = Math.min(G.pass, rank - 1), spooked = pass ? Array.from({ length: pass }, (_, i) => atRank(rank - 1 - i)) : [atRank(2)];
+        jump(actor, pass ? landAhead(rank - pass, G.lead) : actor.distance + pct(G.leaderHop));
+        const outcomes = {};
+        for (const r of spooked) { const defense = defend(r, actor, false); outcomes[r.id] = defense ? defense.outcome : impair(r, 'slow', G.spookTime, G.spookSlow); }
+        actor.ghostUntil = tick(now + G.time) / HZ;
+        return { affectedIds: spooked.map(r => r.id), outcomes, outcome: 'ghost', label: 'BÓNG MA LƯỚT XUYÊN QUA!', before, after: snapshot([actor]) };
       },
       balloon(actor) {
         const [target] = topRivals(actor, 1), time = tuning.balloon.time;
@@ -595,7 +604,7 @@
       },
       buoy(actor) {
         if (actor.guard === 'buoy') actor.guard = null;
-        return { outcome: 'fallback', label: 'PHAO BƠM HƠI BẬT LÊN!', ...bounce(actor) };
+        return { outcome: 'fallback', label: rules.epic ? 'PHAO NẢY TƯNG TƯNG!' : 'PHAO BƠM HƠI BẬT LÊN!', ...bounce(actor) };
       }
     };
     function applySkill(actor) {
@@ -715,8 +724,7 @@
     }
     function move(racer, start, end, segment) {
       const base = racer.speeds[segment];
-      const extra = (start < racer.rocketUntil ? tuning.rocket.boost : 0) + (start < racer.runeUntil ? tuning.rune.boost : 0)
-        + (start < racer.ghostUntil ? tuning.ghost.boost : 0);
+      const extra = (start < racer.rocketUntil ? tuning.rocket.boost : 0) + (start < racer.runeUntil ? tuning.rune.boost : 0);
       const pulse = pulseIntegral(racer.boost, end) - pulseIntegral(racer.boost, start);
       let movement = base / HZ * (1 + extra) + pulse;
       for (const s of racer.surges) if (start < s.until) movement += s.rate / HZ;

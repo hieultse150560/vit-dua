@@ -204,7 +204,7 @@ test('every v2 event kind maps to a visual burst without throwing', async () => 
       ['hazard', 'rock', 'hit', '🪨'], ['hazard', 'croc', 'hit', '🐊'], ['hazard', 'wind', 'boost', '💨'], ['hazard', 'whirlpool', 'hit', '🌀'], ['hazard', 'dolphin', 'boost', '🐬'],
       ['skill', 'magnet', 'pull', '🧲'], ['skill', 'lightning', 'hit', '⚡'], ['skill', 'flip', 'swapped', '🔃'], ['skill', 'rewind', 'rewound', '⏪'],
       ['skill', 'reverse', 'hit', '↩️'], ['skill', 'freeze', 'frozen', '🧊'],
-      ['skill', 'missile', 'hit', '🎯'], ['skill', 'bees', 'hit', '🐝'], ['skill', 'blackhole', 'pulled', '🕳️'], ['skill', 'ghost', 'ghost', '👻'],
+      ['skill', 'missile', 'hit', '🎯'], ['skill', 'bees', 'hit', '🐝'], ['skill', 'blackhole', 'hit', '🕳️'], ['skill', 'ghost', 'ghost', '👻'],
       ['skill', 'balloon', 'hit', '🎈'], ['hazard', 'hippo', 'hit', '🦛'], ['hazard', 'log', 'hit', '🪵'], ['hazard', 'frog', 'boost', '🐸']
     ];
     cases.forEach(([type, id, outcome, icon], index) => {
