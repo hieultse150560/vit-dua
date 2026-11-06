@@ -312,6 +312,18 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 /* Buoy: three springy hops, squashing on each landing, while the duck glides forward. */
 #river .racer.bouncy .duck-body{animation:duck-bouncy var(--fx-time,1.8s) ease-out both}
 @keyframes duck-bouncy{0%{translate:0 0;scale:1}10%{translate:0 -52px;scale:.92 1.1}22%{translate:0 0;scale:1.18 .82}34%{translate:0 -34px;scale:.95 1.06}46%{translate:0 0;scale:1.12 .88}58%{translate:0 -18px;scale:1}70%{translate:0 0;scale:1.06 .94}100%{translate:0 0;scale:1}}
+/* chaos-v3 poses: asleep (tilted, Z's), hexed into a frog (green, shrunk), giant (swollen); bomb holder; mirror ready. */
+#river .racer.asleep .duck-body{rotate:-14deg;translate:0 3px;filter:saturate(.6) brightness(.95)}
+#river .racer.hex .duck-body{scale:.62;filter:hue-rotate(85deg) saturate(1.8);translate:0 10px}
+#river .racer.giant .duck-body{scale:1.6;translate:0 -16px;filter:drop-shadow(0 6px 10px rgba(255,80,80,.45))}
+.racer-bomb{display:none;position:absolute;left:50%;top:-30px;z-index:5;font-size:24px;line-height:1;translate:-50% 0;filter:drop-shadow(0 0 6px rgba(255,120,30,.9));pointer-events:none}
+.racer.has-bomb .racer-bomb{display:block;animation:bomb-tick .35s ease-in-out infinite alternate}
+@keyframes bomb-tick{from{transform:rotate(-12deg) scale(1)}to{transform:rotate(12deg) scale(1.18)}}
+.racer.has-mirror .duck-body{filter:drop-shadow(0 0 5px rgba(170,225,255,.95))}
+.racer-trait{position:absolute;left:-6px;bottom:2px;z-index:3;font-size:13px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35));pointer-events:none}
+.duck-card .skill-tag{font-size:10px;font-weight:800;line-height:1.5;color:#3d2a66;border:1px solid #d9cdf2;border-radius:7px;background:#efe8ff;padding:4px 7px;max-width:100%;white-space:normal}
+.duck-card .skill-detail{white-space:normal;font-size:9.5px;line-height:1.45;color:#5d5170;margin:0 auto;max-width:190px}
+@media(prefers-reduced-motion:reduce){.racer.has-bomb .racer-bomb{animation:none}}
 /* Overtake badge over a boosted duck. */
 .racer-gain{position:absolute;left:50%;top:-44px;z-index:4;translate:-50% 0;padding:3px 10px;border-radius:999px;background:linear-gradient(180deg,#ffd84d,#ff8a1e);color:#fff;font-weight:900;font-size:15px;letter-spacing:.02em;white-space:nowrap;text-shadow:0 1px 0 #b34d00,0 0 6px rgba(140,50,0,.45);box-shadow:0 3px 10px rgba(255,120,20,.45),inset 0 1px 0 rgba(255,255,255,.6);pointer-events:none;animation:gain-pop calc(var(--fx-time,1.8s) * .9) cubic-bezier(.2,1.6,.4,1) both}
 @keyframes gain-pop{0%{opacity:0;transform:translateY(12px) scale(.4)}14%{opacity:1;transform:translateY(0) scale(1.25)}28%{transform:translateY(-2px) scale(1)}80%{opacity:1;transform:translateY(-14px) scale(1)}100%{opacity:0;transform:translateY(-26px) scale(.9)}}

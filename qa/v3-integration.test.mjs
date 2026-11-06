@@ -254,3 +254,32 @@ test('two days accumulate a season fund, paid receipts persist, close starts a c
 });
 
 export { setup, chooseAll, runRound, completeDay, state, current, noErrors, submit };
+
+test('each duck shows its dealt skill and trait before the picks; the race, a reload and the replay keep that lineup', async () => {
+  const game = loadGame();
+  try {
+    setup(game, 2);
+    const lineup = current(game).lineup;
+    assert.equal(lineup.skills.length, 3); assert.equal(lineup.traits.length, 3);
+    const V3 = game.window.DuckChaosEngineV3;
+    for (let id = 0; id < 3; id++) {
+      const card = duck(game, id), sk = V3.skills.find(s => s.id === lineup.skills[id]), tr = V3.traits.find(t => t.id === lineup.traits[id]);
+      assert.ok(card.querySelector('.skill-tag').textContent.includes(sk.name), 'skill on the card');
+      assert.ok(card.querySelector('.talent-tag').textContent.includes(tr.name), 'trait on the card');
+      assert.equal(card.querySelector('.secret-skill'), null, 'no more secret skills');
+    }
+    const restored = loadGame(game.storage());
+    try { assert.deepEqual(current(restored).lineup, lineup, 'a reload keeps the same lineup while picking'); } finally { await restored.close(); }
+    chooseAll(game); game.click('start');
+    assert.deepEqual(current(game).active.lineup, lineup, 'the race uses the lineup that was shown');
+    const racers = [...game.window.document.querySelectorAll('.racer')];
+    racers.forEach((r, id) => assert.ok(r.querySelector('.racer-trait'), `duck ${id} wears its trait`));
+    runRound(game);
+    const replay = current(game).raceReplays.at(-1);
+    assert.deepEqual(replay.lineup, lineup, 'the replay remembers the lineup');
+    game.click('result-next');
+    assert.notDeepEqual(current(game).lineup, undefined);
+    assert.equal(current(game).lineup.skills.length, 3, 'a fresh deal for the next round');
+    noErrors(game);
+  } finally { await game.close(); }
+});

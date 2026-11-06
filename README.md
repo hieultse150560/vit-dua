@@ -1,6 +1,6 @@
 # 🦆 Vịt Đua · Quỹ Mùa Giải
 
-Game đua vịt tiếng Việt cho 3–100 người chơi trên một màn hình chung. Mỗi người chọn một con vịt; khi xuất phát, mỗi vịt mới lộ một skill bí mật. Lật thuyền, vấp đá, bay vọt, đổi đời: thứ hạng đảo liên tục từ đầu đến tận vạch đích.
+Game đua vịt tiếng Việt cho 3–100 người chơi trên một màn hình chung. Mỗi vòng, mỗi con vịt được chia một skill và một đặc tính, hiện ngay trên thẻ vịt; mỗi người chọn một con theo bộ đôi đó. Lật thuyền, vấp đá, bay vọt, đổi đời: thứ hạng đảo liên tục từ đầu đến tận vạch đích.
 
 **[Chơi Vịt Đua trên trình duyệt](https://vit-dua-phu-20261104.hoangbaophu89.chatgpt.site/)**
 
@@ -33,11 +33,11 @@ Mở [game trên máy](http://127.0.0.1:8000). Dùng cùng trình duyệt và đ
 - **Hoàn tác lựa chọn cuối** chỉ gỡ lựa chọn gần nhất. Có thể hoàn tác nhiều lần rồi chọn lại, nhưng vẫn phải đi theo thứ tự ưu tiên.
 - Đua phụ dùng thứ tự từ chót lên nhất của vòng thường cuối cùng, lọc còn những người phải phân định.
 
-## Skill bí mật, lật kèo và rune
+## Skill, đặc tính, lật kèo và rune
 
 Các vòng mới dùng cơ chế `chaos-v2`: **chọn đủ vịt → xuất phát mới lộ skill → lật kèo liên tục đến giây cuối**. Mỗi người vẫn chọn lại một vịt mỗi vòng. Không còn thiên phú: chọn vịt không quyết định thắng thua, mọi lợi thế đến từ skill bốc ngẫu nhiên lúc xuất phát. Không thể xem skill rồi hoàn tác lựa chọn.
 
-Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ skill; đông hơn thì mỗi skill dùng tối đa `ceil(N / số skill)` lần). `chaos-v2` có 10 skill, `chaos-v3` có 21. Skill tự kích hoạt đúng một lần:
+Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ skill; đông hơn thì mỗi skill dùng tối đa `ceil(N / số skill)` lần). `chaos-v2` có 10 skill, `chaos-v3` có 27. Ở `chaos-v3`, skill và đặc tính được chia **trước khi chọn vịt** và hiện trên thẻ vịt (hạt giống chia bài khác với hạt giống trận đua, nên chọn vịt không làm lộ kết quả); trận dùng đúng bộ đã hiện, và phần xem lại lưu kèm bộ đó. Skill tự kích hoạt đúng một lần:
 
 | Skill | Hiệu ứng |
 | --- | --- |
@@ -46,7 +46,7 @@ Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ 
 | 🌊 Sóng thần | Top 3 (trừ mình) dạt lùi 4% đường đua, mình lướt sóng tiến 3% trong 1 giây. Bản `chaos-v3`: bức tường nước cuốn top 3 trôi về ngay sau lưng mình. |
 | 🔄 Đổi đời | Đổi chỗ với một con đang hơn mình 1–3 bậc. Đang dẫn thì đổi với con kém mình 1–3 bậc, tự tụt! |
 | 🚀 Tên lửa | 70% phóng +150% tốc độ trong 1,5 giây, 30% nổ máy tự lật 2 giây. |
-| 🪞 Gương phản đòn | Đòn đầu tiên từ skill vịt khác bị dội ngược: kẻ tấn công lãnh đúng cái hại đó. Không ai đánh thì đến giờ chiếu chói con ngay trên mình (chậm 50% trong 1,5 giây). |
+| 🪞 Gương phản đòn | Đòn đầu tiên từ skill vịt khác bị dội ngược: kẻ tấn công lãnh đúng cái hại đó. Không ai đánh thì đến giờ chiếu chói con ngay trên mình (chậm 50% trong 1,5 giây).  `chaos-v3`: dội đòn xong còn bật lên vượt 2 con; không ai đánh thì (ô gần cuối khoảng giữa trận) chiếu chói 2 con dẫn đầu còn đánh được, chậm 50% trong 2 giây, rồi bật lên vượt 1 con. |
 | 🎣 Cần câu | Kéo con ngay trên mình lùi về chỗ mình rồi vượt lên ngay trước nó. Bản `chaos-v3`: móc con dẫn đầu, giật nó tụt về ngay sau mình. Đang dẫn thì móc bờ kéo mình lên 3%. |
 | 🌪️ Lốc xoáy | `chaos-v2`: xáo trộn vị trí của 3 con ngẫu nhiên, có thể gồm cả mình. `chaos-v3`: cuốn 3 con dẫn đầu (trừ mình) lên trời, quăng mỗi con về khoảng cuối đoàn (có thể ra sau cả con chót 2%), rồi quay mòng mòng 0,8 giây; trung bình mỗi con tụt gần 3 bậc. |
 | 🍌 Vỏ chuối | Thả tại chỗ; con bám ngay sau chạm tới thì trượt quay vòng 1,5 giây. Đang bét thì ném lên trúng con ngay trên. |
@@ -62,6 +62,12 @@ Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ 
 | 🕳️ Hố đen (`chaos-v3`) | Mở hố đen ngay trên con dẫn đầu (trừ mình): nó xoáy nhỏ dần rồi biến mất, sau đó bị nhả ra sau con chót 1%. Phao, bong bóng, tàng hình chặn được; gương dội ngược thì chính mình bị nuốt. |
 | 👻 Tàng hình (`chaos-v3`) | Hóa ma lướt xuyên qua 2 con ngay phía trước (đang dẫn thì nhảy lên 2% và hù con nhì), mỗi con bị xuyên qua hoảng sợ chậm 50% trong 1,2 giây; sau đó 2 giây mọi đòn và sự kiện xuyên qua (trừ cú vấp đá cuối); đứng ngoài lốc xoáy, tua ngược, đóng băng. |
 | 🎈 Bóng bay (`chaos-v3`) | Nhấc con dẫn đầu lơ lửng khỏi mặt nước 1,5 giây, đứng yên. |
+| 🧨 Bom hẹn giờ (`chaos-v3`) | Gắn bom lên con dẫn đầu (trừ mình). Bom luôn nằm trên con đang dẫn: ai vượt lên thì ôm bom. 2,5 giây sau (luôn trước vạch đích 0,3 giây) bom nổ trên con đang dẫn lúc đó: hất lùi 5%, lật 1,2 giây. Cú vấp đá sát đích tháo hết bom. |
+| 🦝 Đạo chích (`chaos-v3`) | Học lỏm skill chủ động vừa được vịt khác dùng gần nhất và tung lại ngay cho mình (chưa ai dùng thì lấy ngẫu nhiên). |
+| 🎲 Xúc xắc (`chaos-v3`) | Gieo 1–6: ra 1 tự lật 1 giây; 2–5 vượt 1–4 con; ra 6 vọt lên dẫn đầu. Đang dẫn thì nhảy lên thêm 0,6% × số điểm. |
+| 💤 Ru ngủ (`chaos-v3`) | Mọi con trong tầm 6% quanh mình (ít nhất 2 con gần nhất) ngủ gật đứng yên 1,5 giây; con có phao, bong bóng, tàng hình không bị. |
+| 🪄 Biến ếch (`chaos-v3`) | Biến con dẫn đầu còn đánh được thành ếch 2 giây, nhảy chậm còn 45%. Gương dội ngược được. |
+| 🍄 Nấm khổng lồ (`chaos-v3`) | Hóa khổng lồ 2 giây, nhanh hơn 35%; tối đa 3 con ngay phía trước trong tầm 5% bị giẫm lùi 2% và quay 0,6 giây. |
 
 Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 7)` khi đông vịt):
 
@@ -76,9 +82,24 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 
 **Lịch lật kèo:** pha lật kèo (skill hoặc sự kiện) rải từ giây thứ 2 đến cuối trận, càng về cuối càng dày, và vòng nào cũng có ít nhất một pha ở 1/3 đầu và một pha trong 2 giây cuối. Hai pha cách nhau ít nhất 0,4 giây; khi quá đông vịt khoảng cách co lại và banner gộp "N pha liên tiếp!".
 
-**Nhịp trận `chaos-v3`:** skill và sự kiện rải đều từ khoảng 1/8 đến 3/4 chặng đua (trận 30 giây: từ khoảng giây thứ 4 đến giây 22): mỗi pha một ô thời gian bằng nhau, thứ tự ngẫu nhiên, chỉ lệch trong phạm vi vẫn giữ hai pha cách nhau ít nhất 2 giây, nên hiệu ứng pha trước diễn xong mới tới pha sau. Đoàn quá đông hoặc trận ngắn không đủ chỗ thì khoảng cách co lại cho vừa nhưng vẫn đều nhau. Ô của Gương và Phao xếp đầu tiên, vì hai skill này hay đã phản ứng sớm hơn. 1/4 cuối chỉ có 1 pha lật kèo, lấy từ các skill đánh vào con dẫn đầu (Thủy lôi, Tên lửa tầm nhiệt, Sét đánh, Hố đen, Cần câu), cộng cú vấp đá sát đích ở khoảng 40% số trận. Các skill tự đẩy mình lên hoặc đảo cả tốp đầu (Cánh vàng, Đổi đời, Nam châm, Tua ngược, Sóng thần, Lộn đầu đuôi, Lốc xoáy) chỉ bung giữa trận, vì để cuối trận thì gần như quyết định luôn người thắng. Đoàn nhỏ không ai có skill lật kèo thì pha cuối lấy từ skill khác, nhưng không bao giờ là Lốc xoáy. Sóng thần hất lùi ít nhất 7%, Cần câu giật con dẫn đầu lùi ít nhất 6%.
+**Nhịp trận `chaos-v3`:** skill và sự kiện rải đều từ khoảng 1/8 đến 3/4 chặng đua (trận 30 giây: từ khoảng giây thứ 4 đến giây 22): mỗi pha một ô thời gian bằng nhau, thứ tự ngẫu nhiên, chỉ lệch trong phạm vi vẫn giữ hai pha cách nhau ít nhất 2 giây, nên hiệu ứng pha trước diễn xong mới tới pha sau. Đoàn quá đông hoặc trận ngắn không đủ chỗ thì khoảng cách co lại cho vừa nhưng vẫn đều nhau. Ô của Gương và Phao xếp cuối khoảng giữa trận, để hai skill này có gần cả trận chờ phản đòn; nếu đã phản ứng sớm thì ô đó để trống thành một quãng lặng ngắn trước 1/4 cuối. 1/4 cuối chỉ có 1 pha lật kèo, lấy từ các skill đánh vào con dẫn đầu (Thủy lôi, Tên lửa tầm nhiệt, Sét đánh, Hố đen, Cần câu, Bom hẹn giờ, Biến ếch), cộng cú vấp đá sát đích ở khoảng 40% số trận. Các skill tự đẩy mình lên hoặc đảo cả tốp đầu (Cánh vàng, Đổi đời, Nam châm, Tua ngược, Sóng thần, Lộn đầu đuôi, Lốc xoáy) chỉ bung giữa trận, vì để cuối trận thì gần như quyết định luôn người thắng. Đoàn nhỏ không ai có skill lật kèo thì pha cuối lấy từ skill khác, nhưng không bao giờ là Lốc xoáy. Sóng thần hất lùi ít nhất 7%, Cần câu giật con dẫn đầu lùi ít nhất 6%.
 
 **🐢 Hiệu ứng chậm (bật sẵn):** share màn hình qua Teams thường chỉ còn vài khung hình mỗi giây, nên hiệu ứng nhanh bị mất. Nút **🐢 Hiệu ứng chậm** cạnh nút âm thanh kéo mỗi pha slow motion từ 1,8 giây lên 3 giây (vịt bị cuốn, bị nuốt, nảy phao và badge vượt cũng chậm theo) vẽ hiệu ứng ở độ phân giải nhẹ hơn, và **không zoom hay rung màn hình** (hai thứ làm cả khung hình đổi, Teams nén rất giật) để máy đang share đỡ lag. Xem trực tiếp trên máy thì bấm để chuyển sang **Hiệu ứng nhanh**; lựa chọn được nhớ trên trình duyệt đó. Kết quả trận không đổi.
+
+**Đặc tính (`chaos-v3`):** mỗi vịt còn một đặc tính (không trùng nhau khi đủ 8), hiện trên thẻ vịt cạnh skill và thành biểu tượng nhỏ cạnh vịt trên đường đua:
+
+| Đặc tính | Tác dụng |
+| --- | --- |
+| 💪 Bền bỉ | Nhanh hơn 3,5% suốt trận. |
+| 🏃 Xuất phát thần tốc | Nhanh hơn 18% trong 1/4 đầu trận. |
+| 🏁 Nước rút | Nhanh hơn 7% trong 1/5 cuối trận. |
+| 🔥 Bám đuổi | Nhanh hơn 8% khi đang ở nửa sau đoàn. |
+| 🦾 Lì đòn | Bị lật, choáng, làm chậm ngắn hơn 40%. |
+| 🤸 Né đòn | 30% né được đòn skill của vịt khác (không né được hiệu ứng diện rộng). |
+| 🍀 Tốt số | 75% thoát nạn sự kiện sông nước xấu (và hộp hên xui xấu). |
+| 😤 Phục thù | Hết bị lật/choáng thì lao lên thêm 2,5% trong 1 giây. |
+
+Test cân bằng chạy 5.000 trận 7 vịt × 40 giây: người có đặc tính nào cũng thắng trong khoảng 0,7–1,3 lần mức công bằng.
 
 **Badge vượt mặt:** mỗi pha giúp vịt tiến lên (bay, nam châm, phao, ếch, gió, cá heo, tên lửa, tàng hình…) hiện nhãn **⏩ VƯỢT +N** trên đầu vịt khi pha đó xong, nên nhìn là biết vừa vượt bao nhiêu con. Vịt đang tăng tốc kéo theo bóng mờ và vệt tốc độ.
 

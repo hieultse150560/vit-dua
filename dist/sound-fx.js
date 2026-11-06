@@ -4,18 +4,22 @@
   // kindOf() picks a sound for an event; play() builds it with Web Audio.
   const BY_SKILL = { wings: 'flutter', wave: 'wave', swap: 'zap', mirror: 'ding', hook: 'zip', tornado: 'swirl', buoy: 'pop',
     magnet: 'zip', lightning: 'thunder', flip: 'zap', rewind: 'warp', reverse: 'warp', freeze: 'ice',
-    missile: 'missile', bees: 'buzz', blackhole: 'void', ghost: 'ghost', balloon: 'balloon' };
+    missile: 'missile', bees: 'buzz', blackhole: 'void', ghost: 'ghost', balloon: 'balloon',
+    bomb: 'zip', dice: 'pop', lullaby: 'lull', hex: 'magic', giant: 'thud' };
   const BY_HAZARD = { rock: 'splash', croc: 'chomp', wind: 'whoosh', whirlpool: 'swirl', dolphin: 'chirp', hippo: 'splash', log: 'thud', frog: 'ribbit' };
-  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer', 'thunder', 'warp', 'ice', 'missile', 'buzz', 'ghost', 'balloon', 'thud', 'ribbit', 'void']);
+  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer', 'thunder', 'warp', 'ice', 'missile', 'buzz', 'ghost', 'balloon', 'thud', 'ribbit', 'void', 'lull', 'magic']);
   const V2_SKILLS = new Set(['wings', 'torpedo', 'wave', 'swap', 'rocket', 'mirror', 'hook', 'tornado', 'banana', 'buoy',
-    'magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon']); // chaos-v2 + chaos-v3 skills
+    'magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon',
+    'bomb', 'copycat', 'dice', 'lullaby', 'hex', 'giant']); // chaos-v2 + chaos-v3 skills
 
   function kindOf(event) {
     if (event.type === 'hazard') return BY_HAZARD[event.hazard] || null;
     if (event.type !== 'skill' || !V2_SKILLS.has(event.skill)) return null;
+    if (event.skill === 'copycat') return event.copied ? kindOf({ ...event, skill: event.copied }) : null; // sounds like what it copied
     if (event.outcome === 'reflected') return 'ding';
     if (event.outcome === 'blocked' || event.outcome === 'immune') return 'pop';
-    if (event.skill === 'torpedo') return 'boom';
+    if (event.skill === 'torpedo' || event.skill === 'bomb' && event.outcome === 'hit') return 'boom';
+    if (event.skill === 'dice' && event.outcome === 'bust') return 'splash';
     if (event.skill === 'rocket') return event.outcome === 'exploded' ? 'boom' : 'whoosh';
     if (event.skill === 'banana') return event.outcome === 'dropped' ? 'pop' : 'slide';
     return BY_SKILL[event.skill];
@@ -80,6 +84,10 @@
     ribbit: (c, t) => { for (const d of [0, .2]) { tone(c, 'square', 180, 260, t + d, .07, .5, .005); tone(c, 'square', 260, 150, t + d + .07, .06, .4, .005); } },
     // A deep suck down into the hole, then a bright blip when it spits the duck out.
     void: (c, t) => { tone(c, 'sine', 240, 32, t, 1.1, 1.2, .04); noise(c, 'lowpass', 2600, 110, t, 1, .7, .08); tone(c, 'triangle', 160, 1500, t + 1.05, .22, .45, .005); },
+    // A soft music-box lullaby: three falling chimes.
+    lull: (c, t) => { [1047, 880, 698].forEach((f, i) => tone(c, 'sine', f, f * .99, t + i * .22, .55, .5, .01)); tone(c, 'triangle', 349, 340, t, 1.1, .2, .2); },
+    // Magic wand: a sparkly rising sweep and a croak-like pop.
+    magic: (c, t) => { for (let i = 0; i < 6; i++) tone(c, 'triangle', 900 + i * 260, 1000 + i * 300, t + i * .05, .18, .3, .003); tone(c, 'square', 220, 140, t + .4, .12, .4, .005); },
     cheer: (c, t) => { noise(c, 'bandpass', 900, 1700, t, 1.6, 1.1, .25); tone(c, 'sine', 1800, 2400, t + .2, .25, .3); tone(c, 'sine', 2000, 2700, t + .55, .3, .3); }
   };
   // Soft looping river noise for the whole race; returns stop().

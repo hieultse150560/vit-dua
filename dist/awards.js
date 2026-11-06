@@ -8,7 +8,8 @@
     { id: 'dodger', icon: '🛡️', title: 'Thánh né đòn', detail: v => `né ${v} đòn` },
     { id: 'unlucky', icon: '😭', title: 'Kẻ xui nhất', detail: v => `dính ${v} đòn` }
   ];
-  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana', 'missile', 'balloon', 'blackhole']);
+  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana', 'missile', 'balloon', 'blackhole', 'bomb', 'hex']);
+  const DODGES = ['bubble', 'ghost', 'dodge', 'lucky'];
   const HAZARD_HITS = new Set(['rock', 'croc', 'whirlpool', 'hippo', 'log']);
   const movedBack = e => Object.keys(e.before || {}).map(Number).filter(id => e.after?.[id] < e.before[id]);
 
@@ -17,29 +18,31 @@
     const out = { victims: [], strikes: 0, dodgers: [] };
     if (e.type === 'hazard') {
       if (e.outcome === 'hit' && HAZARD_HITS.has(e.hazard)) out.victims.push(e.actorId);
-      if (e.outcome === 'blocked' && ['bubble', 'ghost'].includes(e.guard)) out.dodgers.push(e.actorId);
+      if (e.outcome === 'blocked' && DODGES.includes(e.guard)) out.dodgers.push(e.actorId);
       return out;
     }
     if (e.type !== 'skill') return out;
+    const skill = e.copied || e.skill; // a copycat scores like the move it copied
     if (e.activation && e.skill === 'buoy' && e.outcome === 'blocked') out.dodgers.push(e.actorId);
     if (e.activation && e.skill === 'mirror' && e.outcome === 'reflected') {
       out.dodgers.push(e.actorId);
       if (e.effect === 'hit') { out.victims.push(e.targetId); out.strikes++; }
       return out;
     }
-    if (e.outcome === 'blocked' && ['bubble', 'ghost'].includes(e.guard)) out.dodgers.push(e.targetId ?? e.actorId);
-    if (SINGLE_HITS.has(e.skill) && e.outcome === 'hit') { out.victims.push(e.targetId); out.strikes++; }
-    if (e.skill === 'mirror' && e.outcome === 'fallback' && e.effect === 'hit') { out.victims.push(e.targetId); out.strikes++; }
-    if (e.skill === 'rocket' && e.outcome === 'exploded') out.victims.push(e.actorId);
+    if (e.outcome === 'blocked' && DODGES.includes(e.guard)) out.dodgers.push(e.targetId ?? e.actorId);
+    if (SINGLE_HITS.has(skill) && e.outcome === 'hit') { out.victims.push(e.targetId); if (e.targetId !== e.actorId) out.strikes++; }
+    if (skill === 'dice' && e.outcome === 'bust') out.victims.push(e.actorId);
+    if (skill === 'mirror' && e.outcome === 'fallback' && e.effect === 'hit') { out.victims.push(e.targetId); out.strikes++; }
+    if (skill === 'rocket' && e.outcome === 'exploded') out.victims.push(e.actorId);
     if (e.outcomes) { // wave, lightning, reverse, freeze, bees, ghost: per-duck results
       for (const [id, result] of Object.entries(e.outcomes)) {
         if (result === 'hit') { out.victims.push(Number(id)); out.strikes++; }
         if (result === 'blocked' && !buoyReactions.has(`${e.time}|${id}`)) out.dodgers.push(Number(id));
       }
     }
-    if ((['swap', 'flip'].includes(e.skill) && e.outcome === 'swapped') || (e.skill === 'tornado' && e.outcome === 'shuffled') || e.skill === 'rewind') {
+    if ((['swap', 'flip'].includes(skill) && e.outcome === 'swapped') || (skill === 'tornado' && e.outcome === 'shuffled') || skill === 'rewind') {
       out.victims.push(...movedBack(e));
-      if (e.skill === 'swap' && e.after?.[e.actorId] > e.before?.[e.actorId]) out.strikes++;
+      if (skill === 'swap' && e.after?.[e.actorId] > e.before?.[e.actorId]) out.strikes++;
     }
     return out;
   }

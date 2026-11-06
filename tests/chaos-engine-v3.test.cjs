@@ -146,9 +146,10 @@ const fresh = (race, e, id) => !race.events.some(o => o !== e && o.time <= e.tim
 const topPick = (race, e, n, skip = e.actorId) => { const top = order(e.ranksBefore).filter(id => id !== skip).slice(0, n); return top.every(id => fresh(race, e, id)) ? top : null; };
 const sameSet = (a, b) => assert.deepEqual([...a].sort(), [...b].sort());
 
-test('chaos-v3 deals 21 skills on top of the 10 from chaos-v2', () => {
-  assert.deepEqual(V3.skills.map(s => s.id).slice(10), ['magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon']);
-  assert.equal(V3.skills.length, 21);
+test('chaos-v3 deals 27 skills on top of the 10 from chaos-v2', () => {
+  assert.deepEqual(V3.skills.map(s => s.id).slice(10), ['magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon',
+    'bomb', 'copycat', 'dice', 'lullaby', 'hex', 'giant']);
+  assert.equal(V3.skills.length, 27);
   for (const s of V3.skills) assert.ok(s.name && s.icon && s.description);
   assert.equal(require('../dist/chaos-engine-v2.js').skills.length, 10, 'chaos-v2 keeps its 10 skills');
 });
@@ -348,7 +349,7 @@ test('hippo tosses a top-half duck back, log blocks the leader, frog hops a back
 });
 
 test('chaos-v3 pacing (30 s): twists start early, never overlap (1.5 s apart), and the last quarter keeps 1-2 plot twists', () => {
-  const PLOT = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook']), D = 30;
+  const PLOT = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook', 'bomb', 'hex']), D = 30;
   let mid = 0, all = 0, worst = 0;
   for (let seed = 0; seed < 1000; seed++) {
     const r = V3.createRace(names(7), D, seed), times = r.events.filter(e => e.scheduled).map(e => e.time);
@@ -363,7 +364,7 @@ test('chaos-v3 pacing (30 s): twists start early, never overlap (1.5 s apart), a
     for (const e of lastQuarter) assert.ok(e.finale || PLOT.has(e.skill) || !hasPlot, `seed ${seed}: ${e.skill || e.hazard} is not a plot twist`);
   }
   assert.ok(mid / all >= 0.8, `only ${(mid / all * 100).toFixed(0)}% of twists before the last quarter`);
-  assert.ok(worst < 4, `a ${worst.toFixed(1)} s lull mid-race`);
+  assert.ok(worst < 6, `a ${worst.toFixed(1)} s lull mid-race`); // a mirror/buoy that already reacted leaves its late slot empty
   // Shorter (older 25 s) days and bigger fields squeeze the stride but still never stack twists.
   for (const [count, duration, least] of [[7, 40, 2], [7, 25, 1.2], [14, 30, 0.6]]) for (let seed = 0; seed < 300; seed++) {
     const t = V3.createRace(names(count), duration, seed).events.filter(e => e.scheduled).map(e => e.time);
@@ -400,4 +401,144 @@ test('chaos-v3 stun attacks skip ducks already stunned, so a hit is almost never
     tries++; if ((e.outcomes ? Object.values(e.outcomes) : [e.outcome]).includes('immune')) wasted++;
   }
   assert.ok(tries > 1000 && wasted / tries < 0.03, `${wasted}/${tries} stun attacks wasted on stunned ducks`);
+});
+
+// ---- Lineup dealt before the picks, duck traits, and the newest skills ----
+test('deal: one skill and one trait per duck, deterministic, distinct while they last; createRace uses the shown lineup', () => {
+  const a = V3.deal(7, 42), b = V3.deal(7, 42);
+  assert.deepEqual(a, b);
+  assert.equal(new Set(a.skills).size, 7, 'no repeated skill among 7 ducks');
+  assert.equal(new Set(a.traits).size, 7, 'no repeated trait among 7 ducks');
+  for (const id of a.skills) assert.ok(V3.skills.some(s => s.id === id));
+  for (const id of a.traits) assert.ok(V3.traits.some(t => t.id === id));
+  assert.equal(V3.traits.length, 8);
+  for (const t of V3.traits) assert.ok(t.name && t.icon && t.description);
+  const r = V3.createRace(names(7), 30, 999, a);
+  assert.deepEqual(r.racers.map(x => x.skill.id), a.skills);
+  assert.deepEqual(r.racers.map(x => x.trait.id), a.traits);
+  assert.deepEqual(V3.createRace(names(7), 30, 999, a).events, r.events, 'same seed + lineup replays the same');
+  assert.deepEqual(V3.createRace(names(7), 30, 7).racers.map(x => x.skill.id), V3.deal(7, 7).skills, 'no lineup: dealt from the seed');
+  assert.throws(() => V3.createRace(names(7), 30, 1, { skills: a.skills.slice(1), traits: a.traits }), /skill/);
+  assert.throws(() => V3.createRace(names(7), 30, 1, { skills: a.skills, traits: [...a.traits.slice(1), 'flying'] }), /đặc tính/);
+  assert.equal(V3.deal(30, 1).skills.length, 30, 'big fields reuse the deck');
+});
+
+const lineupWith = (count, seed, skill, trait) => {
+  const d = V3.deal(count, seed);
+  if (skill) { const i = d.skills.indexOf(skill); if (i >= 0) d.skills[i] = d.skills[0]; d.skills[0] = skill; }
+  if (trait) { const i = d.traits.indexOf(trait); if (i >= 0) d.traits[i] = d.traits[0]; d.traits[0] = trait; }
+  return d;
+};
+const racesWith = (skill, trait, races = 600) => Array.from({ length: races }, (_, seed) => ({ seed, race: V3.createRace(names(7), 30, seed, lineupWith(7, seed, skill, trait)) }));
+
+test('bomb sits on whoever leads and blows up 2.5 s later on that duck', () => {
+  let booms = 0;
+  for (const { race } of racesWith('bomb')) {
+    const armed = race.events.find(e => e.skill === 'bomb' && e.outcome === 'armed');
+    if (!armed) continue;
+    assert.equal(armed.actorId, 0);
+    const boom = race.events.find(e => e.skill === 'bomb' && e.actorId === armed.actorId && e.time > armed.time && e.outcome !== 'armed');
+    if (!boom) { assert.ok(race.events.some(e => e.finale), 'a bomb only goes quiet when the finale rock defuses it'); continue; }
+    assert.ok(Math.abs(boom.time - armed.time - armed.fuse) < 0.06 && armed.fuse <= 2.5 && boom.time <= 30 - 0.29, `fuse ${boom.time - armed.time} / ${armed.fuse}`);
+    assert.equal(boom.ranksBefore[boom.targetId], 1, 'it goes off on the leader of that moment');
+    if (boom.outcome === 'hit') { assert.ok(boom.after[boom.targetId] < boom.before[boom.targetId]); booms++; }
+    const mid = armed.time + 1.2, holder = race.sample(mid).find(d => d.bomb);
+    if (holder && race.sample(mid).every(d => d.currentRank !== 1 || d.id === holder.id)) assert.equal(holder.currentRank, 1, 'the bomb rides the leader');
+  }
+  assert.ok(booms > 300, `${booms} explosions`);
+});
+
+test('copycat casts the latest active skill another duck used', () => {
+  let checked = 0;
+  for (const { race } of racesWith('copycat')) {
+    const e = race.events.find(x => x.skill === 'copycat');
+    assert.ok(e && e.copied && e.copiedName && e.copied !== 'copycat');
+    const last = race.events.filter(x => x.type === 'skill' && x.scheduled && x.time <= e.time && x !== e && x.actorId !== 0 && !['mirror', 'buoy'].includes(x.copied || x.skill)).at(-1);
+    if (last) { assert.equal(e.copied, last.copied || last.skill); checked++; }
+  }
+  assert.ok(checked > 300);
+});
+
+test('dice: 1 capsizes the roller, 6 puts it in front, 2-5 pass 1-4 ducks', () => {
+  const rolls = new Set();
+  for (const { race } of racesWith('dice')) {
+    const e = race.events.find(x => x.skill === 'dice');
+    rolls.add(e.roll);
+    if (!lone(race, e)) continue;
+    const rank = race.sample(e.time)[0].currentRank, before = e.ranksBefore[0];
+    if (e.roll === 1) assert.equal(e.outcome, 'bust');
+    else if (before > 1) assert.ok(rank <= Math.max(1, before - (e.roll - 1)) || e.roll === 6 && rank === 1, `roll ${e.roll}: ${before} -> ${rank}`);
+    if (e.roll === 6 && before > 1) assert.equal(rank, 1);
+  }
+  assert.deepEqual([...rolls].sort(), [1, 2, 3, 4, 5, 6]);
+});
+
+test('lullaby puts nearby ducks to sleep (at least the two nearest)', () => {
+  let slept = 0;
+  for (const { race } of racesWith('lullaby')) {
+    const e = race.events.find(x => x.skill === 'lullaby');
+    assert.ok(e.affectedIds.length >= 2 && !e.affectedIds.includes(0));
+    for (const id of e.affectedIds) if (e.outcomes[id] === 'hit' && e.time + 0.6 < 30 && !touchedBetween(race, e, id, e.time + 0.5)) {
+      const d = race.sample(e.time + 0.5)[id];
+      assert.equal(d.pose, 'asleep'); assert.equal(d.stunned, true); slept++;
+    }
+  }
+  assert.ok(slept > 300, `${slept} naps`);
+});
+
+test('hex turns the leader into a slow frog; giant grows and stomps the ducks just ahead', () => {
+  let frogs = 0, giants = 0;
+  for (const { race } of racesWith('hex', null, 300)) {
+    const e = race.events.find(x => x.skill === 'hex');
+    if (e.outcome === 'hit' && e.time + 0.6 < 30 && !touchedBetween(race, e, e.targetId, e.time + 0.5)) { assert.equal(race.sample(e.time + 0.5)[e.targetId].pose, 'hex'); frogs++; }
+  }
+  for (const { race } of racesWith('giant', null, 300)) {
+    const e = race.events.find(x => x.skill === 'giant');
+    if (e.time + 0.6 < 30 && !touchedBetween(race, e, 0, e.time + 0.5) && !race.sample(e.time + 0.5)[0].stunned) { assert.equal(race.sample(e.time + 0.5)[0].pose, 'giant'); giants++; }
+    for (const id of e.affectedIds) if (e.outcomes[id] === 'hit') assert.ok(e.after[id] < e.before[id]);
+  }
+  assert.ok(frogs > 100 && giants > 100, `frogs ${frogs}, giants ${giants}`);
+});
+
+test('mirror (v3) springs ahead when it reflects; its glare blinds two leaders; buoy fallback passes three', () => {
+  let reflected = 0, glares = 0, bounces = 0;
+  for (const { race } of racesWith('mirror')) for (const e of race.events.filter(x => x.skill === 'mirror' && x.actorId === 0)) {
+    if (e.outcome === 'reflected') { assert.ok(e.after[0] > e.before[0], 'the mirror holder springs ahead'); reflected++; }
+    if (e.outcome === 'fallback') { assert.equal(e.affectedIds.length, 2); assert.ok(e.after[0] >= e.before[0]); glares++; }
+  }
+  for (const { race } of racesWith('buoy')) {
+    const e = race.events.find(x => x.skill === 'buoy' && x.outcome === 'fallback');
+    if (e && e.ranksBefore[0] > 3 && lone(race, e)) { assert.ok(race.sample(e.time)[0].currentRank <= e.ranksBefore[0] - 3); bounces++; }
+  }
+  assert.ok(reflected > 30 && glares > 200 && bounces > 50, `reflected ${reflected}, glares ${glares}, bounces ${bounces}`);
+});
+
+test('traits: tough shortens stuns, dodgy and lucky slip some hits, revenge charges after a stun, speed traits pay off', () => {
+  const T = V3.tuning.trait;
+  let tough = 0, dodged = 0, lucky = 0, revenge = 0;
+  for (const { race } of racesWith(null, 'tough', 400)) for (const e of race.events) {
+    if ((e.skill === 'torpedo' || e.skill === 'balloon') && e.targetId === 0 && e.outcome === 'hit' && e.time + 2 < 30 && !touchedBetween(race, e, 0, e.time + 2)) {
+      const stun = e.skill === 'torpedo' ? 2 : 1.5;
+      assert.equal(race.sample(e.time + stun * T.tough + 0.1)[0].pose, null, 'stun ends early'); tough++;
+    }
+  }
+  for (const { race } of racesWith(null, 'dodgy', 400)) dodged += race.events.filter(e => e.guard === 'dodge').length;
+  for (const { race } of racesWith(null, 'lucky', 400)) lucky += race.events.filter(e => e.guard === 'lucky').length;
+  for (const { race } of racesWith(null, 'revenge', 400)) for (const e of race.events) {
+    if (e.targetId === 0 && e.outcome === 'hit' && ['torpedo', 'balloon'].includes(e.skill)) {
+      const end = e.time + (e.skill === 'torpedo' ? 2 : 1.5) + 0.3;
+      if (end + 0.3 < 30 && !touchedBetween(race, e, 0, end + 0.3)) { assert.equal(race.sample(end)[0].boosting, true, 'charging after the stun'); revenge++; }
+    }
+  }
+  assert.ok(tough > 10 && dodged > 20 && lucky > 20 && revenge > 10, `tough ${tough}, dodged ${dodged}, lucky ${lucky}, revenge ${revenge}`);
+});
+
+test('chaos-v3 traits are balanced: each trait holder wins 0.7–1.3 × 1/7', () => {
+  const held = {}, wins = {};
+  for (let seed = 0; seed < 5000; seed++) for (const r of V3.createRace(names(7), 40, seed).results) {
+    held[r.trait.id] = (held[r.trait.id] || 0) + 1;
+    if (r.rank === 1) wins[r.trait.id] = (wins[r.trait.id] || 0) + 1;
+  }
+  const table = Object.keys(held).map(id => `${id} ${(wins[id] / held[id] * 7).toFixed(2)}`).join(', ');
+  for (const id of Object.keys(held)) { const w = wins[id] / held[id] * 7; assert.ok(w >= 0.7 && w <= 1.3, table); }
 });

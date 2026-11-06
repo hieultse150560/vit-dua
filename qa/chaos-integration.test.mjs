@@ -53,24 +53,24 @@ function activeFixture({ version = 3, engine, elapsed = 8, seed = 24680, roundLi
   return { version: 3, currentId: session.id, currentSeasonId: season?.id ?? null, seasons: season ? [season] : [], sessions: [envelope] };
 }
 
-test('duck cards only promise a secret skill; skill assignments appear only after all choices are locked', async () => {
+test('duck cards show the skill and trait dealt for this round; the race uses exactly that lineup', async () => {
   const game = loadGame(); let restored;
   try {
     setup(game);
     const cards = [...game.$('duck-grid').querySelectorAll('button')];
     assert.equal(cards.length, 7);
+    const lineup = current(game).lineup, V3 = game.window.DuckChaosEngineV3;
     for (let id = 0; id < cards.length; id++) {
-      assert.ok(cards[id].textContent.includes('Skill bí mật'));
-      assert.equal(cards[id].querySelector('.talent-tag'), null, 'chaos-v2 has no talents');
-      assert.equal(cards[id].querySelector('[data-skill-id]'), null, 'choice card must not expose its future skill');
+      assert.ok(cards[id].querySelector('.skill-tag').textContent.includes(V3.skills.find(s => s.id === lineup.skills[id]).name));
+      assert.ok(cards[id].querySelector('.talent-tag').textContent.includes(V3.traits.find(t => t.id === lineup.traits[id]).name));
     }
     assert.equal(game.$('skill-reveal').querySelectorAll('[data-skill-id]').length, 0);
     assert.equal(current(game).active, null);
     cards[0].click(); cards[1].click();
-    const secretNotes = [...game.$('duck-grid').querySelectorAll('.secret-skill')].map(n => n.textContent);
+    const shown = [...game.$('duck-grid').querySelectorAll('.skill-tag')].map(n => n.textContent);
     restored = loadGame(game.storage());
     assert.deepEqual(current(restored).picks, { p0: 0, p1: 1 });
-    assert.deepEqual([...restored.$('duck-grid').querySelectorAll('.secret-skill')].map(n => n.textContent), secretNotes);
+    assert.deepEqual([...restored.$('duck-grid').querySelectorAll('.skill-tag')].map(n => n.textContent), shown, 'a reload shows the same deal');
     assert.equal(restored.$('skill-reveal').querySelectorAll('[data-skill-id]').length, 0);
     assert.equal(restored.$('start').disabled, true);
     chooseAll(restored); restored.click('start');
@@ -80,8 +80,7 @@ test('duck cards only promise a secret skill; skill assignments appear only afte
     const revealed = [...restored.$('skill-reveal').querySelectorAll('[data-skill-id]')];
     assert.equal(revealed.length, 7);
     const active = current(restored).active;
-    const race = restored.window.DuckChaosEngineV3.createRace(names.map((_, id) => A.name(id)), 25, active.seed);
-    assert.deepEqual(revealed.map(n => n.dataset.skillId), plain(race.racers.map(r => r.skill.id)));
+    assert.deepEqual(revealed.map(n => n.dataset.skillId), plain(lineup.skills), 'the race reveals the skills that were on the cards');
     noErrors(game); noErrors(restored);
   } finally { await game.close(); if (restored) await restored.close(); }
 });
@@ -109,7 +108,7 @@ test('F5 mid-race preserves revealed skills, event chronology, result and one-ti
     assert.deepEqual(round.entries, current(game).session.rounds[0].entries);
     assert.deepEqual(round.entries.map(e => e.points), [7, 6, 5, 4, 3, 2, 1]);
     assert.equal(current(restored).raceReplays.length, 1);
-    assert.deepEqual(current(restored).raceReplays[0], { id: round.id, seed: original.seed, engine: 'chaos-v3' });
+    assert.deepEqual(current(restored).raceReplays[0], { id: round.id, seed: original.seed, engine: 'chaos-v3', lineup: original.lineup });
     restored.advance(100000);
     assert.equal(current(restored).session.rounds.length, 1);
     after = loadGame(restored.storage());

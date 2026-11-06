@@ -205,7 +205,8 @@ test('every v2 event kind maps to a visual burst without throwing', async () => 
       ['skill', 'magnet', 'pull', '🧲'], ['skill', 'lightning', 'hit', '⚡'], ['skill', 'flip', 'swapped', '🔃'], ['skill', 'rewind', 'rewound', '⏪'],
       ['skill', 'reverse', 'hit', '↩️'], ['skill', 'freeze', 'frozen', '🧊'],
       ['skill', 'missile', 'hit', '🎯'], ['skill', 'bees', 'hit', '🐝'], ['skill', 'blackhole', 'hit', '🕳️'], ['skill', 'ghost', 'ghost', '👻'],
-      ['skill', 'balloon', 'hit', '🎈'], ['hazard', 'hippo', 'hit', '🦛'], ['hazard', 'log', 'hit', '🪵'], ['hazard', 'frog', 'boost', '🐸']
+      ['skill', 'balloon', 'hit', '🎈'], ['hazard', 'hippo', 'hit', '🦛'], ['hazard', 'log', 'hit', '🪵'], ['hazard', 'frog', 'boost', '🐸'],
+      ['skill', 'bomb', 'armed', '💣'], ['skill', 'bomb', 'hit', '💥'], ['skill', 'dice', 'roll', '🎲'], ['skill', 'lullaby', 'asleep', '💤'], ['skill', 'hex', 'hit', '🪄'], ['skill', 'giant', 'giant', '🍄']
     ];
     cases.forEach(([type, id, outcome, icon], index) => {
       game.window.__drawn.length = 0; game.window.__calls.length = 0;

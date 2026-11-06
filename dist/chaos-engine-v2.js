@@ -31,7 +31,12 @@
     reverse: { time: 1.5, factor: -0.7 }, freeze: { time: 1 },
     missile: { knock: 4, stun: 1 }, bees: { time: 2, slow: 0.4 }, blackhole: { behind: 1 }, ghost: { time: 2, pass: 2, lead: 0.3, leaderHop: 2, spookTime: 1.2, spookSlow: 0.5 }, balloon: { time: 1.5 },
     epic: { hookGap: 0.4, waveGap: 0.4, wavePush: 7, hookPull: 6, buoyPass: 2 }, // knockbacks: % of the course; buoyPass: ducks a v3 buoy bounce springs past
-    tornado: { keep: 0.5, behind: 2, spin: 0.8 }, // chaos-v3: victims land from `behind` % past the last duck up to `keep` of their lead over it
+    tornado: { keep: 0.5, behind: 2, spin: 0.8 },
+    bomb: { fuse: 2.5, knock: 5, stun: 1.2 }, dice: { leadBy: 0.3, leaderHop: 0.6, bustStun: 1 },
+    lullaby: { range: 6, min: 2, time: 1.5 }, hex: { time: 2, slow: 0.45 }, giant: { time: 2, boost: 0.35, range: 5, max: 3, knock: 2, spin: 0.6 },
+    mirrorV3: { glareTargets: 2, glareTime: 2, glareSlow: 0.5 }, buoyV3: { fallbackPass: 3 },
+    // Duck traits (chaos-v3), dealt with the skills before the picks. Speeds are extra fractions of base speed.
+    trait: { steady: 0.035, early: 0.18, earlyUntil: 0.25, late: 0.07, lateFrom: 0.8, catchup: 0.08, tough: 0.6, dodge: 0.3, lucky: 0.75, revengePush: 2.5, revengeTime: 1 }, // chaos-v3: victims land from `behind` % past the last duck up to `keep` of their lead over it
     rune: { boost: 0.4, time: 1.5, slow: 0.6 },
     hazard: { countMin: 2, countMax: 4, rockStun: 1.5, rockLateWindow: 3, rockLateChance: 0.7, crocPull: 5, windPush: 6, whirlStun: 1.5, dolphinPush: 5, surgeTime: 1, finaleKnock: 0.6,
       hippoKnock: 3, hippoStun: 1, logTime: 1.5, logSlow: 0.1, frogHop: 3 }
@@ -59,7 +64,23 @@
     { id: 'bees', name: 'Đàn ong', icon: '🐝', description: 'Đàn ong đuổi 2 con dẫn đầu, chậm 60% trong 2 giây.' },
     { id: 'blackhole', name: 'Hố đen', icon: '🕳️', description: 'Hố đen mở ngay trên con dẫn đầu, nuốt chửng nó rồi nhả ra ở cuối đoàn.' },
     { id: 'ghost', name: 'Tàng hình', icon: '👻', description: 'Hóa ma lướt xuyên qua 2 con phía trước, hù chúng chậm lại, rồi tàng hình 2 giây: mọi đòn xuyên qua.' },
-    { id: 'balloon', name: 'Bóng bay', icon: '🎈', description: 'Buộc bóng bay vào con dẫn đầu, nhấc nó lơ lửng khỏi mặt nước 1,5 giây.' }
+    { id: 'balloon', name: 'Bóng bay', icon: '🎈', description: 'Buộc bóng bay vào con dẫn đầu, nhấc nó lơ lửng khỏi mặt nước 1,5 giây.' },
+    { id: 'bomb', name: 'Bom hẹn giờ', icon: '🧨', description: 'Gắn bom vào con dẫn đầu; ai vượt lên dẫn thì bom nhảy sang người đó. 2,5 giây sau nổ: hất lùi và lật thuyền.' },
+    { id: 'copycat', name: 'Đạo chích', icon: '🦝', description: 'Học lỏm skill vừa được dùng gần nhất và tung lại ngay cho mình.' },
+    { id: 'dice', name: 'Xúc xắc', icon: '🎲', description: 'Gieo 1–6: ra 1 tự lật thuyền, 2–5 vượt 1–4 con, ra 6 vọt lên dẫn đầu.' },
+    { id: 'lullaby', name: 'Ru ngủ', icon: '💤', description: 'Hát ru: mọi con trong tầm 6% quanh mình (ít nhất 2 con gần nhất) ngủ gật 1,5 giây.' },
+    { id: 'hex', name: 'Biến ếch', icon: '🪄', description: 'Biến con dẫn đầu thành ếch 2 giây, nhảy chậm còn 45%.' },
+    { id: 'giant', name: 'Nấm khổng lồ', icon: '🍄', description: 'Hóa khổng lồ 2 giây, nhanh hơn 35%, giẫm văng tối đa 3 con ngay phía trước.' }
+  ]);
+  const traits = freeze([
+    { id: 'steady', name: 'Bền bỉ', icon: '💪', description: 'Nhanh hơn 3,5% suốt trận.' },
+    { id: 'early', name: 'Xuất phát thần tốc', icon: '🏃', description: 'Nhanh hơn 18% trong 1/4 đầu trận.' },
+    { id: 'late', name: 'Nước rút', icon: '🏁', description: 'Nhanh hơn 7% trong 1/5 cuối trận.' },
+    { id: 'catchup', name: 'Bám đuổi', icon: '🔥', description: 'Nhanh hơn 8% khi đang ở nửa sau đoàn.' },
+    { id: 'tough', name: 'Lì đòn', icon: '🦾', description: 'Bị lật, choáng, làm chậm ngắn hơn 40%.' },
+    { id: 'dodgy', name: 'Né đòn', icon: '🤸', description: '30% né được đòn skill của vịt khác.' },
+    { id: 'lucky', name: 'Tốt số', icon: '🍀', description: '75% thoát nạn sự kiện sông nước xấu.' },
+    { id: 'revenge', name: 'Phục thù', icon: '😤', description: 'Hết bị choáng thì nổi giận lao lên thêm 2,5%.' }
   ]);
   const hazards = freeze([
     { id: 'rock', name: 'Vấp đá', icon: '🪨' },
@@ -76,7 +97,7 @@
   const PASSIVE = new Set(['mirror', 'buoy']);
   // Skills that hit the leader or scramble the order: the only ones chaos-v3 saves for the last quarter.
   // Self-boosting skills (wings, swap, magnet, rewind, wave, flip) stay mid-race: late, they would all but decide the winner.
-  const PLOT_TWISTS = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook']);
+  const PLOT_TWISTS = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook', 'bomb', 'hex']);
   // chaos-v3 = chaos-v2 + one weather per race. Weather adds hazards and reweights them.
   // chaos-v2 never touches this table, so its replays stay identical.
   const v3Hazards = freeze([
@@ -181,9 +202,9 @@
       stride = Math.min(minGap, (to - from) / ordinary.length);
       const spread = (list, a, b) => { const w = (b - a) / list.length, slack = Math.max(0, w - stride);
         list.forEach((sl, i) => { sl.time = a + w * (i + .5) + (scheduleRng.unit() - .5) * slack; }); };
-      // Passive slots (mirror, buoy) take the first strata: they often fire earlier as a reaction,
-      // and an empty stratum then reads as a calm start rather than a mid-race lull.
-      spread([...ordinary.filter(sl => sl.passive), ...shuffled(ordinary.filter(sl => !sl.passive), scheduleRng)], from, to);
+      // Passive slots (mirror, buoy) take the last strata, so they have most of the race to react
+      // before their fallback fires (a used one just leaves a short calm before the last quarter).
+      spread([...shuffled(ordinary.filter(sl => !sl.passive), scheduleRng), ...ordinary.filter(sl => sl.passive)], from, to);
       spread(slots.filter(sl => sl.plot), duration * .8, duration - 1);
     }
     // chaos-v3 finale: a rock in the last 2 s that always trips the leader out of the win.
@@ -225,9 +246,24 @@
   // finaleChance (chaos-v3): share of races ending with a decisive rock trip.
   const V2_RULES = freeze({ skills, hazards, weather: false, rockLateChance: tuning.hazard.rockLateChance, lateGuaranteePrefersRock: true, smartTargets: false });
   // chaos-v2 skills that work differently in chaos-v3 get their own description there.
-  const V3_TEXT = { tornado: 'Cuốn 3 con dẫn đầu lên trời, quăng văng về cuối đoàn, quay mòng mòng.', buoy: 'Chặn đòn đầu tiên rồi nảy tưng tưng vượt 2 con.' };
-  const V3_RULES = freeze({ skills: freeze([...skills.map(s => (V3_TEXT[s.id] ? { ...s, description: V3_TEXT[s.id] } : s)), ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 2 });
-  function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed()) {
+  const V3_TEXT = { tornado: 'Cuốn 3 con dẫn đầu lên trời, quăng văng về cuối đoàn, quay mòng mòng.',
+    buoy: 'Chặn đòn đầu tiên rồi nảy tưng tưng vượt 2 con; không ai đánh thì đến giờ nảy vượt 3 con.',
+    mirror: 'Dội ngược đòn đầu tiên và bật lên vượt 2 con; không ai đánh thì đến giờ chiếu chói 2 con dẫn đầu (chậm 50% trong 2 giây) và bật lên vượt 1 con.' };
+  const V3_RULES = freeze({ skills: freeze([...skills.map(s => (V3_TEXT[s.id] ? { ...s, description: V3_TEXT[s.id] } : s)), ...v3Skills]), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 2, traits });
+  // Skills and traits for each duck, dealt before the picks (chaos-v3); the same seed always deals the same lineup.
+  function dealLineup(rules, count, seed) {
+    const deckOf = (list, salt) => shuffled(Array.from({ length: Math.ceil(count / list.length) }, () => list).flat(), randomFor(seed, salt)).slice(0, count);
+    return { skills: deckOf(rules.skills, 0x534b4932).map(s => s.id), traits: deckOf(rules.traits, 0x54524954).map(t => t.id) };
+  }
+  function cleanLineup(rules, count, lineup) {
+    const read = (ids, list, what) => {
+      if (!Array.isArray(ids) || ids.length !== count) throw new RangeError(`Danh sách ${what} phải có đúng ${count} mục.`);
+      return ids.map(id => list.find(item => item.id === id) || (() => { throw new RangeError(`${what} không hợp lệ: ${id}`); })());
+    };
+    if (!lineup || typeof lineup !== 'object') throw new TypeError('Đội hình skill không hợp lệ.');
+    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính') };
+  }
+  function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed(), lineup = null) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;
     const ids = Array.from({ length: count }, (_, id) => id);
@@ -239,6 +275,7 @@
     const runeRng = randomFor(seed, 0x52554e32);
     const effectRng = randomFor(seed, 0x45464632);
     const finaleRng = rules.finaleChance ? randomFor(seed, 0x46494e33) : null;
+    const traitRng = rules.traits ? randomFor(seed, 0x54524e44) : null;
     const pct = value => value / 100 * duration;
     const sprintStart = duration - 5;
     const steps = duration * HZ;
@@ -253,7 +290,7 @@
       speeds: Array.from({ length: segmentCount }, () => 0.65 + motionRng.unit() * 0.70),
       distance: 0, baseDistance: 0, boost: null, rocketUntil: 0, runeUntil: 0, surges: [],
       impairUntil: 0, impairKind: null, impairFactor: 1, immuneUntil: 0,
-      guard: null, mirror: false, flyUntil: 0, swapUntil: 0, ghostUntil: 0, skillUsed: false
+      guard: null, mirror: false, flyUntil: 0, swapUntil: 0, ghostUntil: 0, skillUsed: false, trait: null, giantUntil: 0
     }));
     const boostCount = 1 + motionRng.integer(Math.min(count - 1, Math.ceil(count * 0.55)));
     const boosts = shuffled(ids, motionRng).slice(0, boostCount).map(id => {
@@ -263,9 +300,12 @@
       racers[id].boost = boost;
       return boost;
     });
-    const deck = shuffled(Array.from({ length: Math.ceil(count / rules.skills.length) }, () => rules.skills).flat(), skillRng);
+    // chaos-v3 deals skills and traits (or takes the lineup shown before the picks); chaos-v2 keeps its deck.
+    const dealt = rules.traits ? cleanLineup(rules, count, lineup || dealLineup(rules, count, seed)) : null;
+    const deck = dealt ? dealt.skills : shuffled(Array.from({ length: Math.ceil(count / rules.skills.length) }, () => rules.skills).flat(), skillRng);
     racers.forEach((racer, index) => {
       racer.skill = deck[index];
+      if (dealt) racer.trait = dealt.traits[index];
       if (racer.skill.id === 'mirror') racer.mirror = true;
       if (racer.skill.id === 'buoy') racer.guard = 'buoy';
     });
@@ -287,6 +327,9 @@
     const emit = event => { const result = { id: `event-${++eventId}`, time: now, ...event }; events.push(result); return result; };
     const distances = new Float64Array((steps + 1) * count);
     const flags = new Uint16Array((steps + 1) * count);
+    // chaos-v3 extra marks: 1 asleep, 2 hexed into a frog, 4 giant, 8 holds the bomb, 16 mirror ready.
+    const marks = rules.traits ? new Uint8Array((steps + 1) * count) : null;
+    const bombs = [];
     const jumps = new Map();
     const ranked = () => [...racers].sort(compare);
     const ranksNow = () => { const ranks = []; ranked().forEach((r, index) => { ranks[r.id] = index + 1; }); return ranks; };
@@ -307,10 +350,13 @@
     }
     function impair(racer, kind, seconds, factor = 0) {
       if (now < racer.impairUntil || now < racer.immuneUntil) return 'immune';
+      const T = tuning.trait, trait = racer.trait?.id;
       racer.impairKind = kind;
       racer.impairFactor = factor;
-      racer.impairUntil = tick(now + seconds) / HZ;
+      racer.impairUntil = tick(now + seconds * (trait === 'tough' ? T.tough : 1)) / HZ;
       racer.immuneUntil = tick(racer.impairUntil + tuning.stunImmunity) / HZ;
+      // Revenge: once the duck recovers it charges ahead.
+      if (trait === 'revenge') racer.surges.push({ from: racer.impairUntil, until: tick(racer.impairUntil + T.revengeTime) / HZ, rate: pct(T.revengePush) / T.revengeTime });
       return 'hit';
     }
     function surge(racer, amount, seconds) {
@@ -323,7 +369,7 @@
     const flush = () => { const pending = reactions; reactions = []; pending.forEach(emit); };
     const LABEL = {
       hit: 'LẬT THUYỀN!', immune: 'ĐANG MIỄN NHIỄM!', reflected: 'BỊ GƯƠNG DỘI NGƯỢC!',
-      blocked: guard => guard === 'buoy' ? 'PHAO CHẶN ĐÒN!' : guard === 'ghost' ? 'TÀNG HÌNH, ĐÒN XUYÊN QUA!' : 'BONG BÓNG CHẶN ĐÒN!'
+      blocked: guard => guard === 'buoy' ? 'PHAO CHẶN ĐÒN!' : guard === 'ghost' ? 'TÀNG HÌNH, ĐÒN XUYÊN QUA!' : guard === 'dodge' ? 'NÉ ĐƯỢC ĐÒN!' : guard === 'lucky' ? 'TỐT SỐ, THOÁT NẠN!' : 'BONG BÓNG CHẶN ĐÒN!'
     };
     // Landing spot just ahead of the duck at `rank`, never past the duck above it.
     function landAhead(rank, lead) {
@@ -331,14 +377,15 @@
       const spot = passed.distance + pct(lead);
       return above ? Math.max(passed.distance, Math.min(spot, (passed.distance + above.distance) / 2)) : spot;
     }
-    function bounce(holder) {
-      const ranks = ranksNow(), before = snapshot([holder]), rank = ranks[holder.id], pass = rules.epic ? Math.min(tuning.epic.buoyPass, rank - 1) : 1;
+    function bounce(holder, most = rules.epic ? tuning.epic.buoyPass : 1) {
+      const ranks = ranksNow(), before = snapshot([holder]), rank = ranks[holder.id], pass = Math.min(most, rank - 1);
       jump(holder, rank > 1 ? landAhead(rank - pass, tuning.buoy.lead) : holder.distance + pct(tuning.buoy.leaderHop));
       return { ranksBefore: ranks, before, after: snapshot([holder]) };
     }
     function reflect(holder, attacker, effect) {
       holder.skillUsed = true;
-      reactions.push({ type: 'skill', actorId: holder.id, skill: 'mirror', icon: '🪞', targetId: attacker.id, outcome: 'reflected', effect, label: 'GƯƠNG DỘI NGƯỢC!', activation: true });
+      // chaos-v3: the mirror holder also springs ahead past two ducks.
+      reactions.push({ type: 'skill', actorId: holder.id, skill: 'mirror', icon: '🪞', targetId: attacker.id, outcome: 'reflected', effect, label: 'GƯƠNG DỘI NGƯỢC!', activation: true, ...(rules.epic ? bounce(holder) : {}) });
     }
     // Returns { outcome: 'blocked' | 'reflected', guard? } or null when the hit lands.
     // Only skill attacks from another duck can be reflected.
@@ -346,6 +393,10 @@
     const shielded = r => !!r.guard || now < r.ghostUntil;
     function defend(victim, attacker, reflectable) {
       if (now < victim.ghostUntil) return { outcome: 'blocked', guard: 'ghost' };
+      // Traits (chaos-v3): a dodgy duck slips some skill attacks, a lucky one some river events.
+      const trait = victim.trait?.id, T = tuning.trait;
+      if (trait === 'dodgy' && attacker && attacker !== victim && traitRng.unit() < T.dodge) return { outcome: 'blocked', guard: 'dodge' };
+      if (trait === 'lucky' && !attacker && traitRng.unit() < T.lucky) return { outcome: 'blocked', guard: 'lucky' };
       if (victim.guard) {
         const guard = victim.guard;
         victim.guard = null;
@@ -445,6 +496,16 @@
       mirror(actor, ranks) {
         const M = tuning.mirror, rank = ranks[actor.id];
         actor.mirror = false;
+        if (rules.epic) {
+          // chaos-v3 glare: blinds the top two rivals still able to be slowed, then springs ahead.
+          const V = tuning.mirrorV3, top = topRivals(actor, V.glareTargets), outcomes = {};
+          for (const target of top) {
+            const defense = defend(target, actor, true);
+            if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'slow', V.glareTime, V.glareSlow)); outcomes[target.id] = 'reflected'; }
+            else outcomes[target.id] = defense ? defense.outcome : impair(target, 'slow', V.glareTime, V.glareSlow);
+          }
+          return { targetId: top[0].id, affectedIds: top.map(r => r.id), outcomes, outcome: 'fallback', label: 'GƯƠNG CHIẾU CHÓI TỐP ĐẦU!', ...bounce(actor, 1) };
+        }
         const target = rules.smartTargets ? topRivals(actor, 1)[0] : atRank(rank === 1 ? 2 : rank - 1);
         const result = strike(actor, target,
           () => ({ outcome: 'fallback', effect: impair(target, 'slow', M.glareTime, M.glareSlow), label: 'GƯƠNG CHIẾU CHÓI!' }),
@@ -602,9 +663,58 @@
           () => { const outcome = impair(target, 'lifted', time); return { outcome, label: outcome === 'hit' ? 'BÓNG BAY NHẤC BỔNG!' : LABEL.immune }; },
           () => impair(actor, 'lifted', time)) };
       },
+      bomb(actor) {
+        // Hot potato: the bomb sits on whoever leads (see the main loop) and blows up when the fuse runs out.
+        const target = ranked().find(r => r !== actor);
+        // A short fuse near the end: it always goes off before the line.
+        const until = tick(Math.max(now + 0.5, Math.min(now + tuning.bomb.fuse, duration - 0.3))) / HZ;
+        bombs.push({ owner: actor, holder: target, until });
+        return { targetId: target.id, outcome: 'armed', fuse: +(until - now).toFixed(2), label: 'GẮN BOM HẸN GIỜ!' };
+      },
+      copycat(actor, ranks) {
+        // Copies the latest active skill another duck used (or a random one before anyone has) and casts it now.
+        const last = [...events].reverse().find(e => e.type === 'skill' && e.scheduled && e.actorId !== actor.id && !PASSIVE.has(e.copied || e.skill));
+        const pool = rules.skills.filter(sk => !PASSIVE.has(sk.id) && sk.id !== 'copycat');
+        const copied = last ? (last.copied || last.skill) : pool[effectRng.integer(pool.length)].id;
+        const skill = rules.skills.find(sk => sk.id === copied), effect = skillEffects[copied](actor, ranks);
+        return { ...effect, copied, copiedName: skill.name, copiedIcon: skill.icon, label: `HỌC LỎM ${skill.name.toUpperCase()}: ${effect.label}` };
+      },
+      dice(actor, ranks) {
+        const D = tuning.dice, roll = 1 + effectRng.integer(6), rank = ranks[actor.id], before = snapshot([actor]);
+        if (roll === 1) return { roll, outcome: 'bust', effect: impair(actor, 'capsized', D.bustStun), label: 'XÚC XẮC RA 1: TỰ LẬT THUYỀN!', before, after: snapshot([actor]) };
+        if (rank === 1) jump(actor, actor.distance + pct(D.leaderHop * roll));
+        else if (roll === 6 || roll - 1 >= rank - 1) jump(actor, atRank(1).distance + pct(D.leadBy));
+        else jump(actor, landAhead(rank - (roll - 1), D.leadBy));
+        return { roll, outcome: 'roll', label: roll === 6 ? 'XÚC XẮC RA 6: VỌT LÊN DẪN ĐẦU!' : `XÚC XẮC RA ${roll}!`, before, after: snapshot([actor]) };
+      },
+      lullaby(actor) {
+        const L = tuning.lullaby, gap = r => Math.abs(r.distance - actor.distance);
+        const near = racers.filter(r => r !== actor).sort((a, b) => gap(a) - gap(b) || a.id - b.id), inRange = near.filter(r => gap(r) <= pct(L.range));
+        const targets = inRange.length >= L.min ? inRange : near.slice(0, L.min), outcomes = {};
+        for (const r of targets) outcomes[r.id] = shielded(r) ? 'protected' : impair(r, 'asleep', L.time);
+        return { affectedIds: targets.map(r => r.id), protectedIds: targets.filter(shielded).map(r => r.id), outcomes,
+          outcome: Object.values(outcomes).includes('hit') ? 'asleep' : 'none', label: 'RU NGỦ CẢ ĐÁM!' };
+      },
+      hex(actor) {
+        const H = tuning.hex, [target] = topRivals(actor, 1);
+        return { targetId: target.id, ...strike(actor, target,
+          () => { const outcome = impair(target, 'hex', H.time, H.slow); return { outcome, label: outcome === 'hit' ? 'BIẾN THÀNH ẾCH!' : LABEL.immune }; },
+          () => impair(actor, 'hex', H.time, H.slow)) };
+      },
+      giant(actor) {
+        const G = tuning.giant;
+        actor.giantUntil = tick(now + G.time) / HZ;
+        const ahead = racers.filter(r => r !== actor && r.distance > actor.distance && r.distance - actor.distance <= pct(G.range))
+          .sort((a, b) => a.distance - b.distance || a.id - b.id).slice(0, G.max), before = snapshot([actor, ...ahead]), outcomes = {};
+        for (const r of ahead) {
+          if (shielded(r)) { outcomes[r.id] = 'protected'; continue; }
+          jump(r, r.distance - pct(G.knock)); impair(r, 'spinning', G.spin); outcomes[r.id] = 'hit';
+        }
+        return { affectedIds: ahead.map(r => r.id), protectedIds: ahead.filter(shielded).map(r => r.id), outcomes, outcome: 'giant', label: 'NẤM KHỔNG LỒ GIẪM NÁT!', before, after: snapshot([actor, ...ahead]) };
+      },
       buoy(actor) {
         if (actor.guard === 'buoy') actor.guard = null;
-        return { outcome: 'fallback', label: rules.epic ? 'PHAO NẢY TƯNG TƯNG!' : 'PHAO BƠM HƠI BẬT LÊN!', ...bounce(actor) };
+        return { outcome: 'fallback', label: rules.epic ? 'PHAO NẢY TƯNG TƯNG!' : 'PHAO BƠM HƠI BẬT LÊN!', ...(rules.epic ? bounce(actor, tuning.buoyV3.fallbackPass) : bounce(actor)) };
       }
     };
     function applySkill(actor) {
@@ -657,6 +767,7 @@
       Object.assign(victim, { impairKind: 'capsized', impairFactor: 0, impairUntil: duration + 1, immuneUntil: duration + 1 });
       // Nobody may drift back past the fallen leader after this: end any backwards swimming.
       for (const r of racers) if (r !== victim && r.impairKind === 'reversed' && now < r.impairUntil) r.impairUntil = now;
+      bombs.length = 0; // a late bomb would knock 2nd back past the fallen leader
       emit({ type: 'hazard', hazard: hazard.id, actorId: victim.id, icon: hazard.icon, label: 'VẤP ĐÁ SÁT ĐÍCH!', ranksBefore: ranks, scheduled: true, finale: true, outcome: 'hit', before, after: snapshot([victim]) });
     }
     function applyHazard(hazard) {
@@ -701,6 +812,21 @@
       emit({ type: 'rune-pickup', actorId: actor.id, runeId: item.runeId, rune: item.rune.id, icon: item.rune.icon, ...runeEffect(actor, item) });
       flush();
     }
+    // The bomb always sits on the current leader; when the fuse runs out it blows up there.
+    function tickBombs() {
+      for (const bomb of [...bombs]) {
+        bomb.holder = ranked()[0];
+        if (now < bomb.until) continue;
+        bombs.splice(bombs.indexOf(bomb), 1);
+        const B = tuning.bomb, victim = bomb.holder, ranks = ranksNow(), before = snapshot([victim]);
+        const defense = defend(victim, victim === bomb.owner ? null : bomb.owner, false);
+        let result;
+        if (defense) result = { outcome: 'blocked', guard: defense.guard, label: LABEL.blocked(defense.guard) };
+        else { jump(victim, victim.distance - pct(B.knock)); result = { outcome: 'hit', effect: impair(victim, 'capsized', B.stun), label: 'BOM NỔ TUNG!' }; }
+        emit({ type: 'skill', skill: 'bomb', icon: '💥', actorId: bomb.owner.id, targetId: victim.id, ranksBefore: ranks, before, after: snapshot([victim]), ...result });
+        flush();
+      }
+    }
     function apply(item) {
       if (item.kind === 'skill') applySkill(racers[item.actorId]);
       else if (item.kind === 'hazard') (item.finale ? applyFinale : applyHazard)(item.hazard);
@@ -712,7 +838,7 @@
       for (const r of racers) {
         const index = step * count + r.id;
         const impaired = time < r.impairUntil;
-        const boosting = time < r.rocketUntil || time < r.runeUntil || r.surges.some(s => time < s.until)
+        const boosting = time < r.rocketUntil || time < r.runeUntil || r.surges.some(s => time >= (s.from || 0) && time < s.until) || time < r.giantUntil
           || (r.boost && time >= r.boost.start && time < r.boost.end);
         distances[index] = r.distance;
         flags[index] = (boosting ? 1 : 0) | (impaired && r.impairKind === 'slow' ? 2 : 0) | (r.guard ? 4 : 0)
@@ -720,14 +846,29 @@
           | (impaired && r.impairKind === 'spinning' ? 64 : 0) | (time < r.flyUntil ? 128 : 0)
           | (impaired && r.impairKind === 'reversed' ? 256 : 0) | (impaired && r.impairKind === 'frozen' ? 512 : 0)
           | (time < r.ghostUntil ? 1024 : 0) | (impaired && r.impairKind === 'lifted' ? 2048 : 0);
+        if (marks) marks[index] = (impaired && r.impairKind === 'asleep' ? 1 : 0) | (impaired && r.impairKind === 'hex' ? 2 : 0)
+          | (time < r.giantUntil ? 4 : 0) | (bombs.some(b => b.holder === r) ? 8 : 0) | (r.mirror ? 16 : 0);
+      }
+    }
+    // Trait speed bonus (chaos-v3); `behind` holds the ids in the back half this tick.
+    let behind = null;
+    function traitBoost(racer, start) {
+      const T = tuning.trait;
+      switch (racer.trait?.id) {
+        case 'steady': return T.steady;
+        case 'early': return start < duration * T.earlyUntil ? T.early : 0;
+        case 'late': return start >= duration * T.lateFrom ? T.late : 0;
+        case 'catchup': return behind?.has(racer.id) ? T.catchup : 0;
+        default: return 0;
       }
     }
     function move(racer, start, end, segment) {
       const base = racer.speeds[segment];
-      const extra = (start < racer.rocketUntil ? tuning.rocket.boost : 0) + (start < racer.runeUntil ? tuning.rune.boost : 0);
+      const extra = (start < racer.rocketUntil ? tuning.rocket.boost : 0) + (start < racer.runeUntil ? tuning.rune.boost : 0)
+        + (racer.trait ? traitBoost(racer, start) + (start < racer.giantUntil ? tuning.giant.boost : 0) : 0);
       const pulse = pulseIntegral(racer.boost, end) - pulseIntegral(racer.boost, start);
       let movement = base / HZ * (1 + extra) + pulse;
-      for (const s of racer.surges) if (start < s.until) movement += s.rate / HZ;
+      for (const s of racer.surges) if (start >= (s.from || 0) && start < s.until) movement += s.rate / HZ;
       if (start < racer.impairUntil) movement *= racer.impairFactor;
       racer.distance = Math.max(0, racer.distance + movement); // reversed ducks swim backwards
       racer.baseDistance += base / HZ;
@@ -738,9 +879,11 @@
     for (let step = 1; step <= steps; step++) {
       const start = (step - 1) / HZ, end = step / HZ;
       const segment = Math.min(segmentCount - 1, Math.floor((start + end) / 2 / segmentLength));
+      if (racers.some(r => r.trait?.id === 'catchup')) behind = new Set(ranked().slice(Math.ceil(count / 2)).map(r => r.id));
       for (const racer of racers) move(racer, start, end, segment);
       currentStep = step; now = end;
       for (const trap of [...traps]) if (trap.victim.distance >= trap.at) { traps.splice(traps.indexOf(trap), 1); slip(trap); }
+      if (bombs.length) tickBombs();
       while (cursor < schedule.length && schedule[cursor].tick === step) apply(schedule[cursor++]);
       record(step);
     }
@@ -751,7 +894,7 @@
     events.forEach(event => {
       if (event.type === 'rune-spawn') event.progress = distances[tick(event.pickupTime) * count + event.actorId] / finishDistance;
     });
-    const publicRacer = racer => ({ id: racer.id, name: racer.name, skill: racer.skill });
+    const publicRacer = racer => ({ id: racer.id, name: racer.name, skill: racer.skill, ...(racer.trait ? { trait: racer.trait } : {}) });
     const publicRacers = freeze(racers.map(publicRacer));
     const results = freeze(finalOrder.map(racer => ({ ...publicRacer(racer), rank: finalRanks[racer.id], baseDistance: racer.baseDistance, finalDistance: racer.distance })));
     return Object.freeze({
@@ -778,19 +921,28 @@
           let progress = positions[racer.id].distance / finishDistance;
           if (time < duration || finalRanks[racer.id] !== 1) progress = Math.min(progress, 1 - Number.EPSILON * finalRanks[racer.id]);
           const capsized = !!(state & 32), spinning = !!(state & 64), frozen = !!(state & 512), lifted = !!(state & 2048);
+          const mark = marks ? marks[left * count + racer.id] : 0, asleep = !!(mark & 1);
           return { ...publicRacers[racer.id], rank: finalRanks[racer.id], currentRank: currentRanks[racer.id], progress,
             boosting: !!(state & 1), slowed: !!(state & 2), shielded: !!(state & 4), swapping: !!(state & 8), skillUsed: !!(state & 16),
             // Key order is part of the chaos-v2 golden hash: keep stunned, pose, flying.
-            stunned: capsized || spinning || frozen || lifted,
-            pose: capsized ? 'capsized' : spinning ? 'spinning' : state & 256 ? 'reversed' : frozen ? 'frozen' : lifted ? 'lifted' : state & 1024 ? 'ghost' : null,
-            flying: !!(state & 128) };
+            stunned: capsized || spinning || frozen || lifted || asleep,
+            pose: capsized ? 'capsized' : spinning ? 'spinning' : state & 256 ? 'reversed' : frozen ? 'frozen' : lifted ? 'lifted'
+              : asleep ? 'asleep' : mark & 2 ? 'hex' : state & 1024 ? 'ghost' : mark & 4 ? 'giant' : null,
+            flying: !!(state & 128),
+            // chaos-v3 only (absent in chaos-v2, whose sample shape is pinned): who holds a bomb, whose mirror is up.
+            ...(marks ? { bomb: !!(mark & 8), mirror: !!(mark & 16) } : {}) };
         });
       }
     });
   }
 
-  const v3 = Object.freeze({ version: 'chaos-v3', skills: V3_RULES.skills, hazards: V3_RULES.hazards, runeTypes, tuning, weathers,
-    createRace: (names, duration, seed) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed) });
+  const v3 = Object.freeze({ version: 'chaos-v3', skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers,
+    // lineup: { skills: [id per duck], traits: [id per duck] } as shown before the picks; omitted = dealt from the seed.
+    createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed, lineup),
+    deal: (count, seed = newSeed()) => {
+      if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
+      return dealLineup(V3_RULES, count, seed);
+    } });
   const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3,
     createRace: (names, duration, seed) => createRaceFor(VERSION, V2_RULES, names, duration, seed) });
   root.DuckChaosEngineV2 = api;
