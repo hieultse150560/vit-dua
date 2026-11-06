@@ -4,9 +4,9 @@
   // kindOf() picks a sound for an event; play() builds it with Web Audio.
   const BY_SKILL = { wings: 'flutter', wave: 'wave', swap: 'zap', mirror: 'ding', hook: 'zip', tornado: 'swirl', buoy: 'pop',
     magnet: 'zip', lightning: 'thunder', flip: 'zap', rewind: 'warp', reverse: 'warp', freeze: 'ice',
-    missile: 'missile', bees: 'buzz', blackhole: 'warp', ghost: 'ghost', balloon: 'balloon' };
+    missile: 'missile', bees: 'buzz', blackhole: 'void', ghost: 'ghost', balloon: 'balloon' };
   const BY_HAZARD = { rock: 'splash', croc: 'chomp', wind: 'whoosh', whirlpool: 'swirl', dolphin: 'chirp', hippo: 'splash', log: 'thud', frog: 'ribbit' };
-  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer', 'thunder', 'warp', 'ice', 'missile', 'buzz', 'ghost', 'balloon', 'thud', 'ribbit']);
+  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer', 'thunder', 'warp', 'ice', 'missile', 'buzz', 'ghost', 'balloon', 'thud', 'ribbit', 'void']);
   const V2_SKILLS = new Set(['wings', 'torpedo', 'wave', 'swap', 'rocket', 'mirror', 'hook', 'tornado', 'banana', 'buoy',
     'magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon']); // chaos-v2 + chaos-v3 skills
 
@@ -78,6 +78,8 @@
     balloon: (c, t) => { tone(c, 'sine', 500, 1600, t, .45, .5, .02); tone(c, 'triangle', 1600, 1500, t + .45, .25, .3); },
     thud: (c, t) => { tone(c, 'sine', 110, 45, t, .35, 1.1, .003); noise(c, 'lowpass', 700, 120, t, .3, .8, .003); },
     ribbit: (c, t) => { for (const d of [0, .2]) { tone(c, 'square', 180, 260, t + d, .07, .5, .005); tone(c, 'square', 260, 150, t + d + .07, .06, .4, .005); } },
+    // A deep suck down into the hole, then a bright blip when it spits the duck out.
+    void: (c, t) => { tone(c, 'sine', 240, 32, t, 1.1, 1.2, .04); noise(c, 'lowpass', 2600, 110, t, 1, .7, .08); tone(c, 'triangle', 160, 1500, t + 1.05, .22, .45, .005); },
     cheer: (c, t) => { noise(c, 'bandpass', 900, 1700, t, 1.6, 1.1, .25); tone(c, 'sine', 1800, 2400, t + .2, .25, .3); tone(c, 'sine', 2000, 2700, t + .55, .3, .3); }
   };
   // Soft looping river noise for the whole race; returns stop().

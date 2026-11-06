@@ -99,13 +99,15 @@
         ring(x, y, 6 + phase * 13, 2 + phase * 5, fast ? '#fff5b0' : '#f0fffe', (1 - phase) * (fast ? .65 : .42), fast ? 1.7 : 1.1);
       }
       if (fast) {
-        ctx.strokeStyle = '#fff4a8'; ctx.lineWidth = 2;
-        for (let i = 0; i < 4; i++) {
-          const age = (time * 3.4 + i * .23 + racer.id * .13) % 1;
-          ctx.globalAlpha = (1 - age) * .75;
-          const x = left - 14 - age * 84, yy = y - 13 + i * 8;
-          ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x - 10 - age * 12, yy); ctx.stroke();
+        const bodyY = p.y - metric.duckHeight * .3, rx = metric.duckWidth * .3, ry = metric.duckHeight * .27;
+        for (let k = 1; k <= 3; k++) { ctx.globalAlpha = .2 / k; ctx.fillStyle = '#fff3b0'; ctx.beginPath(); ctx.ellipse(p.x - k * 22, bodyY, rx, ry, 0, 0, TAU); ctx.fill(); }
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 6; i++) {
+          const age = (time * 3.4 + i * .19 + racer.id * .13) % 1, x = left - 10 - age * 110, yy = y - 30 + i * 8;
+          ctx.globalAlpha = (1 - age) * .85; ctx.strokeStyle = i % 2 ? '#ffffff' : '#ffd84d'; ctx.lineWidth = 3.2 - age * 1.6;
+          ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x - 22 - age * 30, yy); ctx.stroke();
         }
+        ctx.lineCap = 'butt';
       }
     }
     function event(event, sample, elapsed, pre = sample) {
@@ -539,49 +541,71 @@
         });
       },
       // Event horizon with a spinning accretion disk; streaks spiral in from every duck.
+      // The hole opens on the swallowed duck (which shrinks into it via CSS), a wormhole streak runs back
+      // down the river in step with its glide (delay .1, length .1 race-s → m .37 to .74), and a white hole spits it out.
       blackhole(b, f) {
-        const c = { x: b.origin.x, y: b.origin.y - 26 }, grow = clamp01(f.m * 2.5), R = (24 + 38 * grow) * (1 - f.fade * .6), spin = (f.m + f.fade) * TAU * 1.5;
-        const halo = ctx.createRadialGradient(c.x, c.y, R * .3, c.x, c.y, R * 2.4);
-        halo.addColorStop(0, 'rgba(120,60,200,.6)'); halo.addColorStop(1, 'rgba(120,60,200,0)');
-        ctx.globalAlpha = f.alpha; ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(c.x, c.y, R * 2.4, 0, TAU); ctx.fill();
-        b.affected.forEach((p, i) => {
-          const u = (f.m * 1.6 + i * .13) % 1, ang0 = Math.atan2(p.y - 20 - c.y, p.x - c.x);
-          ctx.beginPath();
-          for (let k = 0; k <= 16; k++) {
-            const t = k / 16, rr = Math.hypot(p.x - c.x, p.y - 20 - c.y) * (1 - t), a = ang0 + t * 1.6;
-            const x = c.x + Math.cos(a) * rr, y = c.y + Math.sin(a) * rr;
-            if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        const P = b.reflected ? b.pre.origin : b.pre.target, L = b.reflected ? b.origin : b.target, hit = b.outcome === 'hit' || b.reflected;
+        const c = { x: P.x, y: P.y - 22 }, open = ease(f.m / .3), shut = hit ? ease((f.m - .74) / .26) : ease((f.m - .4) / .4);
+        const R = 44 * open * (1 - shut) + 2, spin = (f.m * 3 + f.fade) * TAU;
+        if (R > 3) {
+          const halo = ctx.createRadialGradient(c.x, c.y, R * .4, c.x, c.y, R * 3.2);
+          halo.addColorStop(0, 'rgba(90,40,170,.75)'); halo.addColorStop(.5, 'rgba(60,20,120,.3)'); halo.addColorStop(1, 'rgba(60,20,120,0)');
+          ctx.globalAlpha = f.alpha; ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(c.x, c.y, R * 3.2, 0, TAU); ctx.fill();
+          for (let k = 0; k < 3; k++) { const w = 1 - ((f.m * 2.2 + k / 3) % 1); ring(c.x, c.y, R * (1 + w * 2.4), R * (1 + w * 2.4) * .42, '#d9c2ff', f.alpha * (1 - w) * .8, 2); }
+          for (let j = 0; j < 26; j++) {
+            const u = (noise(j + b.id) + f.m * 1.8) % 1, a = j * 2.4 + u * 5, rr = R * (3.4 - u * 3.1);
+            ctx.globalAlpha = f.alpha * u; ctx.fillStyle = j % 3 ? '#ffffff' : '#ffb347';
+            ctx.beginPath(); ctx.arc(c.x + Math.cos(a) * rr, c.y + Math.sin(a) * rr * .45, 1.4 + u * 2, 0, TAU); ctx.fill();
           }
-          ctx.globalAlpha = f.alpha * .35; ctx.strokeStyle = '#c8a6ff'; ctx.lineWidth = 2; ctx.stroke();
-          const rr = Math.hypot(p.x - c.x, p.y - 20 - c.y) * (1 - u), a = ang0 + u * 1.6;
-          ctx.globalAlpha = f.alpha; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(c.x + Math.cos(a) * rr, c.y + Math.sin(a) * rr, 2.6, 0, TAU); ctx.fill();
-        });
-        ['#ffb347', '#ff5ea8', '#8a5cff'].forEach((col, i) => {
-          ctx.globalAlpha = f.alpha * .9; ctx.strokeStyle = col; ctx.lineWidth = 4 - i;
-          for (let k = 0; k < 3; k++) { const st = spin * (1 + i * .3) + k * TAU / 3; ctx.beginPath(); ctx.ellipse(c.x, c.y, R * (1.1 + i * .18), R * (.38 + i * .06), -.25, st, st + 1.4); ctx.stroke(); }
-        });
-        ctx.globalAlpha = f.alpha; ctx.fillStyle = '#050208'; ctx.beginPath(); ctx.arc(c.x, c.y, R * .55, 0, TAU); ctx.fill();
-        ring(c.x, c.y, R * .62, R * .62, '#ffffff', f.alpha * .7, 1.5);
-        emoji(f.icon, c.x, c.y - R - 12, 30, f.alpha);
+          ['#ffb347', '#ff5ea8', '#a97bff'].forEach((col, i) => {
+            ctx.globalAlpha = f.alpha * .95; ctx.strokeStyle = col; ctx.lineWidth = 5 - i * 1.2;
+            for (let k = 0; k < 3; k++) { const st = spin * (1.4 + i * .4) + k * TAU / 3; ctx.beginPath(); ctx.ellipse(c.x, c.y, R * (1.25 + i * .22), R * (.42 + i * .07), -.2, st, st + 1.7); ctx.stroke(); }
+          });
+          ctx.globalAlpha = f.alpha; ctx.fillStyle = '#030106'; ctx.beginPath(); ctx.arc(c.x, c.y, R * .62, 0, TAU); ctx.fill();
+          ring(c.x, c.y, R * .68, R * .68, '#ffffff', f.alpha * .85, 1.8);
+        }
+        if (hit && f.m > .3) {
+          const u = ease((f.m - .37) / .37), mid = { x: (c.x + L.x) / 2, y: Math.min(c.y, L.y) - 70 };
+          ctx.globalAlpha = f.alpha * .55 * (1 - shut * .6); ctx.strokeStyle = '#b48bff'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]); ctx.lineDashOffset = -f.m * 120;
+          ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.quadraticCurveTo(mid.x, mid.y, L.x, L.y - 22); ctx.stroke(); ctx.setLineDash([]);
+          if (u > 0 && u < 1) { const q = (1 - u) ** 2, r2 = 2 * u * (1 - u), p2 = u * u; glow({ x: q * c.x + r2 * mid.x + p2 * L.x, y: q * c.y + r2 * mid.y + p2 * (L.y - 22) + 12 }, 26, '#e7dbff', f.alpha); }
+        }
+        if (hit && f.m >= .74) {
+          const t = clamp01((f.m - .74) / .26) * .6 + f.fade;
+          glow(L, 30 + t * 70, '#ffffff', f.alpha * (1 - clamp01(t)));
+          for (let k = 0; k < 3; k++) { const r = t * 1.2 - k * .18; if (r > 0 && r < 1) ring(L.x, L.y - 22, 20 + r * 90, (20 + r * 90) * .5, k ? '#c9a8ff' : '#ffffff', f.alpha * (1 - r), 3); }
+          particles({ x: L.x, y: L.y - 22 }, clamp01(t), '#e7dbff', 16, 80, b.id);
+          splash(L, t, f.alpha, b.id, '#f1e8ff', 16);
+        }
+        pop(f.icon, P, f.m, f.alpha, 54);
       },
-      // Fading after-images, sparkles and rising vapour.
+      // The ghost streaks forward through the ducks ahead (in step with its glide: delay .03, length .2 race-s
+      // → m .11 to .85), leaving wisps; each duck it passes through gets a fright.
       ghost(b, f) {
-        const s = b.origin, time = f.m + f.fade;
-        glow({ x: s.x, y: s.y }, 60, '#eaf1ff', f.alpha * .7);
-        for (let k = 4; k >= 1; k--) emoji(f.icon, s.x - k * 26 - (time * 30) % 26, s.y - 30 + Math.sin(time * 6 + k) * 4, 34, f.alpha * (.5 - k * .1));
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
-        for (let i = 0; i < 4; i++) {
-          const x = s.x - 20 + i * 14, rise = (time * 50 + i * 17) % 50;
-          ctx.globalAlpha = f.alpha * (1 - rise / 50) * .7; ctx.beginPath(); ctx.moveTo(x, s.y - 40 - rise);
-          ctx.quadraticCurveTo(x + 8, s.y - 50 - rise, x, s.y - 60 - rise); ctx.stroke();
+        const A = b.pre.origin, B = b.origin, k = ease((f.m - .11) / .74), x = A.x + (B.x - A.x) * k, y = B.y, time = f.m + f.fade;
+        glow({ x, y }, 64, '#eef3ff', f.alpha * .75);
+        ctx.strokeStyle = '#ffffff'; ctx.lineCap = 'round';
+        for (let w = 0; w < 4; w++) {
+          ctx.globalAlpha = f.alpha * (.55 - w * .1); ctx.lineWidth = 7 - w * 1.4; ctx.beginPath();
+          for (let j = 0; j <= 12; j++) { const u = j / 12, px = A.x + (x - A.x) * u, py = y - 34 + w * 6 + Math.sin(u * 9 - time * 14 + w) * 7 * u; if (j) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+          ctx.stroke();
         }
-        for (let i = 0; i < 8; i++) {
-          const a = time * 3 + i * .8, r = 34 + noise(i + b.id) * 18, tw = (Math.sin(time * 12 + i) + 1) / 2;
-          ctx.globalAlpha = f.alpha * tw; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(s.x + Math.cos(a) * r, s.y - 30 + Math.sin(a) * r * .5, 1.5 + tw * 2, 0, TAU); ctx.fill();
+        ctx.lineCap = 'butt';
+        for (let i = 1; i <= 5; i++) { const u = Math.max(0, k - i * .09); emoji(f.icon, A.x + (B.x - A.x) * u, y - 30, 38 - i * 3, f.alpha * (.55 - i * .09)); }
+        for (let i = 0; i < 10; i++) {
+          const a = time * 4 + i * .63, r = 30 + noise(i + b.id) * 22, tw = (Math.sin(time * 14 + i) + 1) / 2;
+          ctx.globalAlpha = f.alpha * tw; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r, y - 30 + Math.sin(a) * r * .5, 1.5 + tw * 2.2, 0, TAU); ctx.fill();
         }
-        pop(f.icon, s, f.m, f.alpha, 58);
+        b.affected.forEach((s, i) => {
+          const fright = clamp01((f.m - .25 - i * .14) / .2);
+          if (fright <= 0) return;
+          const shake = Math.sin(time * 60 + i) * 3 * (1 - f.fade);
+          emoji('😱', s.x + shake, s.y - 62, 34 * Math.min(1, fright * 1.3), f.alpha);
+          emoji('❗', s.x + 26 + shake, s.y - 80, 22 * fright, f.alpha);
+          for (let q = 0; q < 3; q++) { ctx.globalAlpha = f.alpha * .7; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; const a = -1.9 + q * .45; line({ x: s.x + Math.cos(a) * 30, y: s.y - 40 + Math.sin(a) * 30 }, { x: s.x + Math.cos(a) * 44, y: s.y - 40 + Math.sin(a) * 44 }); }
+        });
+        pop(f.icon, { x, y }, f.m, f.alpha, 58);
       },
-      // A balloon floats up on a string and keeps bobbing over the lifted duck.
       balloon(b, f) {
         const s = b.target, rise = 1 - (1 - clamp01(f.m * 1.6)) ** 3, bob = Math.sin((f.m + f.fade) * 9) * 5;
         const top = { x: s.x + 6 + bob * .6, y: s.y - 66 - 44 * rise + bob };

@@ -173,7 +173,7 @@
     let x;const cap=4294967296-(4294967296%pool.length);do{x=crypto.getRandomValues(new Uint32Array(1))[0];}while(x>=cap);pick(pool[x%pool.length]);
   }
   function makeTrack(){
-    photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();glides={};const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
+    photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();glides={};gains=[];const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
     owners=race.racers.map(r=>players.find(p=>current.picks[p.id]===r.id)?.name||A.name(r.id));
     runeSpawns=(race.events||[]).filter(e=>e.type==='rune-spawn');
     $('lanes').replaceChildren(...race.racers.map(r=>{
@@ -272,11 +272,27 @@
   }
   // Jumps are instant in the simulation; on screen the ducks glide there (eased) so a wave
   // visibly sweeps them back and a hook visibly reels the leader in. Results are untouched.
-  const GLIDE={hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25},tornado:{delay:.07,dur:.2}};let glides={};
-  // Tornado victims are lifted, twirled and dropped (CSS, real time; matches the 1.8 s slow motion).
+  const GLIDE={hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25},tornado:{delay:.07,dur:.2},blackhole:{delay:.1,dur:.1},ghost:{delay:.03,dur:.2},buoy:{delay:0,dur:.25}};let glides={};
+  // Ducks thrown back by a tornado are lifted and twirled; by a black hole they shrink into it and pop out behind
+  // (CSS, real time; matches the 1.8 s slow motion).
+  // A buoy bounce hops the duck forward three times. [class, direction of the move it decorates]
+  const BODY_FX={tornado:['swept',-1],blackhole:['swallowed',-1],buoy:['bouncy',1]};
   function sweep(event){
-    if(event.skill!=='tornado'||reduced.matches)return;
-    for(const id of event.affectedIds||[])if(!(event.protectedIds||[]).includes(id)&&nodes[id]){const n=nodes[id];n.classList.remove('swept');void n.offsetWidth;n.classList.add('swept');setTimeout(()=>n.classList.remove('swept'),SLOWMO_MS+100);}
+    const [cls,dir]=BODY_FX[event.skill]||[];if(!cls||reduced.matches)return;
+    for(const [id,d] of Object.entries(event.after||{}))if((d-event.before[id])*dir>1e-9&&nodes[id]){const n=nodes[id];n.classList.remove(cls);void n.offsetWidth;n.classList.add(cls);setTimeout(()=>n.classList.remove(cls),SLOWMO_MS+100);}
+  }
+  // Boosts show how many ducks they overtook: "⏩ +N" pops over the duck once the move is done
+  // (a jump right after its glide, a surge such as wind, dolphin or rocket when it has run).
+  let gains=[];
+  function scheduleGain(event){
+    const id=event.actorId,moved=event.after?.[id]>event.before?.[id]+1e-9,surge=event.outcome==='boost';
+    if(!Number.isInteger(id)||!event.ranksBefore||!(moved||surge))return;
+    const at=Math.min(race.duration,event.time+(surge?1.2:.3)),gain=event.ranksBefore[id]-race.sample(at)[id].currentRank;
+    if(gain>0)gains.push({id,at,gain});
+  }
+  function showGains(elapsed){
+    if(!gains.length)return;
+    gains=gains.filter(g=>{if(elapsed<g.at)return true;const n=nodes[g.id];if(n){n.querySelector('.racer-gain')?.remove();const badge=node('span','racer-gain',`⏩ VƯỢT +${g.gain}`);n.append(badge);setTimeout(()=>badge.remove(),1700);}return false;});
   }
   function startGlides(event,pre){
     sweep(event);
@@ -293,7 +309,7 @@
   function drawEvents(elapsed){
     if(!race.events)return;
     let changed=false;const fresh=[];
-    while(eventCursor<race.events.length&&race.events[eventCursor].time<=elapsed+1e-8){const event=race.events[eventCursor];$('event-history').append(eventItem(event));if(phase==='running'&&elapsed-event.time<.3){const pre=race.sample(Math.max(0,event.time-.051));startGlides(event,pre);visuals?.event(event,currentSample,elapsed,pre);if(event.type==='skill'||event.type==='hazard')fresh.push(event);}eventCursor++;changed=true;}
+    while(eventCursor<race.events.length&&race.events[eventCursor].time<=elapsed+1e-8){const event=race.events[eventCursor];$('event-history').append(eventItem(event));if(phase==='running'&&elapsed-event.time<.3){const pre=race.sample(Math.max(0,event.time-.051));startGlides(event,pre);scheduleGain(event);visuals?.event(event,currentSample,elapsed,pre);if(event.type==='skill'||event.type==='hazard')fresh.push(event);}eventCursor++;changed=true;}
     if(fresh.length)showBanner(fresh);else if(bannerUntil&&elapsed>=bannerUntil)hideBanner();
     if(changed){const recent=race.events.slice(Math.max(0,eventCursor-3),eventCursor);$('event-feed').replaceChildren(...recent.map(e=>node('p','live-event',eventText(e))));}
     const visible=runeSpawns.filter(e=>e.time<=elapsed&&elapsed<e.pickupTime),key=visible.map(e=>e.id).join('|');
@@ -339,7 +355,7 @@
     }
     if(phase==='running'){
       startAmbience();
-      a.elapsed=Math.min(race.duration,a.elapsed+delta*playbackRate(a.elapsed));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
+      a.elapsed=Math.min(race.duration,a.elapsed+delta*playbackRate(a.elapsed));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();showGains(a.elapsed);const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
       if(a.elapsed>=race.sprintStart){if(!sprintAnnounced){sprintAnnounced=true;document.querySelector('.race-water')?.classList.add('fog-lifted');$('arena-title').textContent='NƯỚC RÚT! Cơ hội lật ngược!';$('race-status').textContent='⚡ Tăng tốc ngẫu nhiên — vịt cuối vẫn có cơ hội!';tone(950,.2);}$('sprint-label').textContent='⚡ 5 GIÂY CUỐI · BỨT PHÁ!';const second=Math.ceil(remaining);if(second!==lastTick&&second>0){lastTick=second;tone(650,.06);}}
       if(a.elapsed>=race.duration){finish();return;}
     }
