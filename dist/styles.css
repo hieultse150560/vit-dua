@@ -354,8 +354,12 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .race-water.slowmo::after{content:'';position:absolute;inset:0;z-index:3;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(8,18,38,.6) 100%);animation:slowmo-in .25s ease-out}
 .race-water.slowmo .river{filter:saturate(.7) brightness(.9);transition:filter .25s}
 @keyframes slowmo-in{from{opacity:0}to{opacity:1}}
-.race-water.shake{animation:twist-shake .5s cubic-bezier(.36,.07,.19,.97)}
-@keyframes twist-shake{10%,90%{transform:translate(-2px,1px)}20%,80%{transform:translate(5px,-2px)}30%,50%,70%{transform:translate(-8px,3px)}40%,60%{transform:translate(8px,-2px)}}
+.race-water.shake{animation:twist-shake .34s cubic-bezier(.36,.07,.19,.97)}
+@keyframes twist-shake{10%,90%{transform:translate(-3px,2px)}20%,80%{transform:translate(9px,-4px)}30%,50%,70%{transform:translate(-13px,5px)}40%,60%{transform:translate(12px,-3px)}}
+/* A duck an attack lands on flashes white twice. */
+.racer.hit-flash{animation:racer-hit .36s steps(1,end) both}
+@keyframes racer-hit{0%,50%{filter:brightness(3.2) saturate(0)}25%,75%{filter:none}100%{filter:none}}
+@media(prefers-reduced-motion:reduce){.racer.hit-flash{animation:none}}
 .racer.twist-focus{z-index:5}
 .racer.twist-focus .duck-body{scale:1.5;filter:drop-shadow(0 0 10px #fff6b0) drop-shadow(0 0 24px rgba(255,214,90,.9));transition:scale .25s cubic-bezier(.2,1.6,.4,1)}
 @media(prefers-reduced-motion:reduce){.race-water.shake,.twist-banner .twist-icon,.race-water.slowmo::after{animation:none!important}.racer.twist-focus .duck-body{transition:none!important}}
@@ -371,7 +375,7 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .twist-word{display:inline-block;white-space:nowrap}
 .twist-letter{display:inline-block;white-space:pre;animation:twist-letter .42s cubic-bezier(.2,1.6,.4,1) both;animation-delay:calc(var(--i) * 22ms + .12s)}
 @keyframes twist-letter{0%{opacity:0;transform:translateY(-60px) scale(1.8) rotate(-12deg)}70%{opacity:1;transform:translateY(6px) scale(.95)}100%{opacity:1;transform:none}}
-.race-water.flash::before{content:'';position:absolute;inset:0;z-index:5;pointer-events:none;background:radial-gradient(circle at center,rgba(255,255,255,.85),rgba(255,255,255,0) 70%);animation:twist-flash .45s ease-out both}
+.race-water.flash::before{content:'';position:absolute;inset:0;z-index:5;pointer-events:none;background:radial-gradient(circle at var(--zx,50%) var(--zy,50%),rgba(255,255,255,.95),rgba(255,248,220,.35) 35%,rgba(255,255,255,0) 70%);animation:twist-flash .24s ease-out both}
 @keyframes twist-flash{from{opacity:1}to{opacity:0}}
 @media(prefers-reduced-motion:reduce){.twist-banner,.twist-banner::after,.twist-letter,.race-water.flash::before{animation:none!important}.twist-banner{transition:none!important}}
 
@@ -392,7 +396,7 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 
 /* Camera zoom during slow motion: river and effects canvas scale around the twist. */
 .race-water .river,.race-water .race-effects{transform-origin:var(--zx,50%) var(--zy,50%);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
-.race-water.zoom .river,.race-water.zoom .race-effects{transform:scale(1.35)}
+.race-water.zoom .river,.race-water.zoom .race-effects{transform:scale(1.45);transition-duration:.16s;transition-timing-function:cubic-bezier(.1,.9,.2,1)}
 @media(prefers-reduced-motion:reduce){.race-water.zoom .river,.race-water.zoom .race-effects{transform:none}}
 
 /* Photo finish: high-contrast slow finish and a result card */

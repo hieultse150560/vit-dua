@@ -24,7 +24,7 @@
   // so each twist's main action plays in slow motion; the rest is a slow fade.
   const BURST_LIFE = .85, TWIST_LIFE = 1.7, TWIST_MAIN = .27;
   // The app's camera zooms the canvas by CAMERA_ZOOM (CSS scale), so draw at that much extra resolution.
-  const CAMERA_ZOOM = 1.35;
+  const CAMERA_ZOOM = 1.45;
   const THROWN = new Set(['torpedo', 'hook']), SPREAD = new Set(['wave', 'tornado']), AT_ACTOR = new Set(['fly', 'rocket', 'boom', 'guard']);
   function kindOf(event) {
     if (event.skill === 'copycat' && event.copied) return kindOf({ ...event, skill: event.copied }); // draws what it copied
@@ -120,10 +120,18 @@
       const kind = kindOf(event);
       bursts.push({ time: elapsed, kind, origin, target, blocked: ['shielded', 'immune', 'resisted'].includes(event.outcome), id: event.id.length + event.actorId * 7,
         affected: (event.affectedIds || []).map(id => point(id, sample)), shielded: (event.affectedIds || []).map(id => (event.protectedIds || []).includes(id)), atActor: AT_ACTOR.has(kind) || event.outcome === 'dropped', life: TWIST[kind] ? TWIST_LIFE : BURST_LIFE,
-        outcome: event.outcome, reflected: event.outcome === 'reflected', roll: event.roll,
+        outcome: event.outcome, reflected: event.outcome === 'reflected', roll: event.roll, actorId: event.actorId, targetId: event.targetId,
         // Positions just before the jump, so painters move with the ducks' on-screen glide.
         pre: { origin: point(event.actorId, pre), target: point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, pre), affected: (event.affectedIds || []).map(id => point(id, pre)) } });
-      if (bursts.length > 24) bursts = bursts.slice(-24);
+      // Impact layer for every chaos-v2/v3 twist: focus lines, shockwave and sparks where it lands.
+      if (TWIST[kind]) {
+        const victim = Number.isInteger(event.targetId) && event.targetId !== event.actorId && !['armed', 'blocked'].includes(event.outcome) ? event.targetId
+          : event.type === 'hazard' ? event.actorId : null;
+        const spots = victim !== null ? [point(victim, sample)] : (event.affectedIds || []).length ? event.affectedIds.map(id => point(id, sample)) : [origin];
+        const focus = { x: spots.reduce((s, p) => s + p.x, 0) / spots.length, y: spots.reduce((s, p) => s + p.y, 0) / spots.length };
+        bursts.push({ kind: 'impact', time: elapsed, origin: focus, color: TWIST[kind][1], life: .22, id: event.id.length * 13 + event.actorId });
+      }
+      if (bursts.length > 28) bursts = bursts.slice(-28);
     }
     function particles(point, progress, color, count = 11, radius = 34, tag = 0) {
       ctx.fillStyle = color;
@@ -158,6 +166,7 @@
           particles(burst.target, hit, burst.blocked ? '#e6ffff' : '#dbb5ff', 14, 45, burst.id);
           ring(burst.target.x, burst.target.y, 6 + hit * 38, 5 + hit * 23, burst.blocked ? '#eaffff' : '#d7b0ff', 1 - hit, 3);
         }
+      } else if (burst.kind === 'impact') { drawImpact(burst, p);
       } else if (burst.kind === 'shield') {
         ring(burst.target.x, burst.target.y - 8, 19 + p * 18, 22 + p * 15, '#f0ffff', (1 - p) * .85, 3);
         particles(burst.target, p, '#c2fbff', 9, 32, burst.id);
@@ -257,9 +266,11 @@
       }
     }
     // Icon that springs up above a duck.
+    // Icon that springs up above a duck: overshoots to 1.35x on a white halo, then settles.
     function pop(icon, spot, m, alpha, size = 58) {
-      const k = clamp01(m * 2.4), bounce = k < 1 ? Math.sin(k * Math.PI * .5) * 1.15 : 1;
-      emoji(icon, spot.x, spot.y - 46 - (1 - alpha) * 14, size * Math.max(.3, bounce), alpha);
+      const k = clamp01(m * 3), bounce = k < .6 ? ease(k / .6) * 1.35 : 1.35 - .35 * ease((k - .6) / .4), y = spot.y - 50 - (1 - alpha) * 14;
+      glow({ x: spot.x, y: y + 6 }, size * .9 * Math.max(.4, bounce), '#ffffff', alpha * .55 * (1 - clamp01(m)) + alpha * .15);
+      emoji(icon, spot.x, y, size * Math.max(.3, bounce), alpha);
     }
     function glow(spot, radius, color, alpha) {
       const g = ctx.createRadialGradient(spot.x, spot.y - 12, 0, spot.x, spot.y - 12, radius);
@@ -271,10 +282,40 @@
     function flight(a, b, t, height = 60) {
       return { x: a.x + (b.x - a.x) * t, y: a.y - 30 + (b.y - a.y) * t - Math.sin(t * Math.PI) * height };
     }
+    // A hit that knocks a duck over: white bloom, a water geyser, a foam ring, droplets and ripples.
     function capsize(spot, t, alpha, tag) {
-      glow(spot, 40 + t * 40, '#ffffff', alpha * (1 - clamp01(t)) * .8);
-      splash(spot, t, alpha, tag); ripples(spot, t, alpha);
+      const k = clamp01(t);
+      glow(spot, 46 + t * 60, '#ffffff', alpha * (1 - k) * .9);
+      if (k < .75) {
+        const h = 120 * Math.sin(k / .75 * Math.PI), g = ctx.createLinearGradient(0, spot.y - h, 0, spot.y + 6);
+        g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(.25, 'rgba(240,252,255,.95)'); g.addColorStop(1, 'rgba(150,215,240,.75)');
+        ctx.globalAlpha = alpha; ctx.fillStyle = g; ctx.beginPath();
+        ctx.moveTo(spot.x - 26, spot.y + 6); ctx.quadraticCurveTo(spot.x - 18, spot.y - h * .6, spot.x - 6, spot.y - h);
+        ctx.quadraticCurveTo(spot.x + 2, spot.y - h - 14, spot.x + 10, spot.y - h); ctx.quadraticCurveTo(spot.x + 22, spot.y - h * .6, spot.x + 30, spot.y + 6); ctx.fill();
+      }
+      ring(spot.x, spot.y + 6, 24 + k * 70, 7 + k * 18, '#ffffff', alpha * (1 - k), 5 * (1 - k) + 1);
+      splash(spot, t, alpha, tag, '#effcff', 32); ripples(spot, t, alpha);
     }
+    // Anime focus lines, a double shockwave and flying sparks; drawn under every twist's own painter.
+    function drawImpact(b, p) {
+      const c = { x: b.origin.x, y: b.origin.y - 24 }, e = ease(p), fade = (1 - p) ** 1.4;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 28; i++) {
+        const a = i / 28 * TAU + noise(b.id + i) * .22, r0 = 48 + e * 46 + noise(i + 3) * 18, len = (70 + noise(i + b.id + 7) * 150) * (1 - p * .6);
+        ctx.globalAlpha = fade * .85; ctx.strokeStyle = i % 3 ? '#ffffff' : b.color; ctx.lineWidth = 1.6 + noise(i + 9) * 3.6;
+        ctx.beginPath(); ctx.moveTo(c.x + Math.cos(a) * r0, c.y + Math.sin(a) * r0 * .62); ctx.lineTo(c.x + Math.cos(a) * (r0 + len), c.y + Math.sin(a) * (r0 + len) * .62); ctx.stroke();
+      }
+      ring(c.x, c.y, 18 + e * 170, (18 + e * 170) * .5, '#ffffff', fade, 6 * (1 - p) + 1);
+      ring(c.x, c.y, 10 + e * 120, (10 + e * 120) * .5, b.color, fade * .9, 4 * (1 - p) + 1);
+      for (let i = 0; i < 16; i++) {
+        const a = i / 16 * TAU + noise(i + b.id * 3) * .6, d = 24 + e * (90 + noise(i + 5) * 110), dx = Math.cos(a), dy = Math.sin(a) * .62;
+        ctx.globalAlpha = fade; ctx.strokeStyle = i % 2 ? '#fff4b8' : b.color; ctx.lineWidth = 3 * (1 - p) + .8;
+        ctx.beginPath(); ctx.moveTo(c.x + dx * d * .72, c.y + dy * d * .72); ctx.lineTo(c.x + dx * d, c.y + dy * d); ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+    }
+    // A duck's current spot (painters that follow a moving duck, e.g. a rocket or a gust).
+    const live = id => (Number.isInteger(id) && lastSample[id] ? point(id, lastSample) : null);
     // Glass oval with a glare streak sweeping across it, above the holder.
     function mirrorPane(spot, m, alpha) {
       const scale = clamp01(m * 3), w = 58 * scale, h = 84 * scale, x = spot.x + 78, y = spot.y - 40;
@@ -301,16 +342,22 @@
         if (f.m < land) {
           const t = b.reflected ? (f.m < .35 ? f.m / .35 : 1 - (f.m - .35) / .35) : f.m / land;
           const p = flight(b.origin, b.target, t, 70);
-          ctx.globalAlpha = .55; ctx.strokeStyle = '#d7b0ff'; ctx.lineWidth = 3; line(b.origin, p);
-          emoji(f.icon, p.x, p.y, 36, 1); return;
+          for (let i = 1; i <= 10; i++) { const q = flight(b.origin, b.target, Math.max(0, t - i * .035), 70); ctx.globalAlpha = (1 - i / 11) * .7; ctx.fillStyle = i < 3 ? '#ffb347' : '#cfc6dc'; ctx.beginPath(); ctx.arc(q.x, q.y, 4 + i * 1.3, 0, TAU); ctx.fill(); }
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(t * TAU * 2); emoji(f.icon, 0, 0, 42, 1); ctx.restore(); return;
         }
         const spot = b.reflected ? b.origin : b.target, t = (f.m - land) / (1 - land) * .7 + f.fade * .8;
         capsize(spot, t, f.alpha, b.id); pop('💥', spot, f.m, f.alpha, 40); pop(f.icon, { x: spot.x + 30, y: spot.y }, f.m, f.alpha, 30);
       },
+      // A boulder rises under the leader: its shadow swells, it bursts up, dust cracks out and stars circle.
       rock(b, f) {
-        const spot = b.target, fall = clamp01(f.m / .4);
-        emoji(f.icon, spot.x + 30, spot.y - 110 + fall * 92, 40, f.alpha);
-        if (fall >= 1) capsize(spot, (f.m - .4) / .6 * .7 + f.fade * .8, f.alpha, b.id);
+        const spot = b.target, rise = ease(f.m / .35), hit = clamp01((f.m - .3) / .7);
+        ctx.globalAlpha = f.alpha * .45 * (1 - hit); ctx.fillStyle = '#0d2a3a'; ctx.beginPath(); ctx.ellipse(spot.x + 10, spot.y + 10, 20 + 30 * rise, 6 + 7 * rise, 0, 0, TAU); ctx.fill();
+        ctx.save(); ctx.translate(spot.x + 12, spot.y + 14 - 34 * rise); ctx.rotate((1 - rise) * -.6); emoji(f.icon, 0, 0, 64, f.alpha); ctx.restore();
+        if (hit > 0) {
+          capsize(spot, hit * .7 + f.fade * .8, f.alpha, b.id);
+          particles({ x: spot.x + 12, y: spot.y }, clamp01(hit + f.fade * .4), '#b8a27f', 16, 90, b.id + 2);
+          for (let k = 0; k < 5; k++) { const a = (f.m + f.fade) * 7 + k * TAU / 5; emoji('⭐', spot.x + Math.cos(a) * 30, spot.y - 56 + Math.sin(a) * 10, 15, f.alpha); }
+        }
       },
       boom(b, f) {
         const spot = b.origin, t = f.m * .7 + f.fade * .8;
@@ -318,17 +365,26 @@
         particles(spot, clamp01(t), '#5b5b5b', 14, 80, b.id);
         capsize(spot, t, f.alpha, b.id); pop(f.icon, spot, f.m, f.alpha, 56);
       },
+      // A roaring jet that rides the duck: white-hot core, orange plume, shock diamonds and a smoke trail.
       rocket(b, f) {
-        const spot = b.origin, flick = .75 + noise(Math.floor(f.m * 40) + b.id) * .5;
-        const g = ctx.createLinearGradient(spot.x - 110 * flick, spot.y, spot.x - 20, spot.y);
-        g.addColorStop(0, 'rgba(255,90,20,0)'); g.addColorStop(.6, '#ff8a1e'); g.addColorStop(1, '#fff2a0');
-        ctx.globalAlpha = f.alpha; ctx.fillStyle = g;
-        ctx.beginPath(); ctx.moveTo(spot.x - 20, spot.y - 22); ctx.lineTo(spot.x - 110 * flick, spot.y - 6); ctx.lineTo(spot.x - 20, spot.y + 8); ctx.fill();
-        particles({ x: spot.x - 70, y: spot.y }, clamp01(f.m + f.fade), '#9a9a9a', 10, 50, b.id);
-        pop(f.icon, { x: spot.x - 34, y: spot.y + 24 }, f.m, f.alpha, 34);
+        const spot = live(b.actorId) || b.origin, flick = .8 + noise(Math.floor((f.m + f.fade) * 50) + b.id) * .45, len = 170 * flick;
+        for (const [w, col, a] of [[26, 'rgba(255,90,20,', .55], [16, 'rgba(255,170,40,', .85], [7, 'rgba(255,250,210,', 1]]) {
+          const g = ctx.createLinearGradient(spot.x - len, spot.y, spot.x - 22, spot.y);
+          g.addColorStop(0, col + '0)'); g.addColorStop(.55, col + a * .7 + ')'); g.addColorStop(1, col + a + ')');
+          ctx.globalAlpha = f.alpha; ctx.fillStyle = g;
+          ctx.beginPath(); ctx.moveTo(spot.x - 22, spot.y - 14 - w / 2); ctx.quadraticCurveTo(spot.x - len * .5, spot.y - 14 - w * .3, spot.x - len * (w === 7 ? .55 : 1), spot.y - 14);
+          ctx.quadraticCurveTo(spot.x - len * .5, spot.y - 14 + w * .3, spot.x - 22, spot.y - 14 + w / 2); ctx.fill();
+        }
+        for (let d = 0; d < 3; d++) { ctx.globalAlpha = f.alpha * .8; ctx.fillStyle = '#fffbe0'; ctx.beginPath(); ctx.ellipse(spot.x - 50 - d * 34, spot.y - 14, 6, 4, 0, 0, TAU); ctx.fill(); }
+        for (let i = 0; i < 14; i++) { const u = ((f.m + f.fade) * 2.2 + i / 14) % 1; ctx.globalAlpha = f.alpha * (1 - u) * .55; ctx.fillStyle = '#d7d2cc'; ctx.beginPath(); ctx.arc(spot.x - len - u * 120 + noise(i) * 20, spot.y - 14 + (noise(i + b.id) - .5) * 30 * u, 6 + u * 16, 0, TAU); ctx.fill(); }
+        pop(f.icon, { x: spot.x - 34, y: spot.y + 24 }, f.m, f.alpha, 40);
       },
       fly(b, f) {
-        const spot = b.origin;
+        const spot = b.origin, from = b.pre.origin, t = ease(f.m / .7);
+        // Golden flight arc from where it took off, shedding feathers.
+        ctx.globalAlpha = f.alpha * .8; ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.setLineDash([2, 12]);
+        ctx.beginPath(); ctx.moveTo(from.x, from.y - 26); ctx.quadraticCurveTo((from.x + spot.x) / 2, Math.min(from.y, spot.y) - 120, from.x + (spot.x - from.x) * t, from.y - 26 + (spot.y - from.y) * t - Math.sin(t * Math.PI) * 60); ctx.stroke(); ctx.setLineDash([]); ctx.lineCap = 'butt';
+        for (let i = 0; i < 7; i++) { const u = clamp01(t - i * .1), q = flight({ x: from.x, y: from.y - 6 }, { x: spot.x, y: spot.y - 6 }, u, 90), fall = (f.m + f.fade) * 40 * (i + 1) / 7; ctx.save(); ctx.translate(q.x, q.y + fall); ctx.rotate(fall * .08 + i); emoji('🪶', 0, 0, 18, f.alpha * (1 - i / 9)); ctx.restore(); }
         const g = ctx.createLinearGradient(spot.x - 170, spot.y, spot.x, spot.y);
         g.addColorStop(0, 'rgba(255,230,120,0)'); g.addColorStop(1, 'rgba(255,240,170,.9)');
         ctx.globalAlpha = f.alpha * clamp01(f.m * 3); ctx.fillStyle = g;
@@ -520,14 +576,21 @@
         if (bite >= 1) splash(spot, (f.m - .5) * 1.4 + f.fade * .8, f.alpha, b.id, '#e8fff0', 12);
         pop(f.icon, spot, f.m, f.alpha, 46);
       },
+      // A swirling gust rides the boosted duck: curling wind ribbons, tumbling leaves and spray.
       wind(b, f) {
-        const spot = b.target;
-        for (let i = 0; i < 6; i++) {
-          const phase = (f.m * 1.5 + f.fade + i / 6) % 1, x = spot.x - 160 + phase * 220, y = spot.y - 50 + i * 12;
-          ctx.globalAlpha = f.alpha * (1 - phase) * .9; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 30, y - 6, x + 60, y); ctx.stroke(); ctx.lineCap = 'butt';
+        const spot = live(b.actorId) || b.target, time = f.m * 1.6 + f.fade;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 9; i++) {
+          const phase = (time + i / 9) % 1, x = spot.x - 230 + phase * 290, y = spot.y - 64 + i * 11, curl = 10 + noise(i + b.id) * 14;
+          ctx.globalAlpha = f.alpha * Math.sin(phase * Math.PI) * .95; ctx.strokeStyle = i % 3 ? '#ffffff' : '#c9f3ff'; ctx.lineWidth = 4 - (i % 3);
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.bezierCurveTo(x + 40, y - curl, x + 70, y + curl, x + 110, y);
+          if (i % 3 === 0) ctx.arc(x + 110, y - 8, 8, Math.PI / 2, Math.PI * 2.2);
+          ctx.stroke();
         }
-        pop(f.icon, spot, f.m, f.alpha, 48);
+        ctx.lineCap = 'butt';
+        for (let i = 0; i < 6; i++) { const u = (time * 1.3 + i / 6) % 1; ctx.save(); ctx.translate(spot.x - 200 + u * 260, spot.y - 70 + Math.sin(u * 8 + i) * 18 + i * 8); ctx.rotate(u * 10 + i); emoji(i % 2 ? '🍃' : '🍂', 0, 0, 18, f.alpha * Math.sin(u * Math.PI)); ctx.restore(); }
+        splash({ x: spot.x - 30, y: spot.y }, (time * .8) % 1.1, f.alpha * .6, b.id, '#ffffff', 10);
+        pop(f.icon, spot, f.m, f.alpha, 52);
       },
       // Dark funnel with turning spiral arms and orbiting foam.
       whirlpool(b, f) {
@@ -811,7 +874,19 @@
           ctx.globalAlpha = f.alpha * k * .9;
           for (let a = 0; a < 3; a++) { const ang = a / 3 * Math.PI; line({ x: x - Math.cos(ang) * r, y: y - Math.sin(ang) * r }, { x: x + Math.cos(ang) * r, y: y + Math.sin(ang) * r }); }
         }
-        for (const spot of b.affected) emoji('❄️', spot.x + 22, spot.y - 52, 24 * k + 1, f.alpha);
+        // An ice block grows around each frozen duck, with a glint sweeping across it.
+        b.affected.forEach((spot, i) => {
+          const grow = ease((f.m - i * .04) / .45), w = 92 * grow, h = 74 * grow, x = spot.x - w / 2 + 4, y = spot.y - h + 14;
+          if (grow <= 0) return;
+          const g = ctx.createLinearGradient(x, y, x + w, y + h);
+          g.addColorStop(0, 'rgba(235,252,255,.75)'); g.addColorStop(.5, 'rgba(160,225,250,.45)'); g.addColorStop(1, 'rgba(110,190,235,.65)');
+          ctx.globalAlpha = f.alpha; ctx.fillStyle = g; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 10) : ctx.rect(x, y, w, h); ctx.fill(); ctx.stroke();
+          const glint = ((f.m + f.fade) * 1.4 + i * .2) % 1;
+          ctx.globalAlpha = f.alpha * .8 * grow; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.moveTo(x + w * glint, y + 4); ctx.lineTo(x + w * glint - 22, y + h - 4); ctx.stroke();
+          emoji('❄️', spot.x + 30, spot.y - 60, 22 * grow + 1, f.alpha);
+        });
         pop(f.icon, b.origin, f.m, f.alpha, 62);
       },
       mirror(b, f) {

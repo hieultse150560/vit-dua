@@ -221,54 +221,56 @@ test('every v2 event kind maps to a visual burst without throwing', async () => 
   } finally { await game.close(); }
 });
 
-test('slow effects (default, for screen sharing): each twist plays 3 s of slow motion, then normal speed', async () => {
+test('fast effects (default): the camera snaps in, the twist plays 1.2 s of slow motion, then normal speed', async () => {
   const { e } = loneTwist(4242, 4);
   const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) });
   const elapsedNow = () => { game.click('pause'); const value = current(game).active.elapsed; game.click('pause'); return value; };
   try {
-    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'true', 'on by default');
-    assert.equal(game.window.document.documentElement.style.getPropertyValue('--fx-time'), '3s');
+    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'false', 'fast effects by default');
+    assert.equal(game.window.document.documentElement.style.getPropertyValue('--fx-time'), '1.2s');
     game.click('resume-overlay'); advanceToTwist(game, e);
-    const start = elapsedNow();
-    game.advance(500, 50);
-    const slow = elapsedNow() - start;
-    assert.ok(slow > 0.03 && slow < 0.06, `slow motion (0.09x) advanced ${slow} race-s in 0.5 s`);
-    assert.equal(game.window.document.querySelector('.race-water').classList.contains('zoom'), false, 'no camera zoom while screen sharing');
-    assert.equal(game.window.document.querySelector('.race-water').classList.contains('shake'), false, 'no shake while screen sharing');
-    game.advance(2200, 50);
-    assert.ok(game.window.document.querySelector('.race-water').classList.contains('slowmo'), 'slow motion still on at 2.7 s');
-    game.advance(500, 50);
-    assert.equal(game.window.document.querySelector('.race-water').classList.contains('slowmo'), false);
-    assert.deepEqual(game.errors.map(String), []);
-  } finally { await game.close(); }
-});
-
-test('turning slow effects off brings back the 1.8 s slow motion and remembers the choice', async () => {
-  const { e } = loneTwist(4242, 4);
-  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) });
-  const elapsedNow = () => { game.click('pause'); const value = current(game).active.elapsed; game.click('pause'); return value; };
-  try {
-    game.click('slow-fx');
-    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'false');
-    assert.equal(game.storage()['vit-dua-slow-fx'], '0');
-    assert.equal(game.window.document.documentElement.style.getPropertyValue('--fx-time'), '1.8s');
-    game.click('resume-overlay'); advanceToTwist(game, e);
-    assert.ok(game.$('twist-banner').hidden === false, 'twist reached');
-    assert.ok(game.window.document.querySelector('.race-water').classList.contains('slowmo'));
+    const water = game.window.document.querySelector('.race-water');
+    assert.ok(water.classList.contains('slowmo'));
+    assert.ok(water.classList.contains('zoom'), 'the camera zooms in on the twist');
     assert.ok(game.window.document.querySelectorAll('.racer.twist-focus').length >= 1, 'affected duck is spotlighted');
     const start = elapsedNow();
     game.advance(500, 50);
     const slow = elapsedNow() - start;
-    assert.ok(slow > 0.05 && slow < 0.1, `slow motion (0.15x) advanced ${slow} race-s in 0.5 s`);
-    game.advance(1100, 50);
-    assert.ok(game.window.document.querySelector('.race-water').classList.contains('slowmo'), 'slow motion still on at 1.6 s');
-    game.advance(400, 50);
-    assert.equal(game.window.document.querySelector('.race-water').classList.contains('slowmo'), false);
+    assert.ok(slow > 0.07 && slow < 0.13, `slow motion (0.225x, after a hit-stop) advanced ${slow} race-s in 0.5 s`);
+    game.advance(450, 50);
+    assert.ok(water.classList.contains('slowmo'), 'slow motion still on at ~1 s');
+    game.advance(500, 50);
+    assert.equal(water.classList.contains('slowmo'), false);
     assert.equal(game.window.document.querySelectorAll('.racer.twist-focus').length, 0);
     const mid = elapsedNow();
     game.advance(500, 50);
     const normal = elapsedNow() - mid;
     assert.ok(normal > 0.45 && normal < 0.55, `normal speed advanced ${normal} race-s in 0.5 s`);
+    assert.deepEqual(game.errors.map(String), []);
+  } finally { await game.close(); }
+});
+
+test('slow effects (opt-in, for laggy screen sharing): 3 s slow motion, no zoom or shake, and the choice is remembered', async () => {
+  const { e } = loneTwist(4242, 4);
+  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) });
+  const elapsedNow = () => { game.click('pause'); const value = current(game).active.elapsed; game.click('pause'); return value; };
+  try {
+    game.click('slow-fx');
+    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'true');
+    assert.equal(game.storage()['vit-dua-slow-fx'], '1');
+    assert.equal(game.window.document.documentElement.style.getPropertyValue('--fx-time'), '3s');
+    game.click('resume-overlay'); advanceToTwist(game, e);
+    const water = game.window.document.querySelector('.race-water');
+    assert.equal(water.classList.contains('zoom'), false, 'no camera zoom while screen sharing');
+    assert.equal(water.classList.contains('shake'), false, 'no shake while screen sharing');
+    const start = elapsedNow();
+    game.advance(500, 50);
+    const slow = elapsedNow() - start;
+    assert.ok(slow > 0.03 && slow < 0.06, `slow motion (0.09x) advanced ${slow} race-s in 0.5 s`);
+    game.advance(2200, 50);
+    assert.ok(water.classList.contains('slowmo'), 'slow motion still on at 2.7 s');
+    game.advance(500, 50);
+    assert.equal(water.classList.contains('slowmo'), false);
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
 });

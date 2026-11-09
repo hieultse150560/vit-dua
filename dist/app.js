@@ -7,11 +7,12 @@
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
   // slowmoUntil is on the race clock, so pausing keeps the remaining slow motion.
-  // "Slow effects" (on by default, for Teams screen sharing that drops frames) stretches it to 3 s,
-  // slows the duck animations to match and draws the effects canvas at a lighter resolution.
-  const SLOWMO_WINDOW=.27, SLOW_FX_KEY='vit-dua-slow-fx';
-  let slowFx=(()=>{try{return localStorage.getItem(SLOW_FX_KEY)!=='0';}catch{return true;}})();
-  const slowmoMs=()=>slowFx?3000:1800, slowmoRate=()=>SLOWMO_WINDOW*1000/slowmoMs();
+  // Default ("fast effects"): the camera snaps in, a hit freezes for HIT_STOP_MS, and the twist plays
+  // over 1.2 s before the camera pulls back out. "Slow effects" (opt-in, for Teams screen sharing that
+  // drops frames) stretches it to 3 s with no zoom, shake or hit-stop and a lighter effects canvas.
+  const SLOWMO_WINDOW=.27, SLOW_FX_KEY='vit-dua-slow-fx', HIT_STOP_MS=110;
+  let slowFx=(()=>{try{return localStorage.getItem(SLOW_FX_KEY)==='1';}catch{return false;}})(), hitStop=0;
+  const slowmoMs=()=>slowFx?3000:1200, slowmoRate=()=>SLOWMO_WINDOW*1000/slowmoMs();
   // New days race at least this long so every twist has room to play out (older days keep their length).
   const MIN_RACE_SECONDS=40;let slowmoUntil=0;
   // Photo finish: when the runner-up ends within PHOTO_GAP of the line, the last
@@ -116,7 +117,7 @@
   }
   function close(id){if($(id).open)$(id).close();}
   function open(id){if(!$(id).open)$(id).showModal();}
-  function setSlowFx(){$('slow-fx').setAttribute('aria-pressed',String(slowFx));$('slow-fx').querySelector('span').textContent=slowFx?'Hiệu ứng chậm':'Hiệu ứng nhanh';$('slow-fx').title=slowFx?'Đang chiếu chậm từng pha (hợp khi share màn hình Teams). Bấm để chiếu nhanh.':'Bấm để chiếu chậm từng pha, hợp khi share màn hình Teams.';document.documentElement.style.setProperty('--fx-time',`${slowmoMs()/1000}s`);}
+  function setSlowFx(){$('slow-fx').setAttribute('aria-pressed',String(slowFx));$('slow-fx').querySelector('span').textContent=slowFx?'🐢 Hiệu ứng chậm':'⚡ Hiệu ứng nhanh';$('slow-fx').title=slowFx?'Đang chiếu chậm từng pha 3 giây, không zoom (hợp khi share Teams bị giật). Bấm để về hiệu ứng nhanh.':'Đang zoom nhanh, khựng hình, chiếu chậm 1,2 giây mỗi pha. Bấm để chiếu chậm 3 giây không zoom (hợp khi share Teams bị giật).';document.documentElement.style.setProperty('--fx-time',`${slowmoMs()/1000}s`);}
   function setSound(){const span=$('sound').querySelector('span');span.textContent=sound?'Âm thanh bật':'Âm thanh tắt';$('sound').setAttribute('aria-pressed',String(sound));$('sound').setAttribute('aria-label',sound?'Tắt âm thanh':'Bật âm thanh');}
   function activateAudio(){if(!sound)return;try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume().catch(()=>{});}catch{sound=false;setSound();toast('Trình duyệt chưa hỗ trợ âm thanh.');}}
   function tone(f,d=.12,delay=0){if(!sound||!audio||audio.state!=='running')return;const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime+delay;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.10,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+d+.02);o.onended=()=>{o.disconnect();g.disconnect();};}
@@ -190,7 +191,7 @@
     let x;const cap=4294967296-(4294967296%pool.length);do{x=crypto.getRandomValues(new Uint32Array(1))[0];}while(x>=cap);pick(pool[x%pool.length]);
   }
   function makeTrack(){
-    photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();glides={};gains=[];const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
+    photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();glides={};gains=[];hitStop=0;const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
     owners=race.racers.map(r=>players.find(p=>current.picks[p.id]===r.id)?.name||A.name(r.id));
     runeSpawns=(race.events||[]).filter(e=>e.type==='rune-spawn');
     $('lanes').replaceChildren(...race.racers.map(r=>{
@@ -256,7 +257,7 @@
     // Slow effects (screen sharing): no zoom or shake, which repaint the whole frame and stutter on Teams.
 if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingClientRect()).reduce((s,r)=>({x:s.x+(r.left+r.width/2-box.left)/focus.length,y:s.y+(r.top+r.height/2-box.top)/focus.length}),{x:0,y:0});
       water.style.setProperty('--zx',`${Math.round(c.x)}px`);water.style.setProperty('--zy',`${Math.round(c.y)}px`);water.classList.add('zoom');}
-    if(kind==='harm'&&!reduced.matches&&!slowFx){void water.offsetWidth;water.classList.add('shake');} // reflow restarts the shake
+    if(kind==='harm'&&!reduced.matches&&!slowFx){void water.offsetWidth;water.classList.add('shake');hitStop=HIT_STOP_MS;} // reflow restarts the shake
     slowmoUntil=current.active.elapsed+SLOWMO_WINDOW;
   }
   function endSlowmo(){slowmoUntil=0;document.querySelector('.race-water')?.classList.remove('slowmo','shake','flash',...(photoActive?[]:['zoom']));$('twist-banner')?.classList.add('settled');nodes.forEach(n=>n.classList.remove('twist-focus'));}
@@ -313,8 +314,15 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     if(!gains.length)return;
     gains=gains.filter(g=>{if(elapsed<g.at)return true;const n=nodes[g.id];if(n){n.querySelector('.racer-gain')?.remove();const badge=node('span','racer-gain',`⏩ VƯỢT +${g.gain}`);n.append(badge);setTimeout(()=>badge.remove(),slowmoMs());}return false;});
   }
+  // Every duck an attack lands on flashes white for a beat.
+  function flashHits(event){
+    if(reduced.matches)return;
+    const hit=event.outcomes?Object.entries(event.outcomes).filter(([,o])=>o==='hit').map(([id])=>Number(id))
+      :event.outcome==='hit'||event.outcome==='bust'?[event.type==='hazard'||event.outcome==='bust'?event.actorId:event.targetId]:event.outcome==='reflected'?[event.actorId]:[];
+    for(const id of hit)if(nodes[id]){const n=nodes[id];n.classList.remove('hit-flash');void n.offsetWidth;n.classList.add('hit-flash');setTimeout(()=>n.classList.remove('hit-flash'),400);}
+  }
   function startGlides(event,pre){
-    sweep(event);
+    sweep(event);flashHits(event);
     if(!event.before||!event.after)return;
     const g=GLIDE[event.copied||event.skill]||{delay:0,dur:.18};
     for(const [id,d] of Object.entries(event.after))if(Math.abs(d-event.before[id])>1e-9&&pre[id])glides[id]={from:pre[id].progress,start:event.time+g.delay,end:event.time+g.delay+g.dur};
@@ -374,7 +382,8 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     }
     if(phase==='running'){
       startAmbience();
-      a.elapsed=Math.min(race.duration,a.elapsed+delta*playbackRate(a.elapsed));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();showGains(a.elapsed);const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
+      const frozen=hitStop>0;if(frozen)hitStop=Math.max(0,hitStop-delta*1000); // hit-stop: the race holds still a beat on impact
+      a.elapsed=Math.min(race.duration,a.elapsed+(frozen?0:delta*playbackRate(a.elapsed)));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();showGains(a.elapsed);const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
       if(a.elapsed>=race.sprintStart){if(!sprintAnnounced){sprintAnnounced=true;document.querySelector('.race-water')?.classList.add('fog-lifted');$('arena-title').textContent='NƯỚC RÚT! Cơ hội lật ngược!';$('race-status').textContent='⚡ Tăng tốc ngẫu nhiên — vịt cuối vẫn có cơ hội!';tone(950,.2);}$('sprint-label').textContent='⚡ 5 GIÂY CUỐI · BỨT PHÁ!';const second=Math.ceil(remaining);if(second!==lastTick&&second>0){lastTick=second;tone(650,.06);}}
       if(a.elapsed>=race.duration){finish();return;}
     }
