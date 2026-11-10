@@ -284,19 +284,21 @@ test('each duck shows its dealt skill and trait before the picks; the race, a re
   } finally { await game.close(); }
 });
 
-test('after a round, the players trailing the day get comeback luck on their pick, shown in the list and on their duck', async () => {
+test('after a round, trailing players get comeback luck on their pick; only last place shows the clover', async () => {
   const game = loadGame();
   try {
     setup(game, 3);
     chooseAll(game); runRound(game); game.click('result-next');
     const session = current(game).session, levels = game.window.DuckTournament.luckLevels(session);
     assert.ok(Object.values(levels).some(Boolean), 'someone trails after round 1');
-    for (const [id, level] of Object.entries(levels)) assert.equal(player(game, id).textContent.includes('🍀'), level > 0, `${id} luck ${level}`);
+    const table = game.window.DuckTournament.standings(session), worst = Math.max(...table.map(r => r.rank));
+    const last = new Set(table.filter(r => r.rank === worst).map(r => r.playerId));
+    for (const id of Object.keys(levels)) assert.equal(player(game, id).textContent.includes('🍀'), last.has(id), `only last place shows a clover (${id})`);
     chooseAll(game); game.click('start');
     const { picks, active } = current(game);
-    for (const [id, duckId] of Object.entries(picks)) assert.equal(active.lineup.luck[duckId], levels[id], `duck of ${id} carries its owner's luck`);
-    const lucky = Object.entries(picks).find(([id]) => levels[id] > 0);
-    assert.ok(game.window.document.querySelectorAll('.racer')[lucky[1]].querySelector('.racer-luck'), 'the lucky duck wears a clover');
+    for (const [id, duckId] of Object.entries(picks)) assert.equal(active.lineup.luck[duckId], levels[id], `duck of ${id} carries its owner's luck, shown or not`);
+    const racers = game.window.document.querySelectorAll('.racer');
+    for (const [id, duckId] of Object.entries(picks)) assert.equal(!!racers[duckId].querySelector('.racer-luck'), last.has(id), `clover on the race duck only for last place (${id})`);
     noErrors(game);
   } finally { await game.close(); }
 });

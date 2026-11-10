@@ -177,7 +177,7 @@ Từ vòng 2 của mỗi ngày, ai đang ở **nửa dưới bảng điểm tổ
 - mỗi cấp thêm 30% thoát nạn sự kiện sông nước xấu (vấp đá thường, cá sấu, xoáy nước, hà mã, khúc gỗ); cú vấp đá sát đích thì không né được;
 - cá heo, ếch ưu tiên cõng vịt có bùa, rune cũng hay rơi vào làn của vịt có bùa hơn.
 
-Bùa hiện cạnh tên trong danh sách chọn vịt và thành cỏ bốn lá cạnh vịt trên đường đua. Đo trên 4.000 trận 7 vịt × 40 giây: vịt 🍀 thắng khoảng 1,25 lần mức công bằng, 🍀🍀 khoảng 1,4 lần. Người đang thua có cơ hội gỡ nhưng không chắc thắng.
+Bùa có tác dụng ngầm cho cả nửa dưới bảng, nhưng chỉ người **đang đứng chót bảng** mới hiện 🍀 cạnh tên trong danh sách chọn vịt và cỏ bốn lá cạnh vịt trên đường đua. Đo trên 4.000 trận 7 vịt × 40 giây: vịt 🍀 thắng khoảng 1,25 lần mức công bằng, 🍀🍀 khoảng 1,4 lần. Người đang thua có cơ hội gỡ nhưng không chắc thắng.
 
 ## Khoản đóng quỹ cuối ngày
 
