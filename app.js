@@ -80,6 +80,8 @@
   const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{})});
   // Comeback luck for the players trailing the day's standings (regular rounds only), per duck they picked.
   const luckOf=()=>current&&current.type==='regular'&&!isLegacy()?T.luckLevels(current.session):{};
+  // Luck works for the whole trailing half, but only the player(s) dead last get the visible clover.
+  const lastPlaceIds=()=>{if(!current||current.type!=='regular'||isLegacy()||!current.session.rounds.length)return new Set();const table=T.standings(current.session),worst=Math.max(...table.map(r=>r.rank));return new Set(table.filter(r=>r.rank===worst).map(r=>r.playerId));};
   const luckByDuck=()=>{const levels=luckOf(),out=participants().map(()=>0);for(const [id,duck] of Object.entries(current.picks))out[duck]=levels[id]||0;return out;};
   const skillOf=id=>C3.skills.find(s=>s.id===id), traitOf=id=>C3.traits.find(t=>t.id===id);
   function ensureLineup(){
@@ -145,7 +147,7 @@
     $('pick-help').textContent=s.rounds.length?'Chót vòng trước chọn trước → về nhất chọn cuối.':'Vòng đầu ngày: chọn lần lượt theo danh sách.';
     $('players').replaceChildren(...orderedPlayers.map((p,index)=>{
       const duck=current.picks[p.id], b=node('button',`player${p.id===selected&&picking?' selected':''}${duck!==undefined?' chosen':''}`);b.dataset.playerId=p.id;b.disabled=!picking||p.id!==selected;b.setAttribute('aria-pressed',String(p.id===selected));
-      const luck=luckOf()[p.id]||0;
+      const luck=lastPlaceIds().has(p.id)?luckOf()[p.id]||0:0;
       const info=node('span','player-info');info.append(node('span','player-name',`${index+1}. ${p.name}${starsOf().includes(p.id)?' ⭐':''}${luck?` ${'🍀'.repeat(luck)}`:''}`),node('span','player-duck',duck===undefined?(p.id===selected?'Đến lượt chọn vịt':`Chờ lượt chọn ${index+1}`):`#${duck+1} · ${A.name(duck)}`));if(s.version>=4&&!T.starAvailable(s,p.id))info.append(node('span','star-used','☆ đã dùng sao'));b.append(node('span','avatar',p.name.split(/\s+/).map(n=>Array.from(n)[0]).slice(-2).join('')),info,node('span','player-check',duck===undefined?(p.id===selected?'→':'…'):'✓'));b.onclick=()=>{if(!current.active&&current.stage==='picking'&&p.id===queue().nextPlayerId)focusDuck();};return b;
     }));
     $('selected-player').textContent=players.find(p=>p.id===selected)?.name||(chosen===players.length?'Cả hội đã chọn xong':'—');
@@ -208,7 +210,7 @@
       racer.title=`${A.name(r.id)} — ${owners[r.id]}`;
       if(r.skill){const badge=node('span','racer-skill',r.skill.icon);badge.title=`${r.skill.name}: ${r.skill.description}`;racer.append(badge,stateBadge);racer.title+=`${r.talent?` · ${r.talent.name}`:''} · ${r.skill.name}${r.trait?` · ${r.trait.icon} ${r.trait.name}`:''}`;}
       if(r.trait){const t=node('span','racer-trait',r.trait.icon);t.title=`${r.trait.name}: ${r.trait.description}`;racer.append(t);}
-      if(r.luck){const l=node('span','racer-luck','🍀'.repeat(r.luck));l.title=`Bùa may cấp ${r.luck}: đang ở cuối bảng điểm nên vịt nhanh hơn ${r.luck*2}%, dễ thoát nạn và dễ được giúp hơn.`;racer.append(l);}
+      if(r.luck&&lastPlaceIds().has(ownerId)){const l=node('span','racer-luck','🍀'.repeat(r.luck));l.title=`Bùa may cấp ${r.luck}: đang ở cuối bảng điểm nên vịt nhanh hơn ${r.luck*2}%, dễ thoát nạn và dễ được giúp hơn.`;racer.append(l);}
       runway.append(racer);lane.append(node('span','lane-number',String(r.id+1).padStart(2,'0')),runway);nodes.push(racer);
       racerViews[r.id]={element:racer,stateBadge,rankBadge,emote,face:'',flags:-1,rank:0};return lane;
     }));
