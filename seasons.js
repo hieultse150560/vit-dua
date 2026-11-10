@@ -55,7 +55,7 @@
     if (!Array.isArray(sessions)) fail('Danh sách ngày thi đấu không hợp lệ.');
     const dates = new Set(), ids = new Set();
     const days = sessions.map(value => {
-      if (!isObject(value) || ![3, 4].includes(value.version)) fail('Mùa giải chỉ nhận ngày thi đấu theo luật quỹ mùa giải.');
+      if (!isObject(value) || ![3, 4, 5].includes(value.version)) fail('Mùa giải chỉ nhận ngày thi đấu theo luật quỹ mùa giải.');
       const session = T.validateSession(value);
       if (ids.has(session.id) || dates.has(session.date)) fail('Một ngày thi đấu chỉ được ghi một lần trong mùa giải.');
       ids.add(session.id); dates.add(session.date);

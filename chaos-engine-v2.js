@@ -36,6 +36,8 @@
     lullaby: { range: 6, min: 2, time: 1.5 }, hex: { time: 2, slow: 0.45 }, giant: { time: 2, boost: 0.35, range: 5, max: 3, knock: 2, spin: 0.6 },
     mirrorV3: { glareTargets: 2, glareTime: 2, glareSlow: 0.5 }, buoyV3: { fallbackPass: 3 },
     // Duck traits (chaos-v3), dealt with the skills before the picks. Speeds are extra fractions of base speed.
+    // Comeback luck (chaos-v3): per level, extra speed, a chance to escape bad river events, more weight for helpful ones.
+    luck: { speed: 0.02, dodge: 0.3, help: 2 },
     trait: { steady: 0.035, early: 0.18, earlyUntil: 0.25, late: 0.07, lateFrom: 0.8, catchup: 0.08, tough: 0.6, dodge: 0.3, lucky: 0.75, revengePush: 2.5, revengeTime: 1 }, // chaos-v3: victims land from `behind` % past the last duck up to `keep` of their lead over it
     rune: { boost: 0.4, time: 1.5, slow: 0.6 },
     hazard: { countMin: 2, countMax: 4, rockStun: 1.5, rockLateWindow: 3, rockLateChance: 0.7, crocPull: 5, windPush: 6, whirlStun: 1.5, dolphinPush: 5, surgeTime: 1, finaleKnock: 0.6,
@@ -261,7 +263,9 @@
       return ids.map(id => list.find(item => item.id === id) || (() => { throw new RangeError(`${what} không hợp lệ: ${id}`); })());
     };
     if (!lineup || typeof lineup !== 'object') throw new TypeError('Đội hình skill không hợp lệ.');
-    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính') };
+    const luck = lineup.luck === undefined ? Array(count).fill(0) : lineup.luck;
+    if (!Array.isArray(luck) || luck.length !== count || luck.some(l => !Number.isInteger(l) || l < 0 || l > 3)) throw new RangeError('Mức may mắn phải là số nguyên 0–3 cho từng vịt.');
+    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck };
   }
   function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed(), lineup = null) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
@@ -290,7 +294,7 @@
       speeds: Array.from({ length: segmentCount }, () => 0.65 + motionRng.unit() * 0.70),
       distance: 0, baseDistance: 0, boost: null, rocketUntil: 0, runeUntil: 0, surges: [],
       impairUntil: 0, impairKind: null, impairFactor: 1, immuneUntil: 0,
-      guard: null, mirror: false, flyUntil: 0, swapUntil: 0, ghostUntil: 0, skillUsed: false, trait: null, giantUntil: 0
+      guard: null, mirror: false, flyUntil: 0, swapUntil: 0, ghostUntil: 0, skillUsed: false, trait: null, giantUntil: 0, luck: 0
     }));
     const boostCount = 1 + motionRng.integer(Math.min(count - 1, Math.ceil(count * 0.55)));
     const boosts = shuffled(ids, motionRng).slice(0, boostCount).map(id => {
@@ -305,7 +309,7 @@
     const deck = dealt ? dealt.skills : shuffled(Array.from({ length: Math.ceil(count / rules.skills.length) }, () => rules.skills).flat(), skillRng);
     racers.forEach((racer, index) => {
       racer.skill = deck[index];
-      if (dealt) racer.trait = dealt.traits[index];
+      if (dealt) { racer.trait = dealt.traits[index]; racer.luck = dealt.luck[index]; }
       if (racer.skill.id === 'mirror') racer.mirror = true;
       if (racer.skill.id === 'buoy') racer.guard = 'buoy';
     });
@@ -313,7 +317,8 @@
     const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, rules, finaleRng).map((slot, index) => ({ ...slot, index }));
     const runeCount = Math.max(3, Math.ceil(count / 3));
     for (let i = 0; i < runeCount; i++) {
-      const actorId = runeRng.integer(count), rune = runeTypes[runeRng.integer(runeTypes.length)];
+      // chaos-v3: lucky ducks find runes more often (all weights 1 without luck: the same draw as before).
+      const actorId = rules.traits ? weighted(racers, r => 1 + r.luck, runeRng).id : runeRng.integer(count), rune = runeTypes[runeRng.integer(runeTypes.length)];
       const spawnTick = tick(duration * (0.20 + 0.55 * ((i + 0.2 + runeRng.unit() * 0.6) / runeCount)));
       const pickupTick = Math.min(steps - HZ, spawnTick + 15);
       const runeData = { actorId, rune, runeId: `rune-${i + 1}`, pickupTick, good: runeRng.unit() < 0.5, index: schedule.length + i };
@@ -397,6 +402,7 @@
       const trait = victim.trait?.id, T = tuning.trait;
       if (trait === 'dodgy' && attacker && attacker !== victim && traitRng.unit() < T.dodge) return { outcome: 'blocked', guard: 'dodge' };
       if (trait === 'lucky' && !attacker && traitRng.unit() < T.lucky) return { outcome: 'blocked', guard: 'lucky' };
+      if (victim.luck && !attacker && traitRng.unit() < tuning.luck.dodge * victim.luck) return { outcome: 'blocked', guard: 'lucky' };
       if (victim.guard) {
         const guard = victim.guard;
         victim.guard = null;
@@ -728,6 +734,9 @@
     // Each hazard picks its victim; harmful ones return `harm`, helpful ones `surge`.
     const HZD = tuning.hazard;
     const randomDuck = () => atRank(1 + hazardRng.integer(count));
+    // A back-half duck for a helpful river event; chaos-v3 weights lucky ducks up (equal weights: the same draw).
+    const helpedDuck = () => { const half = Math.ceil(count / 2), back = ranked().slice(half);
+      return rules.traits ? weighted(back, r => 1 + r.luck * tuning.luck.help, hazardRng) : back[hazardRng.integer(back.length)]; };
     const hazardEffects = {
       rock() {
         const [victim] = topRivals(null, 1);
@@ -752,12 +761,10 @@
         return { victim, label: 'KHÚC GỖ CHẮN ĐƯỜNG!', harm: () => impair(victim, 'slow', HZD.logTime, HZD.logSlow) };
       },
       frog() {
-        const half = Math.ceil(count / 2);
-        return { victim: atRank(half + 1 + hazardRng.integer(count - half)), label: 'ẾCH CÕNG NHẢY CÓC!', hop: pct(HZD.frogHop) };
+        return { victim: helpedDuck(), label: 'ẾCH CÕNG NHẢY CÓC!', hop: pct(HZD.frogHop) };
       },
       dolphin() {
-        const half = Math.ceil(count / 2);
-        return { victim: atRank(half + 1 + hazardRng.integer(count - half)), label: 'CÁ HEO CÕNG LÊN!', surge: pct(HZD.dolphinPush) };
+        return { victim: helpedDuck(), label: 'CÁ HEO CÕNG LÊN!', surge: pct(HZD.dolphinPush) };
       }
     };
     // Finale: unblockable; the leader falls behind 2nd place and stays capsized to the end.
@@ -865,7 +872,7 @@
     function move(racer, start, end, segment) {
       const base = racer.speeds[segment];
       const extra = (start < racer.rocketUntil ? tuning.rocket.boost : 0) + (start < racer.runeUntil ? tuning.rune.boost : 0)
-        + (racer.trait ? traitBoost(racer, start) + (start < racer.giantUntil ? tuning.giant.boost : 0) : 0);
+        + (racer.trait ? traitBoost(racer, start) + (start < racer.giantUntil ? tuning.giant.boost : 0) + racer.luck * tuning.luck.speed : 0);
       const pulse = pulseIntegral(racer.boost, end) - pulseIntegral(racer.boost, start);
       let movement = base / HZ * (1 + extra) + pulse;
       for (const s of racer.surges) if (start >= (s.from || 0) && start < s.until) movement += s.rate / HZ;
@@ -894,7 +901,7 @@
     events.forEach(event => {
       if (event.type === 'rune-spawn') event.progress = distances[tick(event.pickupTime) * count + event.actorId] / finishDistance;
     });
-    const publicRacer = racer => ({ id: racer.id, name: racer.name, skill: racer.skill, ...(racer.trait ? { trait: racer.trait } : {}) });
+    const publicRacer = racer => ({ id: racer.id, name: racer.name, skill: racer.skill, ...(racer.trait ? { trait: racer.trait } : {}), ...(racer.luck ? { luck: racer.luck } : {}) });
     const publicRacers = freeze(racers.map(publicRacer));
     const results = freeze(finalOrder.map(racer => ({ ...publicRacer(racer), rank: finalRanks[racer.id], baseDistance: racer.baseDistance, finalDistance: racer.distance })));
     return Object.freeze({
