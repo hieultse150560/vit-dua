@@ -26,7 +26,7 @@ function setup(game, rounds = 10, date = '2026-11-04') {
   assert.equal(game.$('setup-error').textContent, '');
   assert.equal(game.$('setup-dialog').open, false);
   assert.equal(state(game).version, 3);
-  assert.equal(current(game).session.version, 4);
+  assert.equal(current(game).session.version, 5);
 }
 
 const duck = (game, id) => game.window.document.querySelector(`#duck-grid [data-duck-id="${id}"]`);
@@ -113,8 +113,8 @@ test('ten rounds score once, daily contributions total100k, reload retains total
       restored.click('result-next'); chooseAll(restored); runRound(restored);
     }
     const session = current(restored).session;
-    // 10 rounds × 6, plus the last round's forced stars doubling the winner's 3 points.
-    assert.equal(restored.window.DuckTournament.standings(session).reduce((sum, r) => sum + r.total, 0), 60 + 3);
+    // 10 rounds × 6, plus the last round's forced stars doubling everyone's points.
+    assert.equal(restored.window.DuckTournament.standings(session).reduce((sum, r) => sum + r.total, 0), 60 + 6);
     const status = restored.window.DuckTournament.coffeeStatus(session);
     assert.equal(status.status, 'resolved');
     assert.deepEqual(plain(status.contributions.map(c => c.amount).sort((a,b) => a-b)), [40000,60000]);
@@ -280,6 +280,23 @@ test('each duck shows its dealt skill and trait before the picks; the race, a re
     game.click('result-next');
     assert.notDeepEqual(current(game).lineup, undefined);
     assert.equal(current(game).lineup.skills.length, 3, 'a fresh deal for the next round');
+    noErrors(game);
+  } finally { await game.close(); }
+});
+
+test('after a round, the players trailing the day get comeback luck on their pick, shown in the list and on their duck', async () => {
+  const game = loadGame();
+  try {
+    setup(game, 3);
+    chooseAll(game); runRound(game); game.click('result-next');
+    const session = current(game).session, levels = game.window.DuckTournament.luckLevels(session);
+    assert.ok(Object.values(levels).some(Boolean), 'someone trails after round 1');
+    for (const [id, level] of Object.entries(levels)) assert.equal(player(game, id).textContent.includes('🍀'), level > 0, `${id} luck ${level}`);
+    chooseAll(game); game.click('start');
+    const { picks, active } = current(game);
+    for (const [id, duckId] of Object.entries(picks)) assert.equal(active.lineup.luck[duckId], levels[id], `duck of ${id} carries its owner's luck`);
+    const lucky = Object.entries(picks).find(([id]) => levels[id] > 0);
+    assert.ok(game.window.document.querySelectorAll('.racer')[lucky[1]].querySelector('.racer-luck'), 'the lucky duck wears a clover');
     noErrors(game);
   } finally { await game.close(); }
 });

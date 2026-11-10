@@ -184,8 +184,8 @@ test('ten seven-player chaos rounds retain daily points and only assess60k/40k a
     }
     const e = current(game), s = state(game), status = T.coffeeStatus(e.session);
     assert.equal(status.status, 'resolved');
-    // 10 rounds × 28, plus the last round's forced stars doubling the top three (7 + 6 + 5).
-    assert.equal(T.standings(e.session).reduce((sum, row) => sum + row.total, 0), 280 + 18);
+    // 10 rounds × 28, plus the last round's forced stars doubling everyone's points (v5 stars double any rank).
+    assert.equal(T.standings(e.session).reduce((sum, row) => sum + row.total, 0), 280 + 28);
     assert.deepEqual(status.contributions.map(c => c.amount), [60000, 40000]);
     const summary = S.summary(s.seasons[0], [e.session]);
     assert.equal(summary.assessed, 100000);

@@ -33,8 +33,8 @@
     fail('Trình duyệt cần hỗ trợ Web Crypto để tạo giải đua.');
   }
 
-  function createSession({ names, date, duration = 25, roundLimit = 10, version = 4 } = {}) {
-    if (![2, 3, 4].includes(version)) fail('Phiên bản luật thi đấu không hợp lệ.');
+  function createSession({ names, date, duration = 25, roundLimit = 10, version = 5 } = {}) {
+    if (![2, 3, 4, 5].includes(version)) fail('Phiên bản luật thi đấu không hợp lệ.');
     if (!Array.isArray(names) || names.length < 3 || names.length > 100) fail('Ngày đua cần từ 3 đến 100 người chơi.');
     const normalized = names.map(name => {
       if (typeof name !== 'string' || !name.trim()) fail('Tên người chơi không được để trống.');
@@ -94,13 +94,26 @@
     return table;
   }
 
-  // Hope star (version 4): top half doubles the round's points; never subtracts.
-  function roundPoints(count, rank, star) {
-    return (count - rank + 1) * (star && rank <= Math.floor(count / 2) ? 2 : 1);
+  // Comeback luck: from the second round on, the bottom half of the day's standings gets luck 1 and the
+  // bottom quarter luck 2 (ties share a rank, so tied players share a level). The race engine turns it into a small edge.
+  function luckLevels(session) {
+    const levels = Object.fromEntries(session.players.map(player => [player.id, 0]));
+    if (!session.rounds.length) return levels;
+    const count = session.players.length, quarter = count - Math.ceil(count / 4);
+    for (const row of standings(session)) levels[row.playerId] = row.rank > quarter ? 2 : row.rank > count / 2 ? 1 : 0;
+    return levels;
+  }
+
+  // Hope star: version 5 doubles the round's points at any rank; version 4 (older days, kept so their
+  // saved scores still validate) doubles only the top half. Never subtracts.
+  const STAR_VERSIONS = new Set([4, 5]);
+  function roundPoints(count, rank, star, version) {
+    const base = count - rank + 1;
+    return star && (version >= 5 || rank <= Math.floor(count / 2)) ? base * 2 : base;
   }
 
   function starAvailable(session, playerId) {
-    return session.version === 4 && !session.rounds.some(round => round.entries.some(entry => entry.playerId === playerId && entry.star === true));
+    return STAR_VERSIONS.has(session.version) && !session.rounds.some(round => round.entries.some(entry => entry.playerId === playerId && entry.star === true));
   }
 
   // The day's last regular round spends every star still unused.
@@ -110,7 +123,7 @@
 
   function validateStars(session, stars) {
     if (!Array.isArray(stars) || new Set(stars).size !== stars.length) fail('Danh sách ngôi sao hy vọng không hợp lệ.');
-    if (stars.length && session.version !== 4) fail('Ngày đua này không dùng ngôi sao hy vọng.');
+    if (stars.length && !STAR_VERSIONS.has(session.version)) fail('Ngày đua này không dùng ngôi sao hy vọng.');
     for (const id of stars) {
       if (!session.players.some(player => player.id === id)) fail('Ngôi sao hy vọng phải thuộc một người chơi.');
       if (!starAvailable(session, id)) fail('Mỗi người chỉ được dùng một ngôi sao hy vọng mỗi ngày.');
@@ -118,7 +131,7 @@
     return new Set(stars);
   }
 
-  function resultEntries(players, picks, order, awardPoints, stars = new Set()) {
+  function resultEntries(players, picks, order, awardPoints, stars = new Set(), version = 5) {
     validatePicks(players, picks);
     validateOrder(order, players.length);
     const owners = new Map(players.map(player => [picks[player.id], player.id]));
@@ -128,7 +141,7 @@
         playerId,
         duckId,
         rank: index + 1,
-        ...(awardPoints ? { points: roundPoints(players.length, index + 1, star) } : {}),
+        ...(awardPoints ? { points: roundPoints(players.length, index + 1, star, version) } : {}),
         ...(star ? { star: true } : {})
       };
     });
@@ -139,7 +152,7 @@
     if (session.rounds.some(round => round.id === id)) return session;
     if (session.tiebreaks.some(round => round.id === id)) fail('Mã lượt đua đã được sử dụng.');
     if (session.rounds.length >= session.roundLimit) fail('Đã hoàn tất số lượt của giải đua.');
-    const entries = resultEntries(session.players, picks, order, true, validateStars(session, stars));
+    const entries = resultEntries(session.players, picks, order, true, validateStars(session, stars), session.version);
     const round = { id, number: session.rounds.length + 1, entries, completedAt: timestamp(completedAt) };
     return { ...session, rounds: [...session.rounds, round] };
   }
@@ -244,8 +257,8 @@
       if (!object(entry) || !playerIds.has(entry.playerId) || seen.has(entry.playerId) || !Number.isInteger(entry.rank) || entry.rank < 1 || entry.rank > players.length || has(order, entry.rank - 1)) {
         fail('Dữ liệu thứ hạng đã lưu không hợp lệ.');
       }
-      if (has(entry, 'star') && (entry.star !== true || !awardPoints || version !== 4)) fail('Dữ liệu ngôi sao hy vọng đã lưu không hợp lệ.');
-      if (awardPoints ? entry.points !== roundPoints(players.length, entry.rank, entry.star === true) : has(entry, 'points')) fail('Dữ liệu điểm đã lưu không khớp thứ hạng.');
+      if (has(entry, 'star') && (entry.star !== true || !awardPoints || !STAR_VERSIONS.has(version))) fail('Dữ liệu ngôi sao hy vọng đã lưu không hợp lệ.');
+      if (awardPoints ? entry.points !== roundPoints(players.length, entry.rank, entry.star === true, version) : has(entry, 'points')) fail('Dữ liệu điểm đã lưu không khớp thứ hạng.');
       seen.add(entry.playerId);
       picks[entry.playerId] = entry.duckId;
       order[entry.rank - 1] = entry.duckId;
@@ -255,7 +268,7 @@
   }
 
   function validateSession(data) {
-    if (!object(data) || ![2, 3, 4].includes(data.version) || !Array.isArray(data.players) || data.players.length < 3 || data.players.length > 100 || !Array.isArray(data.rounds) || !Array.isArray(data.tiebreaks) || !has(data, 'duration') || !has(data, 'roundLimit')) {
+    if (!object(data) || ![2, 3, 4, 5].includes(data.version) || !Array.isArray(data.players) || data.players.length < 3 || data.players.length > 100 || !Array.isArray(data.rounds) || !Array.isArray(data.tiebreaks) || !has(data, 'duration') || !has(data, 'roundLimit')) {
       fail('Dữ liệu giải đua đã lưu không hợp lệ.');
     }
     if (data.players.some((player, index) => !object(player) || player.id !== `p${index}`)) fail('Danh sách người chơi đã lưu không hợp lệ.');
@@ -282,7 +295,7 @@
     return rebuilt;
   }
 
-  const api = Object.freeze({ createSession, validatePicks, standings, recordRound, coffeeStatus, recordTiebreak, validateSession, selectionOrder, selectionState, starAvailable, starForced });
+  const api = Object.freeze({ createSession, validatePicks, standings, recordRound, coffeeStatus, recordTiebreak, validateSession, selectionOrder, selectionState, starAvailable, starForced, luckLevels });
   root.DuckTournament = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

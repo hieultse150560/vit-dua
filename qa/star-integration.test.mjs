@@ -54,7 +54,7 @@ test('star toggle arms before picking and doubles top-half points', async () => 
     game.advance(120000, 50);
     const round = current(game).session.rounds[0], mine = round.entries.find(e => e.playerId === 'p0');
     assert.equal(mine.star, true);
-    assert.equal(mine.points, (7 - mine.rank + 1) * (mine.rank <= 3 ? 2 : 1));
+    assert.equal(mine.points, (7 - mine.rank + 1) * 2, 'a star doubles the round at any rank');
     assert.ok(round.entries.filter(e => e.playerId !== 'p0').every(e => !('star' in e)));
     assert.deepEqual(current(game).stars, []);
     game.click('result-next');

@@ -542,3 +542,22 @@ test('chaos-v3 traits are balanced: each trait holder wins 0.7–1.3 × 1/7', ()
   const table = Object.keys(held).map(id => `${id} ${(wins[id] / held[id] * 7).toFixed(2)}`).join(', ');
   for (const id of Object.keys(held)) { const w = wins[id] / held[id] * 7; assert.ok(w >= 0.7 && w <= 1.3, table); }
 });
+
+test('comeback luck: a lucky duck is faster, escapes bad river events and draws more help; bad luck levels are rejected', () => {
+  const N = 1500;
+  let wins = 0, plainWins = 0, escapes = 0, helped = 0, plainHelped = 0;
+  for (let seed = 0; seed < N; seed++) {
+    const d = V3.deal(7, seed), lucky = V3.createRace(names(7), 40, seed, { ...d, luck: [2, 0, 0, 0, 0, 0, 0] }), plain = V3.createRace(names(7), 40, seed, d);
+    if (lucky.results[0].id === 0) wins++;
+    if (plain.results[0].id === 0) plainWins++;
+    escapes += lucky.events.filter(e => e.type === 'hazard' && e.actorId === 0 && e.guard === 'lucky').length;
+    helped += lucky.events.filter(e => ['frog', 'dolphin'].includes(e.hazard) && e.actorId === 0).length;
+    plainHelped += plain.events.filter(e => ['frog', 'dolphin'].includes(e.hazard) && e.actorId === 0).length;
+  }
+  assert.ok(wins > plainWins * 1.15, `luck 2 wins ${wins} vs ${plainWins} without`);
+  assert.ok(wins / N < 0.4, `luck must stay a nudge, not a lock (${wins}/${N})`);
+  assert.ok(escapes > 20, `${escapes} lucky escapes`);
+  assert.ok(helped > plainHelped, `helped ${helped} vs ${plainHelped}`);
+  assert.equal(V3.createRace(names(7), 40, 3, { ...V3.deal(7, 3), luck: [2, 0, 0, 0, 0, 0, 0] }).racers[0].luck, 2);
+  assert.throws(() => V3.createRace(names(7), 40, 1, { ...V3.deal(7, 1), luck: [9, 0, 0, 0, 0, 0, 0] }), /may mắn/);
+});

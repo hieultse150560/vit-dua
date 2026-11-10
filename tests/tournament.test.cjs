@@ -106,9 +106,9 @@ test('setup validation rejects ambiguous names and invalid calendar/settings val
   assert.equal(make(3, { date: '2028-02-29' }).date, '2028-02-29');
 });
 
-test('version 4 is the default (hope stars); unique daily last places owe 60k and 40k', () => {
+test('version 5 is the default (hope stars double any rank); unique daily last places owe 60k and 40k', () => {
   const created = T.createSession({ names: ['Phú', 'An', 'Bình'], date: '2026-11-04' });
-  assert.equal(created.version, 4);
+  assert.equal(created.version, 5);
   let session = make(4, { version: 3, roundLimit: 1 });
   assert.deepEqual(T.coffeeStatus(session), { status: 'pending', coffeeIds: [], tiedIds: [], slots: 2, contributions: [] });
   session = add(session, [0, 1, 2, 3]);
@@ -179,15 +179,25 @@ test('selection follows last round worst to best, not accumulated scores', () =>
 
 // ---- Ngôi sao hy vọng (session version 4) ----
 const people = count => Array.from({ length: count }, (_, i) => `Người ${i + 1}`);
-const v4 = (count, extra = {}) => T.createSession({ names: people(count), date: '2026-11-04', ...extra });
+const v4 = (count, extra = {}) => T.createSession({ names: people(count), date: '2026-11-04', version: 4, ...extra });
+const v5 = (count, extra = {}) => T.createSession({ names: people(count), date: '2026-11-04', ...extra });
 const starRound = (session, order, stars, id = `r${session.rounds.length + 1}`) => T.recordRound(session, { id, picks: picksFor(session.players), order, completedAt, stars });
 
-test('new sessions default to v4', () => {
-  assert.equal(v4(3).version, 4);
-  assert.throws(() => v4(3, { version: 5 }));
+test('new sessions default to v5', () => {
+  assert.equal(v5(3).version, 5);
+  assert.throws(() => v5(3, { version: 6 }));
 });
 
-test('star doubles top-half points and never subtracts', () => {
+test('v5: a hope star doubles the round points at any rank', () => {
+  const s = starRound(v5(7), [0, 1, 2, 3, 4, 5, 6], ['p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
+  assert.deepEqual(s.rounds[0].entries.map(e => e.points), [14, 12, 10, 8, 6, 4, 2]);
+  const three = starRound(v5(3), [0, 1, 2], ['p2']);
+  assert.deepEqual(three.rounds[0].entries.map(e => e.points), [3, 2, 2], 'even last place doubles');
+  assert.deepEqual(T.validateSession(JSON.parse(JSON.stringify(s))), s, 'saved v5 stars round-trip');
+  assert.ok(T.starAvailable(v5(3), 'p0'));
+});
+
+test('v4 (older days): star doubles top-half points only and never subtracts', () => {
   const s = starRound(v4(7), [0, 1, 2, 3, 4, 5, 6], ['p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
   assert.deepEqual(s.rounds[0].entries.map(e => e.points), [14, 12, 10, 4, 3, 2, 1]);
   assert.ok(s.rounds[0].entries.every(e => e.star === true));
@@ -195,7 +205,7 @@ test('star doubles top-half points and never subtracts', () => {
   assert.ok(plain.rounds[0].entries.every(e => !('star' in e)));
 });
 
-test('three players: only rank 1 doubles', () => {
+test('v4 three players: only rank 1 doubles', () => {
   const s = starRound(v4(3), [0, 1, 2], ['p0', 'p1', 'p2']);
   assert.deepEqual(s.rounds[0].entries.map(e => e.points), [6, 2, 1]);
 });
@@ -270,4 +280,15 @@ test('stars change who pays, and doubled totals can force a tiebreak', () => {
   assert.ok(!status.coffeeIds.includes('p0'));
   assert.equal(status.status, 'tie');
   assert.deepEqual([...status.tiedIds].sort(), ['p2', 'p3']);
+});
+
+test('comeback luck: from round 2, the bottom half gets luck 1 and the bottom quarter luck 2; ties share a level', () => {
+  let s = v5(7);
+  assert.deepEqual(Object.values(T.luckLevels(s)), [0, 0, 0, 0, 0, 0, 0], 'no luck before any round');
+  s = starRound(s, [0, 1, 2, 3, 4, 5, 6], []);
+  assert.deepEqual(T.luckLevels(s), { p0: 0, p1: 0, p2: 0, p3: 1, p4: 1, p5: 2, p6: 2 });
+  let tied = v5(4, { roundLimit: 3 });
+  tied = T.recordRound(tied, { id: 'a', picks: picksFor(tied.players), order: [0, 1, 2, 3], completedAt });
+  tied = T.recordRound(tied, { id: 'b', picks: picksFor(tied.players), order: [3, 2, 1, 0], completedAt });
+  assert.deepEqual(Object.values(T.luckLevels(tied)), [0, 0, 0, 0], 'everyone tied: nobody trails');
 });

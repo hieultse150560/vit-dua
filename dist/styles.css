@@ -320,6 +320,7 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .racer.has-bomb .racer-bomb{display:block;animation:bomb-tick .35s ease-in-out infinite alternate}
 @keyframes bomb-tick{from{transform:rotate(-12deg) scale(1)}to{transform:rotate(12deg) scale(1.18)}}
 .racer.has-mirror .duck-body{filter:drop-shadow(0 0 5px rgba(170,225,255,.95))}
+.racer-luck{position:absolute;right:-4px;bottom:2px;z-index:3;font-size:11px;line-height:1;letter-spacing:-2px;filter:drop-shadow(0 0 3px rgba(120,255,140,.8));pointer-events:none}
 .racer-trait{position:absolute;left:-6px;bottom:2px;z-index:3;font-size:13px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35));pointer-events:none}
 .duck-card .skill-tag{font-size:10px;font-weight:800;line-height:1.5;color:#3d2a66;border:1px solid #d9cdf2;border-radius:7px;background:#efe8ff;padding:4px 7px;max-width:100%;white-space:normal}
 .duck-card .skill-detail{white-space:normal;font-size:9.5px;line-height:1.45;color:#5d5170;margin:0 auto;max-width:190px}

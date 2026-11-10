@@ -161,13 +161,23 @@ Với N người, vịt về hạng r mang lại **N − r + 1 điểm** cho ng�
 
 ### ⭐ Ngôi sao hy vọng
 
-Mỗi người có **1 ngôi sao mỗi ngày đua** (ngày tạo từ bản này trở đi). Đến lượt mình, bật **Dùng sao lượt này** rồi mới bấm chọn vịt. Vịt có sao mang ⭐ suốt trận. Nếu vịt về **nửa trên** (hạng r ≤ ⌊N/2⌋), điểm vòng đó **nhân đôi**; về nửa dưới vẫn nhận điểm thường, **không bao giờ bị trừ**. Ví dụ 7 người: hạng 1–3 có sao được 14 / 12 / 10.
+Mỗi người có **1 ngôi sao mỗi ngày đua**. Đến lượt mình, bật **Dùng sao lượt này** rồi mới bấm chọn vịt. Vịt có sao mang ⭐ suốt trận và **điểm vòng đó được nhân đôi, về hạng nào cũng vậy** (ngày tạo từ bản này trở đi, luật phiên bản 5). Ngày tạo trước đó (phiên bản 4) giữ luật cũ: chỉ về nửa trên mới nhân đôi, để điểm đã lưu vẫn khớp.
 
 - Hoàn tác lựa chọn cuối gỡ luôn sao đi kèm. Đã xuất phát thì không gỡ được.
 - Ai chưa dùng sao thì **vòng cuối của ngày bắt buộc dùng**: nút sao tự bật và khóa lại, kể cả khi chọn vịt ngẫu nhiên.
 - Sao không dùng ở đua phụ.
 - Điểm có sao cộng thẳng vào tổng ngày, nên ảnh hưởng cả việc ai đóng quỹ. Thứ tự chọn vòng sau vẫn theo thứ hạng vòng vừa đua.
 - Bảng kết quả ghi ⭐×2 khi được nhân đôi; CSV có thêm cột Sao.
+
+### 🍀 Bùa may cho người đang thua
+
+Từ vòng 2 của mỗi ngày, ai đang ở **nửa dưới bảng điểm tổng của ngày** được **🍀 cấp 1**, khoảng **1/4 cuối bảng** được **🍀🍀 cấp 2** (đồng hạng thì cùng cấp; đua phụ không có bùa). Bùa đi theo con vịt người đó chọn ở vòng này:
+
+- nhanh hơn 2% mỗi cấp;
+- mỗi cấp thêm 30% thoát nạn sự kiện sông nước xấu (vấp đá thường, cá sấu, xoáy nước, hà mã, khúc gỗ); cú vấp đá sát đích thì không né được;
+- cá heo, ếch ưu tiên cõng vịt có bùa, rune cũng hay rơi vào làn của vịt có bùa hơn.
+
+Bùa hiện cạnh tên trong danh sách chọn vịt và thành cỏ bốn lá cạnh vịt trên đường đua. Đo trên 4.000 trận 7 vịt × 40 giây: vịt 🍀 thắng khoảng 1,25 lần mức công bằng, 🍀🍀 khoảng 1,4 lần. Người đang thua có cơ hội gỡ nhưng không chắc thắng.
 
 ## Khoản đóng quỹ cuối ngày
 
