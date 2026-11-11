@@ -11,7 +11,8 @@
   // over 1.2 s before the camera pulls back out. "Slow effects" (opt-in, for Teams screen sharing that
   // drops frames) stretches it to 3 s with no zoom, shake or hit-stop and a lighter effects canvas.
   const SLOWMO_WINDOW=.27, SLOW_FX_KEY='vit-dua-slow-fx', HIT_STOP_MS=110;
-  let slowFx=(()=>{try{return localStorage.getItem(SLOW_FX_KEY)==='1';}catch{return false;}})(), hitStop=0;
+  // Slow effects by default (screen sharing lags); only an explicit '0' keeps fast effects.
+  let slowFx=(()=>{try{return localStorage.getItem(SLOW_FX_KEY)!=='0';}catch{return true;}})(), hitStop=0;
   const slowmoMs=()=>slowFx?3000:1200, slowmoRate=()=>SLOWMO_WINDOW*1000/slowmoMs();
   // New days race at least this long so every twist has room to play out (older days keep their length).
   const MIN_RACE_SECONDS=40;let slowmoUntil=0;

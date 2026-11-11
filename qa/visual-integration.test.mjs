@@ -221,12 +221,14 @@ test('every v2 event kind maps to a visual burst without throwing', async () => 
   } finally { await game.close(); }
 });
 
-test('fast effects (default): the camera snaps in, the twist plays 1.2 s of slow motion, then normal speed', async () => {
+test('fast effects (opt-in): the camera snaps in, the twist plays 1.2 s of slow motion, then normal speed', async () => {
   const { e } = loneTwist(4242, 4);
   const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) });
   const elapsedNow = () => { game.click('pause'); const value = current(game).active.elapsed; game.click('pause'); return value; };
   try {
-    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'false', 'fast effects by default');
+    game.click('slow-fx');
+    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'false');
+    assert.equal(game.storage()['vit-dua-slow-fx'], '0', 'the choice is remembered');
     assert.equal(game.window.document.documentElement.style.getPropertyValue('--fx-time'), '1.2s');
     game.click('resume-overlay'); advanceToTwist(game, e);
     const water = game.window.document.querySelector('.race-water');
@@ -250,14 +252,12 @@ test('fast effects (default): the camera snaps in, the twist plays 1.2 s of slow
   } finally { await game.close(); }
 });
 
-test('slow effects (opt-in, for laggy screen sharing): 3 s slow motion, no zoom or shake, and the choice is remembered', async () => {
+test('slow effects (default, for laggy screen sharing): 3 s slow motion, no zoom or shake', async () => {
   const { e } = loneTwist(4242, 4);
   const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) });
   const elapsedNow = () => { game.click('pause'); const value = current(game).active.elapsed; game.click('pause'); return value; };
   try {
-    game.click('slow-fx');
-    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'true');
-    assert.equal(game.storage()['vit-dua-slow-fx'], '1');
+    assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'true', 'slow effects by default');
     assert.equal(game.window.document.documentElement.style.getPropertyValue('--fx-time'), '3s');
     game.click('resume-overlay'); advanceToTwist(game, e);
     const water = game.window.document.querySelector('.race-water');
