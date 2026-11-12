@@ -5,12 +5,14 @@
   const BY_SKILL = { wings: 'flutter', wave: 'wave', swap: 'zap', mirror: 'ding', hook: 'zip', tornado: 'swirl', buoy: 'pop',
     magnet: 'zip', lightning: 'thunder', flip: 'zap', rewind: 'warp', reverse: 'warp', freeze: 'ice',
     missile: 'missile', bees: 'buzz', blackhole: 'void', ghost: 'ghost', balloon: 'balloon',
-    bomb: 'zip', dice: 'pop', lullaby: 'lull', hex: 'magic', giant: 'thud' };
+    bomb: 'zip', dice: 'pop', lullaby: 'lull', hex: 'magic', giant: 'thud',
+    kraken: 'kraken', dragon: 'roar', meteor: 'meteor', whale: 'spout', ufo: 'ufo', pirate: 'cannon', wheel: 'wheel', anchor: 'clank', volcano: 'eruption', fireworks: 'fireworks' };
   const BY_HAZARD = { rock: 'splash', croc: 'chomp', wind: 'whoosh', whirlpool: 'swirl', dolphin: 'chirp', hippo: 'splash', log: 'thud', frog: 'ribbit' };
-  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer', 'thunder', 'warp', 'ice', 'missile', 'buzz', 'ghost', 'balloon', 'thud', 'ribbit', 'void', 'lull', 'magic']);
+  const kinds = Object.freeze(['splash', 'boom', 'whoosh', 'flutter', 'wave', 'zap', 'ding', 'zip', 'swirl', 'pop', 'slide', 'chomp', 'chirp', 'cheer', 'thunder', 'warp', 'ice', 'missile', 'buzz', 'ghost', 'balloon', 'thud', 'ribbit', 'void', 'lull', 'magic', 'kraken', 'roar', 'meteor', 'spout', 'ufo', 'cannon', 'wheel', 'clank', 'eruption', 'fireworks']);
   const V2_SKILLS = new Set(['wings', 'torpedo', 'wave', 'swap', 'rocket', 'mirror', 'hook', 'tornado', 'banana', 'buoy',
     'magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon',
-    'bomb', 'copycat', 'dice', 'lullaby', 'hex', 'giant']); // chaos-v2 + chaos-v3 skills
+    'bomb', 'copycat', 'dice', 'lullaby', 'hex', 'giant',
+    'kraken', 'dragon', 'meteor', 'whale', 'ufo', 'pirate', 'wheel', 'anchor', 'volcano', 'fireworks']); // chaos-v2 + chaos-v3 skills
 
   function kindOf(event) {
     if (event.type === 'hazard') return BY_HAZARD[event.hazard] || null;
@@ -88,6 +90,17 @@
     lull: (c, t) => { [1047, 880, 698].forEach((f, i) => tone(c, 'sine', f, f * .99, t + i * .22, .55, .5, .01)); tone(c, 'triangle', 349, 340, t, 1.1, .2, .2); },
     // Magic wand: a sparkly rising sweep and a croak-like pop.
     magic: (c, t) => { for (let i = 0; i < 6; i++) tone(c, 'triangle', 900 + i * 260, 1000 + i * 300, t + i * .05, .18, .3, .003); tone(c, 'square', 220, 140, t + .4, .12, .4, .005); },
+    // Big-show skills.
+    kraken: (c, t) => { tone(c, 'sine', 95, 45, t, .9, 1.2, .05); noise(c, 'lowpass', 900, 120, t, .8, .9, .06); for (const d of [.35, .5]) noise(c, 'bandpass', 700, 300, t + d, .12, .8, .005); },
+    roar: (c, t) => { tone(c, 'sawtooth', 200, 80, t, 1.1, .7, .06); tone(c, 'square', 140, 70, t + .05, 1, .35, .08); noise(c, 'bandpass', 500, 1200, t, 1, .8, .1); },
+    meteor: (c, t) => { tone(c, 'sine', 2200, 260, t, .6, .5, .02); noise(c, 'highpass', 4000, 800, t, .55, .4, .05); RECIPES.boom(c, t + .55); },
+    spout: (c, t) => { tone(c, 'sine', 320, 190, t, .9, .7, .15); tone(c, 'sine', 190, 260, t + .7, .5, .4, .05); noise(c, 'lowpass', 600, 2400, t + .3, .8, 1, .2); },
+    ufo: (c, t) => { for (let i = 0; i < 8; i++) tone(c, 'sine', i % 2 ? 620 : 940, i % 2 ? 900 : 640, t + i * .1, .1, .45, .01); tone(c, 'triangle', 300, 1800, t + .8, .4, .3, .02); },
+    cannon: (c, t) => { for (const d of [0, .2, .4]) { tone(c, 'sine', 120, 40, t + d, .45, 1, .003); noise(c, 'lowpass', 1600, 150, t + d, .4, .9, .003); } },
+    wheel: (c, t) => { let d = 0; for (let i = 0; i < 14; i++) { tone(c, 'square', 1500, 1400, t + d, .025, .3, .002); d += .03 + i * .012; } RECIPES.ding(c, t + d + .05); },
+    clank: (c, t) => { for (let i = 0; i < 6; i++) tone(c, 'square', 1800 - i * 120, 1700 - i * 120, t + i * .05, .05, .25, .002); RECIPES.splash(c, t + .45); },
+    eruption: (c, t) => { noise(c, 'lowpass', 300, 60, t, 1.4, 1.2, .2); tone(c, 'sine', 60, 30, t, 1.3, 1, .2); RECIPES.boom(c, t + .25); },
+    fireworks: (c, t) => { for (let i = 0; i < 4; i++) { tone(c, 'sine', 500, 2400, t + i * .12, .35, .3, .02); noise(c, 'highpass', 5000, 2000, t + i * .12 + .38, .25, .6, .003); } },
     cheer: (c, t) => { noise(c, 'bandpass', 900, 1700, t, 1.6, 1.1, .25); tone(c, 'sine', 1800, 2400, t + .2, .25, .3); tone(c, 'sine', 2000, 2700, t + .55, .3, .3); }
   };
   // Soft looping river noise for the whole race; returns stop().

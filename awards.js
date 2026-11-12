@@ -8,7 +8,7 @@
     { id: 'dodger', icon: '🛡️', title: 'Thánh né đòn', detail: v => `né ${v} đòn` },
     { id: 'unlucky', icon: '😭', title: 'Kẻ xui nhất', detail: v => `dính ${v} đòn` }
   ];
-  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana', 'missile', 'balloon', 'blackhole', 'bomb', 'hex']);
+  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana', 'missile', 'balloon', 'blackhole', 'bomb', 'hex', 'anchor', 'ufo']);
   const DODGES = ['bubble', 'ghost', 'dodge', 'lucky'];
   const HAZARD_HITS = new Set(['rock', 'croc', 'whirlpool', 'hippo', 'log']);
   const movedBack = e => Object.keys(e.before || {}).map(Number).filter(id => e.after?.[id] < e.before[id]);

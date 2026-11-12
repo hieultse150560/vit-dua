@@ -284,11 +284,11 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 @media(prefers-reduced-motion:reduce){.duck-body,.duck-sprite,.racer,.rune-marker{animation:none!important;transition:none!important}.racer.swapping .duck-body{filter:none}}
 
 /* Keep the illustrated banks outside the duck bodies and labels. */
-.river{background-size:100% calc(100% + 120px);background-position:center calc(50% + 20px)}
+.river,.race-water .race-ground{background-size:100% calc(100% + 120px);background-position:center calc(50% + 20px)}
 .lanes,#lanes{padding-top:60px;padding-bottom:60px}
 .duck-body{animation:garden-bob 1.15s ease-in-out infinite alternate;animation-delay:calc(var(--duck-id,0) * -.17s);animation-play-state:paused}
 .is-running .duck-body{animation-play-state:running}
-@media(max-width:650px){.river,.race-active .river{background-size:auto calc(100% + 120px);background-position:center calc(50% + 20px)}.lanes,#lanes{padding-top:48px;padding-bottom:54px}}
+@media(max-width:650px){.river,.race-active .river,.race-water .race-ground{background-size:auto calc(100% + 120px);background-position:center calc(50% + 20px)}.lanes,#lanes{padding-top:48px;padding-bottom:54px}}
 @media(prefers-reduced-motion:reduce){.duck-body{animation:none!important}}
 
 /* A compact nameplate stays in its own lane, even when ducks bunch together. */
@@ -359,7 +359,7 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .twist-banner .twist-icon{font-size:1.6em;line-height:1;animation:twist-icon .7s cubic-bezier(.2,1.8,.4,1)}
 @keyframes twist-icon{0%{transform:scale(.2) rotate(-25deg)}60%{transform:scale(1.25) rotate(8deg)}100%{transform:scale(1) rotate(0)}}
 .race-water.slowmo::after{content:'';position:absolute;inset:0;z-index:3;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(8,18,38,.6) 100%);animation:slowmo-in .25s ease-out}
-.race-water.slowmo .river{filter:saturate(.7) brightness(.9);transition:filter .25s}
+.race-water.slowmo .river,.race-water.slowmo .race-ground{filter:saturate(.7) brightness(.9);transition:filter .25s}
 @keyframes slowmo-in{from{opacity:0}to{opacity:1}}
 .race-water.shake{animation:twist-shake .34s cubic-bezier(.36,.07,.19,.97)}
 @keyframes twist-shake{10%,90%{transform:translate(-3px,2px)}20%,80%{transform:translate(9px,-4px)}30%,50%,70%{transform:translate(-13px,5px)}40%,60%{transform:translate(12px,-3px)}}
@@ -389,10 +389,12 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 /* Weather (chaos-v3) tints the river; the canvas draws rain, gusts and lightning. */
 .weather-label{margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-weight:700;letter-spacing:.02em}
 .weather-label:empty{display:none}
-.race-water.weather-sunny .river{filter:saturate(1.12) brightness(1.04)}
-.race-water.weather-rain .river{filter:saturate(.85) brightness(.9)}
-.race-water.weather-wind .river{filter:saturate(.95) contrast(1.05)}
-.race-water.weather-storm .river{filter:saturate(.6) brightness(.72) contrast(1.1)}
+.race-water.winding .lane{border-bottom-color:transparent}
+.race-water .race-ground{background-color:#71cece;background-image:url('assets/river-garden.png');background-repeat:no-repeat}.race-water.has-ground .river{background:transparent}
+.race-water.weather-sunny .river,.race-water.weather-sunny .race-ground{filter:saturate(1.12) brightness(1.04)}
+.race-water.weather-rain .river,.race-water.weather-rain .race-ground{filter:saturate(.85) brightness(.9)}
+.race-water.weather-wind .river,.race-water.weather-wind .race-ground{filter:saturate(.95) contrast(1.05)}
+.race-water.weather-storm .river,.race-water.weather-storm .race-ground{filter:saturate(.6) brightness(.72) contrast(1.1)}
 
 /* Commentator caption: a slim bar under the river, never over a duck */
 .commentary{display:block;width:fit-content;max-width:94%;margin:8px auto 0;padding:6px 14px;border-radius:999px;background:#1d2a3d;color:#fff;font-size:clamp(12px,1.25vw,15px);font-weight:600;font-style:italic;line-height:1.35;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.18)}
@@ -402,12 +404,12 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 @media(prefers-reduced-motion:reduce){.commentary.fresh{animation:none}}
 
 /* Camera zoom during slow motion: river and effects canvas scale around the twist. */
-.race-water .river,.race-water .race-effects{transform-origin:var(--zx,50%) var(--zy,50%);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
-.race-water.zoom .river,.race-water.zoom .race-effects{transform:scale(1.45);transition-duration:.16s;transition-timing-function:cubic-bezier(.1,.9,.2,1)}
-@media(prefers-reduced-motion:reduce){.race-water.zoom .river,.race-water.zoom .race-effects{transform:none}}
+.race-water .river,.race-water .race-effects,.race-water .race-ground{transform-origin:var(--zx,50%) var(--zy,50%);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+.race-water.zoom .river,.race-water.zoom .race-effects,.race-water.zoom .race-ground{transform:scale(1.45);transition-duration:.16s;transition-timing-function:cubic-bezier(.1,.9,.2,1)}
+@media(prefers-reduced-motion:reduce){.race-water.zoom .river,.race-water.zoom .race-effects,.race-water.zoom .race-ground{transform:none}}
 
 /* Photo finish: high-contrast slow finish and a result card */
-.race-water.photo-finish .river{filter:grayscale(.3) contrast(1.15) brightness(1.05)}
+.race-water.photo-finish .river,.race-water.photo-finish .race-ground{filter:grayscale(.3) contrast(1.15) brightness(1.05)}
 .race-water.photo-finish .finish-line{box-shadow:0 0 0 4px rgba(255,255,255,.8),0 0 30px #fff}
 .photo-finish-card{margin:0 0 14px;padding:12px 16px;border-radius:12px;background:linear-gradient(110deg,#1d2433,#3b4a66);color:#fff;font-weight:800;font-size:16px;letter-spacing:.02em;box-shadow:0 8px 22px rgba(0,0,0,.25)}
 
@@ -434,9 +436,11 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 
 /* Ghost ducks go see-through; balloon-lifted ducks hang in the air */
 .racer.ghost .duck-body{opacity:.45;filter:brightness(1.2) drop-shadow(0 0 12px #dfe9ff)}
+.racer.grabbed .duck-body{animation:duck-grabbed .16s ease-in-out infinite alternate;filter:hue-rotate(-25deg) saturate(1.3) drop-shadow(0 0 6px rgba(160,80,220,.8))}
+@keyframes duck-grabbed{from{rotate:-8deg;translate:0 2px}to{rotate:8deg;translate:0 -2px}}
 .racer.lifted .duck-body{translate:0 -40px;rotate:-6deg;filter:drop-shadow(0 26px 6px rgba(0,0,0,.25))}
 /* Fog hides the rankings until the final sprint; night dims the river under the canvas glow */
 .race-water.weather-fog:not(.fog-lifted) .racer-rank{opacity:0}
 #track:has(.race-water.weather-fog:not(.fog-lifted)) #live-leaders{visibility:hidden}
-.race-water.weather-fog .river{filter:saturate(.7) brightness(1.04)}
-.race-water.weather-night .river{filter:brightness(.82) saturate(.85)}
+.race-water.weather-fog .river,.race-water.weather-fog .race-ground{filter:saturate(.7) brightness(1.04)}
+.race-water.weather-night .river,.race-water.weather-night .race-ground{filter:brightness(.82) saturate(.85)}
