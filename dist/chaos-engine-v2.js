@@ -30,15 +30,21 @@
     magnet: { lead: 0.3, leaderHop: 2 }, lightning: { stun: 1.4 }, rewind: { seconds: 2 },
     reverse: { time: 1.5, factor: -0.7 }, freeze: { time: 2 },
     missile: { knock: 5, stun: 1 }, bees: { time: 2, slow: 0.4 }, blackhole: { behind: 1 }, ghost: { time: 2, pass: 2, lead: 0.3, leaderHop: 2, spookTime: 1.2, spookSlow: 0.5 }, balloon: { time: 1.5 },
-    epic: { hookGap: 0.4, waveGap: 0.4, wavePush: 8, hookPull: 7, buoyPass: 2 }, // knockbacks: % of the course; buoyPass: ducks a v3 buoy bounce springs past
+    epic: { hookGap: 0.4, waveGap: 0.4, wavePush: 9, hookPull: 7, buoyPass: 2 }, // knockbacks: % of the course; buoyPass: ducks a v3 buoy bounce springs past
     tornado: { keep: 0.3, behind: 2, spin: 1.5 },
     bomb: { fuse: 2.5, knock: 5, stun: 1.2 }, dice: { leadBy: 0.3, leaderHop: 0.6, bustStun: 1 },
-    lullaby: { range: 6, min: 2, time: 1.5 }, hex: { time: 2, slow: 0.45 }, giant: { time: 2, boost: 0.55, range: 5, max: 3, knock: 2, spin: 0.6 },
+    lullaby: { range: 6, min: 2, time: 1.5 }, hex: { time: 2.4, slow: 0.45 }, giant: { time: 2, boost: 0.55, range: 5, max: 3, knock: 2, spin: 0.6 },
     mirrorV3: { glareTargets: 1, glareTime: 1.5, glareSlow: 0.5, reflectPass: 1, fallbackPass: 0 }, buoyV3: { fallbackPass: 1, blockPass: 0 }, swapV3: { daze: 0.8 },
+    // The ten big-show skills (chaos-v3 only).
+    kraken: { targets: 3, time: 1.8 }, dragon: { knock: 4, spin: 0.9, ride: 2, leaderHop: 2.5 }, meteor: { stun: 1.3 },
+    whale: { pass: 3, lead: 0.3, leaderHop: 3, flyTime: 0.9, range: 3, max: 2, knock: 2, spin: 0.6 },
+    ufo: { mistake: 0.25, lift: 1.5, selfLift: 0.5, behind: 0.3, lead: 0.3, leaderHop: 2 }, pirate: { shots: 3, knock: 7, spin: 0.6 },
+    wheel: { jackpot: 0.42, flip: 0.25, freeze: 0.23, freezeTime: 1.2, bustStun: 1.2, lead: 0.3, leaderHop: 3 },
+    anchor: { time: 1.5, factor: 0.5, pull: 1.5, pullTime: 1 }, volcano: { rocks: 3, upChance: 0.35, push: 2, knock: 3, spin: 0.6 }, fireworks: { rockets: 4, stun: 0.9 },
     // Duck traits (chaos-v3), dealt with the skills before the picks. Speeds are extra fractions of base speed.
     // Comeback luck (chaos-v3): per level, extra speed, a chance to escape bad river events, more weight for helpful ones.
     luck: { speed: 0.02, dodge: 0.3, help: 2, maxDodge: 0.75 },
-    trait: { steady: 0.035, early: 0.3, earlyUntil: 0.25, late: 0.07, lateFrom: 0.8, catchup: 0.08, tough: 0.6, dodge: 0.3, lucky: 0.75, revengePush: 2.5, revengeTime: 1,
+    trait: { steady: 0.035, early: 0.3, earlyUntil: 0.25, late: 0.07, lateFrom: 0.8, catchup: 0.08, tough: 0.6, dodge: 0.3, lucky: 0.75, revengePush: 1.6, revengeTime: 1,
       draft: 0.07, draftGap: 2, leader: 0.09, sleepySlow: 0.1, sleepyFast: 0.06, gambleEvery: 4, gambleTime: 2, gambleUp: 0.2, gambleDown: 0.1,
       heavy: 0.5, grudgeTime: 2.5, grudgeSlow: 0.3, surfer: 2.5, surferHelp: 3, charge: 0.35, chargeTime: 2.5, runeWeight: 2, runeTime: 2 }, // chaos-v3: victims land from `behind` % past the last duck up to `keep` of their lead over it
     rune: { boost: 0.4, time: 1.5, slow: 0.6 },
@@ -73,8 +79,18 @@
     { id: 'copycat', name: 'Đạo chích', icon: '🦝', description: 'Học lỏm skill vừa được dùng gần nhất và tung lại ngay cho mình.' },
     { id: 'dice', name: 'Xúc xắc', icon: '🎲', description: 'Gieo 1–6: ra 1 tự lật thuyền, 2–5 vượt 1–4 con, ra 6 vọt lên dẫn đầu.' },
     { id: 'lullaby', name: 'Ru ngủ', icon: '💤', description: 'Hát ru: mọi con trong tầm 6% quanh mình (ít nhất 2 con gần nhất) ngủ gật 1,5 giây.' },
-    { id: 'hex', name: 'Biến ếch', icon: '🪄', description: 'Biến con dẫn đầu thành ếch 2 giây, nhảy chậm còn 45%.' },
-    { id: 'giant', name: 'Nấm khổng lồ', icon: '🍄', description: 'Hóa khổng lồ 2 giây, nhanh hơn 55%, giẫm văng tối đa 3 con ngay phía trước.' }
+    { id: 'hex', name: 'Biến ếch', icon: '🪄', description: 'Biến con dẫn đầu thành ếch 2,4 giây, nhảy chậm còn 45%.' },
+    { id: 'giant', name: 'Nấm khổng lồ', icon: '🍄', description: 'Hóa khổng lồ 2 giây, nhanh hơn 55%, giẫm văng tối đa 3 con ngay phía trước.' },
+    { id: 'kraken', name: 'Bạch tuộc khổng lồ', icon: '🐙', description: 'Xúc tu trồi lên tóm 3 con dẫn đầu, giữ đứng im 1,8 giây.' },
+    { id: 'dragon', name: 'Rồng nước', icon: '🐉', description: 'Rồng nước cõng mình lao lên, quật mọi con phía trước lùi 4% và quay mòng mòng.' },
+    { id: 'meteor', name: 'Mưa sao băng', icon: '☄️', description: 'Sao băng trút xuống nửa đầu đoàn, con nào trúng lật thuyền 1,3 giây.' },
+    { id: 'whale', name: 'Cá voi phun nước', icon: '🐋', description: 'Cá voi trồi lên phun mình bay vượt 3 con; cú đáp tóe nước hất lùi 2 con gần nhất.' },
+    { id: 'ufo', name: 'Đĩa bay', icon: '🛸', description: 'Tia sáng hút con dẫn đầu lên trời rồi thả ở nửa sau đoàn. 25% bắt nhầm chính mình, thả lên tốp đầu.' },
+    { id: 'pirate', name: 'Tàu cướp biển', icon: '🏴‍☠️', description: 'Tàu cướp biển nã 3 phát đại bác vào 3 con ngay phía trước, mỗi con lùi 7% và quay mòng mòng.' },
+    { id: 'wheel', name: 'Vòng quay may mắn', icon: '🎡', description: 'Quay ra: độc đắc (lên sát con dẫn đầu), lộn đầu đuôi, đóng băng tốp đầu, hoặc tự lật thuyền.' },
+    { id: 'anchor', name: 'Mỏ neo', icon: '⚓', description: 'Quăng neo móc con dẫn đầu, kéo lê còn nửa tốc độ trong 1,5 giây; dây xích kéo mình lao lên.' },
+    { id: 'volcano', name: 'Núi lửa phun', icon: '🌋', description: 'Đá nham thạch rơi trúng 3 con bất kỳ (kể cả mình): hên thì bị hất lên, xui thì lùi và quay.' },
+    { id: 'fireworks', name: 'Pháo hoa', icon: '🎆', description: 'Bắn 4 quả pháo hoa rơi ngẫu nhiên, trúng con nào con đó lật 0,9 giây (mình cũng có thể dính).' }
   ]);
   const traits = freeze([
     { id: 'steady', name: 'Bền bỉ', icon: '💪', description: 'Nhanh hơn 3,5% suốt trận.' },
@@ -84,13 +100,13 @@
     { id: 'tough', name: 'Lì đòn', icon: '🦾', description: 'Bị lật, choáng, làm chậm ngắn hơn 40%.' },
     { id: 'dodgy', name: 'Né đòn', icon: '🤸', description: '30% né được đòn skill của vịt khác.' },
     { id: 'lucky', name: 'Tốt số', icon: '🍀', description: '75% thoát nạn sự kiện sông nước xấu.' },
-    { id: 'revenge', name: 'Phục thù', icon: '😤', description: 'Hết bị choáng thì nổi giận lao lên thêm 2,5%.' },
+    { id: 'revenge', name: 'Phục thù', icon: '😤', description: 'Hết bị choáng thì nổi giận lao lên thêm 1,6%.' },
     { id: 'draft', name: 'Hút gió', icon: '🌬️', description: 'Nhanh hơn 7% khi bám sát đuôi một con khác (cách dưới 2% đường đua).' },
     { id: 'leader', name: 'Đầu tàu', icon: '👑', description: 'Nhanh hơn 9% khi đang dẫn đầu.' },
     { id: 'sleepy', name: 'Ngủ nướng', icon: '😴', description: 'Chậm hơn 10% trong 1/3 đầu trận, nhanh hơn 6% trong 1/3 cuối.' },
     { id: 'gambler', name: 'Liều mạng', icon: '🎰', description: 'Cứ 4 giây tung đồng xu: 2 giây nhanh hơn 20% hoặc chậm đi 10%.' },
     { id: 'shell', name: 'Vỏ cứng', icon: '🐚', description: 'Miễn nhiễm bị làm chậm, biến ếch, ru ngủ, bơi ngược (đàn ong, gỗ trôi, gương chói, hộp xui…).' },
-    { id: 'heavy', name: 'Nặng ký', icon: '🏋️', description: 'Bị hất, kéo, cuốn lùi chỉ mất một nửa quãng (đổi chỗ và hố đen thì không).' },
+    { id: 'heavy', name: 'Nặng ký', icon: '🏋️', description: 'Bị hất, kéo, cuốn lùi chỉ mất một nửa quãng (đổi chỗ, hố đen, đĩa bay thì không).' },
     { id: 'grudge', name: 'Thù dai', icon: '😠', description: 'Con nào dùng skill nhắm thẳng vào mình mà trúng sẽ bị chậm 70% trong 2,5 giây (đòn diện rộng thì không).' },
     { id: 'surfer', name: 'Lướt sóng', icon: '🏄', description: 'Gió thuận, cá heo, ếch cõng đẩy mình xa gấp 2,5 lần, và hay chọn mình hơn.' },
     { id: 'charger', name: 'Sạc pin', icon: '🔋', description: 'Dùng skill xong thì nhanh hơn 35% trong 2,5 giây.' },
@@ -111,7 +127,7 @@
   const PASSIVE = new Set(['mirror', 'buoy']);
   // Skills that hit the leader or scramble the order: the only ones chaos-v3 saves for the last quarter.
   // Self-boosting skills (wings, swap, magnet, rewind, wave, flip) stay mid-race: late, they would all but decide the winner.
-  const PLOT_TWISTS = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook', 'bomb', 'hex']);
+  const PLOT_TWISTS = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook', 'bomb', 'hex', 'kraken', 'meteor', 'ufo', 'anchor']);
   // chaos-v3 = chaos-v2 + one weather per race. Weather adds hazards and reweights them.
   // chaos-v2 never touches this table, so its replays stay identical.
   const v3Hazards = freeze([
@@ -119,6 +135,28 @@
     { id: 'log', name: 'Khúc gỗ trôi', icon: '🪵' },
     { id: 'frog', name: 'Ếch bật nhảy', icon: '🐸' }
   ]);
+  // Maps (chaos-v3): one per race, drawn from the seed. Zones sit at fractions of a nominal course
+  // (duration × MAP_COURSE): `speed` scales movement inside a zone, `trip` is the chance a duck entering it gets knocked about.
+  // `bend` is drawing only: how the river winds on screen (px amplitude, number of waves).
+  const MAP_COURSE = 1.05;
+  const maps = freeze([
+    { id: 'jungle', name: 'Sông nhiệt đới', icon: '🌴', chance: 30, bend: { amp: 18, waves: 1.5 }, description: 'Khúc sông hiền hòa uốn nhẹ, không có chướng ngại.', zones: [] },
+    { id: 'rapids', name: 'Thác ghềnh', icon: '🏞️', chance: 20, bend: { amp: 26, waves: 2 }, description: 'Hai đoạn nước xiết: nhanh hơn 25%, nhưng lao vào thì 25% bị lật 0,8 giây.',
+      zones: [{ kind: 'rapids', from: .28, to: .38 }, { kind: 'rapids', from: .6, to: .7 }] },
+    { id: 'lotus', name: 'Đầm sen', icon: '🪷', chance: 18, bend: { amp: 12, waves: 1 }, description: 'Hai bãi sen dày: bơi qua chậm hơn 25%; ếch hay ra.',
+      zones: [{ kind: 'lotus', from: .22, to: .34 }, { kind: 'lotus', from: .55, to: .66 }], weights: { frog: 3 } },
+    { id: 'canal', name: 'Kênh phố cổ', icon: '🏯', chance: 16, bend: { amp: 0, waves: 0 }, description: 'Kênh thẳng tắp qua 3 cây cầu đá: 30% đụng cột cầu, quay 0,6 giây.',
+      zones: [{ kind: 'bridge', from: .25, to: .25 }, { kind: 'bridge', from: .5, to: .5 }, { kind: 'bridge', from: .75, to: .75 }] },
+    { id: 'ice', name: 'Sông băng', icon: '❄️', chance: 16, bend: { amp: 16, waves: 2.5 }, description: 'Ba mặt băng trơn: trượt nhanh hơn 15%, nhưng lao vào thì 30% bị xoay 0,6 giây.',
+      zones: [{ kind: 'ice', from: .2, to: .3 }, { kind: 'ice', from: .48, to: .58 }, { kind: 'ice', from: .74, to: .82 }] }
+  ]);
+  const TERRAIN = freeze({
+    rapids: { speed: 1.25, trip: .25, pose: 'capsized', time: .8, icon: '🌊', label: 'LẬT Ở THÁC GHỀNH!' },
+    lotus: { speed: .75, trip: 0 },
+    bridge: { speed: 1, trip: .3, pose: 'spinning', time: .6, icon: '🌉', label: 'ĐỤNG CỘT CẦU!' },
+    ice: { speed: 1.15, trip: .3, pose: 'spinning', time: .6, icon: '🧊', label: 'TRƯỢT BĂNG XOAY VÒNG!' }
+  });
+
   const weathers = freeze([
     { id: 'sunny', name: 'Nắng đẹp', icon: '☀️', chance: 32, extra: 0, weights: {} },
     { id: 'rain', name: 'Mưa rào', icon: '🌧️', chance: 20, extra: 1, weights: { whirlpool: 2, croc: 2, frog: 2 } },
@@ -195,7 +233,7 @@
     // Retired day rule "double" (old races only): every active skill gets a second slot.
     if (rules.doubleSkill) racers.filter(r => !PASSIVE.has(r.skill.id)).forEach(r => slots.push({ kind: 'skill', actorId: r.id, passive: false }));
     const hazardCount = (H.countMin + hazardRng.integer(H.countMax - H.countMin + 1) + (weather?.extra || 0)) * Math.ceil(count / 7) * (rules.hazardScale || 1);
-    const pickHazard = weather ? () => weighted(rules.hazards, h => weather.weights[h.id] || 1, hazardRng) : () => rules.hazards[hazardRng.integer(rules.hazards.length)];
+    const pickHazard = weather ? () => weighted(rules.hazards, h => (weather.weights[h.id] || 1) * (rules.mapWeights?.[h.id] || 1), hazardRng) : () => rules.hazards[hazardRng.integer(rules.hazards.length)];
     for (let i = 0; i < hazardCount; i++) slots.push({ kind: 'hazard', hazard: pickHazard() });
     const first = tuning.firstPhase, last = duration - 0.2, minGap = rules.gap ?? tuning.minGap;
     let stride = minGap; // seconds between twists; chaos-v3 shrinks it only when the field is too big to fit
@@ -211,8 +249,8 @@
     // keeps one order-changing skill (plus the finale rock in some races).
     if (rules.midSpread) {
       const active = slots.filter(sl => sl.kind === 'skill' && !sl.passive), plot = active.filter(sl => PLOT_TWISTS.has(racers[sl.actorId].skill.id));
-      // With no plot skill dealt, any active skill may close the race, but never the tornado (too decisive late).
-      const pool = plot.length ? plot : active.filter(sl => racers[sl.actorId].skill.id !== 'tornado');
+      // With no plot skill dealt, any active skill may close the race, but never the tornado or the dragon (too decisive late).
+      const pool = plot.length ? plot : active.filter(sl => !['tornado', 'dragon'].includes(racers[sl.actorId].skill.id));
       shuffled(pool, scheduleRng).slice(0, 1).forEach(sl => { sl.plot = true; });
       const ordinary = slots.filter(sl => !sl.plot), from = duration * .12, to = duration * .74;
       stride = Math.min(minGap, (to - from) / ordinary.length);
@@ -282,8 +320,9 @@
   const V3_TIER = { tornado: 'S', magnet: 'S', rewind: 'S', wave: 'S', blackhole: 'S', freeze: 'S',
     wings: 'A', lightning: 'A', hook: 'A', missile: 'A', giant: 'A', ghost: 'A',
     rocket: 'B', swap: 'B', torpedo: 'B', hex: 'B', dice: 'B', copycat: 'B', mirror: 'B', lullaby: 'B', buoy: 'B',
-    balloon: 'C', reverse: 'C', bomb: 'C', flip: 'C', bees: 'C', banana: 'C' };
-  const V3_RULES = freeze({ skills: freeze([...skills, ...v3Skills].map(s => ({ ...s, ...(V3_TEXT[s.id] ? { description: V3_TEXT[s.id] } : {}), tier: V3_TIER[s.id] }))), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 2, traits });
+    balloon: 'C', reverse: 'C', bomb: 'C', flip: 'C', bees: 'C', banana: 'C',
+    kraken: 'S', dragon: 'S', meteor: 'S', whale: 'A', ufo: 'A', pirate: 'A', wheel: 'B', anchor: 'B', volcano: 'C', fireworks: 'C' };
+  const V3_RULES = freeze({ maps: true, skills: freeze([...skills, ...v3Skills].map(s => ({ ...s, ...(V3_TEXT[s.id] ? { description: V3_TEXT[s.id] } : {}), tier: V3_TIER[s.id] }))), hazards: freeze([...hazards, ...v3Hazards]), weather: true, rockLateChance: 0, lateGuaranteePrefersRock: false, smartTargets: true, epic: true, finaleChance: .4, midSpread: true, gap: 2, traits });
   // Skills and traits for each duck, dealt before the picks (chaos-v3); the same seed always deals the same lineup.
   function dealLineup(rules, count, seed) {
     const deckOf = (list, salt) => shuffled(Array.from({ length: Math.ceil(count / list.length) }, () => list).flat(), randomFor(seed, salt)).slice(0, count);
@@ -314,6 +353,10 @@
     const scheduleRng = randomFor(seed, 0x53434832);
     const hazardRng = randomFor(seed, 0x48415a32);
     const weather = rules.weather ? weighted(weathers, w => (R.noSun && w.id === 'sunny' ? 0 : w.chance), randomFor(seed, 0x57544852)) : null;
+    // chaos-v3 map: its own random streams, so nothing else in the race shifts.
+    const map = rules.maps ? weighted(maps, m => m.chance, randomFor(seed, 0x4d415031)) : null;
+    const mapRng = map ? randomFor(seed, 0x4d415053) : null;
+    const zones = map ? map.zones.map(z => ({ ...z, ...TERRAIN[z.kind], fromD: z.from * duration * MAP_COURSE, toD: z.to * duration * MAP_COURSE })) : [];
     const runeRng = randomFor(seed, 0x52554e32);
     const effectRng = randomFor(seed, 0x45464632);
     const finaleRng = R.finaleChance ? randomFor(seed, 0x46494e33) : null;
@@ -333,7 +376,7 @@
       speeds: Array.from({ length: segmentCount }, () => 0.65 + motionRng.unit() * 0.70),
       distance: 0, baseDistance: 0, boost: null, rocketUntil: 0, runeUntil: 0, surges: [],
       impairUntil: 0, impairKind: null, impairFactor: 1, immuneUntil: 0,
-      guard: null, mirror: false, flyUntil: 0, swapUntil: 0, ghostUntil: 0, skillUsed: false, trait: null, giantUntil: 0, luck: 0, chargeUntil: 0, coins: null
+      guard: null, mirror: false, flyUntil: 0, swapUntil: 0, ghostUntil: 0, skillUsed: false, trait: null, giantUntil: 0, luck: 0, chargeUntil: 0, coins: null, crossed: []
     }));
     const boostCount = 1 + motionRng.integer(Math.min(count - 1, Math.ceil(count * 0.55)));
     const boosts = shuffled(ids, motionRng).slice(0, boostCount).map(id => {
@@ -352,7 +395,7 @@
       if (racer.skill.id === 'buoy') racer.guard = 'buoy';
     });
 
-    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, R, finaleRng).map((slot, index) => ({ ...slot, index }));
+    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, map?.weights ? { ...R, mapWeights: map.weights } : R, finaleRng).map((slot, index) => ({ ...slot, index }));
     const runeCount = Math.max(3, Math.ceil(count / 3)) * (R.runeScale || 1);
     for (let i = 0; i < runeCount; i++) {
       // chaos-v3: lucky ducks find runes more often (all weights 1 without luck: the same draw as before).
@@ -767,6 +810,127 @@
         }
         return { affectedIds: ahead.map(r => r.id), protectedIds: ahead.filter(shielded).map(r => r.id), outcomes, outcome: 'giant', label: 'NẤM KHỔNG LỒ GIẪM NÁT!', before, after: snapshot([actor, ...ahead]) };
       },
+      // ---- the ten big-show skills (chaos-v3) ----
+      kraken(actor) {
+        const K = tuning.kraken, top = topRivals(actor, K.targets), outcomes = {};
+        for (const target of top) {
+          const defense = defend(target, actor, true);
+          if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'grabbed', K.time)); outcomes[target.id] = 'reflected'; }
+          else outcomes[target.id] = defense ? defense.outcome : impair(target, 'grabbed', K.time);
+        }
+        const results = Object.values(outcomes);
+        return { affectedIds: top.map(r => r.id), outcomes, label: 'BẠCH TUỘC TÓM GỌN TỐP ĐẦU!',
+          outcome: results.includes('hit') ? 'grabbed' : results.includes('reflected') ? 'reflected' : results[0] ?? 'none' };
+      },
+      dragon(actor, ranks) {
+        // Area effect: every duck ahead is swept back and spun; guarded ones sit it out. The leader rides it instead.
+        const D = tuning.dragon, ahead = ranked().filter(r => r !== actor && ranks[r.id] < ranks[actor.id]), before = snapshot([actor, ...ahead]), outcomes = {};
+        for (const r of ahead) { if (shielded(r)) { outcomes[r.id] = 'protected'; continue; } jump(r, r.distance - pct(D.knock)); outcomes[r.id] = impair(r, 'spinning', D.spin); }
+        jump(actor, actor.distance + pct(ahead.length ? D.ride : D.leaderHop)); // the dragon carries its caster forward
+        return { affectedIds: ahead.map(r => r.id), protectedIds: ahead.filter(shielded).map(r => r.id), outcomes, outcome: ahead.length ? 'swept' : 'boost',
+          label: ahead.length ? 'RỒNG NƯỚC QUẬT TUNG MẶT SÔNG!' : 'RỒNG NƯỚC CÕNG BAY LÊN!', before, after: snapshot([actor, ...ahead]) };
+      },
+      meteor(actor) {
+        // Rains on the front half (never on the caster). Mirrors can't send a meteor back.
+        const top = ranked().slice(0, Math.ceil(count / 2)).filter(r => r !== actor), outcomes = {};
+        if (!top.length) top.push(ranked().find(r => r !== actor));
+        for (const target of top) { const defense = defend(target, actor, false); outcomes[target.id] = defense ? defense.outcome : impair(target, 'capsized', tuning.meteor.stun); }
+        const results = Object.values(outcomes);
+        return { affectedIds: top.map(r => r.id), outcomes, label: 'MƯA SAO BĂNG TRÚT XUỐNG TỐP ĐẦU!', outcome: results.includes('hit') ? 'hit' : results[0] ?? 'none' };
+      },
+      whale(actor, ranks) {
+        const W = tuning.whale, rank = ranks[actor.id], start = snapshot(racers), pass = Math.min(W.pass, rank - 1);
+        jump(actor, pass ? landAhead(rank - pass, W.lead) : actor.distance + pct(W.leaderHop));
+        actor.flyUntil = tick(now + W.flyTime) / HZ;
+        const land = actor.distance, near = racers.filter(r => r !== actor && Math.abs(r.distance - land) <= pct(W.range))
+          .sort((a, b) => Math.abs(a.distance - land) - Math.abs(b.distance - land) || a.id - b.id).slice(0, W.max), outcomes = {};
+        for (const r of near) { if (shielded(r)) { outcomes[r.id] = 'protected'; continue; } jump(r, r.distance - pct(W.knock)); outcomes[r.id] = impair(r, 'spinning', W.spin); }
+        const moved = [actor, ...near];
+        return { affectedIds: near.map(r => r.id), protectedIds: near.filter(shielded).map(r => r.id), outcomes, outcome: 'fly', label: 'CÁ VOI PHUN BAY LÊN TRỜI!',
+          before: Object.fromEntries(moved.map(r => [r.id, start[r.id]])), after: snapshot(moved) };
+      },
+      ufo(actor, ranks) {
+        const U = tuning.ufo, half = Math.ceil(count / 2);
+        if (effectRng.unit() < U.mistake) {
+          // Beams up its own caster by mistake and drops it near the front.
+          const before = snapshot([actor]), rank = ranks[actor.id];
+          jump(actor, rank > 2 ? landAhead(2, U.lead) : actor.distance + pct(U.leaderHop));
+          impair(actor, 'lifted', U.selfLift);
+          return { targetId: actor.id, outcome: 'mistake', label: 'ĐĨA BAY BẮT NHẦM... THẢ LÊN TỐP ĐẦU!', before, after: snapshot([actor]) };
+        }
+        const target = ranked().find(r => r !== actor), before = snapshot([actor, target]);
+        const drop = duck => { const pool = ranked().filter(r => r !== duck).slice(half - 1), spot = pool[effectRng.integer(pool.length)];
+          jump(duck, Math.min(duck.distance, spot.distance - pct(U.behind)), true); return impair(duck, 'lifted', U.lift); }; // an abduction, not a knock-back: exact even for a heavy duck
+        const result = strike(actor, target, () => ({ outcome: (drop(target), 'hit'), label: 'ĐĨA BAY BẮT CÓC CON DẪN ĐẦU!' }), () => drop(actor));
+        return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
+      },
+      pirate(actor, ranks) {
+        // Broadside at the ducks right ahead (the leader fires back at the ones right behind it).
+        const P = tuning.pirate, rank = ranks[actor.id], order = ranked();
+        const targets = rank === 1 ? order.slice(1, 1 + P.shots) : order.slice(Math.max(0, rank - 1 - P.shots), rank - 1);
+        const before = snapshot([actor, ...targets]), outcomes = {};
+        let backfire = null;
+        for (const t of targets) {
+          const defense = defend(t, actor, true);
+          if (defense?.outcome === 'reflected') {
+            if (!backfire) { jump(actor, actor.distance - pct(P.knock)); backfire = impair(actor, 'spinning', P.spin); }
+            reflect(t, actor, backfire); outcomes[t.id] = 'reflected';
+          } else if (defense) outcomes[t.id] = defense.outcome;
+          else { jump(t, t.distance - pct(P.knock)); impair(t, 'spinning', P.spin); outcomes[t.id] = 'hit'; }
+        }
+        const results = Object.values(outcomes);
+        return { affectedIds: targets.map(r => r.id), outcomes, label: 'TÀU CƯỚP BIỂN NÃ ĐẠI BÁC!',
+          outcome: results.includes('hit') ? 'hit' : results.includes('reflected') ? 'reflected' : results[0] ?? 'none', before, after: snapshot([actor, ...targets]) };
+      },
+      wheel(actor, ranks) {
+        const W = tuning.wheel, roll = effectRng.unit(), rank = ranks[actor.id];
+        if (roll < W.jackpot) {
+          const before = snapshot([actor]);
+          jump(actor, rank > 2 ? landAhead(2, W.lead) : rank === 2 ? atRank(1).distance + pct(W.lead) : actor.distance + pct(W.leaderHop));
+          return { segment: 'jackpot', outcome: 'jackpot', label: 'VÒNG QUAY: TRÚNG ĐỘC ĐẮC!', before, after: snapshot([actor]) };
+        }
+        if (roll < W.jackpot + W.flip) {
+          const order = ranked(), top = order[0], last = order[count - 1], before = snapshot([top, last]);
+          const [a, b] = [top.distance, last.distance]; jump(top, b, true); jump(last, a, true);
+          top.swapUntil = last.swapUntil = tick(now + 0.7) / HZ;
+          return { segment: 'flip', outcome: 'swapped', affectedIds: [top.id, last.id], label: 'VÒNG QUAY: LỘN ĐẦU ĐUÔI!', before, after: snapshot([top, last]) };
+        }
+        if (roll < W.jackpot + W.flip + W.freeze) {
+          const top = ranked().filter(r => r !== actor).slice(0, 3), outcomes = {};
+          for (const r of top) outcomes[r.id] = shielded(r) ? 'protected' : impair(r, 'frozen', W.freezeTime);
+          return { segment: 'freeze', outcome: 'frozen', affectedIds: top.map(r => r.id), protectedIds: top.filter(shielded).map(r => r.id), outcomes, label: 'VÒNG QUAY: ĐÓNG BĂNG TỐP ĐẦU!' };
+        }
+        return { segment: 'bust', outcome: 'bust', effect: impair(actor, 'capsized', W.bustStun), label: 'VÒNG QUAY: TRƯỢT! TỰ LẬT THUYỀN!' };
+      },
+      anchor(actor) {
+        const A = tuning.anchor, [target] = topRivals(actor, 1, 'slow'), before = snapshot([actor, target]);
+        const result = strike(actor, target, () => {
+          const outcome = impair(target, 'slow', A.time, A.factor);
+          if (outcome === 'hit') surge(actor, pct(A.pull), A.pullTime);
+          return { outcome, label: outcome === 'hit' ? 'MỎ NEO MÓC CHẶT, KÉO LÊ!' : LABEL.immune };
+        }, () => impair(actor, 'slow', A.time, A.factor));
+        return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
+      },
+      volcano() {
+        // Lava rocks land on random ducks, the caster included: a lucky one is tossed ahead, the rest knocked back and spun.
+        const V = tuning.volcano, hits = shuffled(racers, effectRng).slice(0, Math.min(V.rocks, count)), before = snapshot(hits), outcomes = {};
+        for (const r of hits) {
+          if (shielded(r)) { outcomes[r.id] = 'protected'; continue; }
+          if (effectRng.unit() < V.upChance) { jump(r, r.distance + pct(V.push)); outcomes[r.id] = 'boost'; }
+          else { jump(r, r.distance - pct(V.knock)); outcomes[r.id] = impair(r, 'spinning', V.spin); }
+        }
+        return { affectedIds: hits.map(r => r.id), protectedIds: hits.filter(shielded).map(r => r.id), outcomes, outcome: 'erupted', label: 'NÚI LỬA PHUN TRÀO!', before, after: snapshot(hits) };
+      },
+      fireworks(actor) {
+        // Four shells pick distinct ducks; the caster is half as likely to be under one.
+        const F = tuning.fireworks, pool = [...racers], picked = [], outcomes = {};
+        while (picked.length < Math.min(F.rockets, count)) { const r = weighted(pool, x => (x === actor ? 1 : 2), effectRng); picked.push(r); pool.splice(pool.indexOf(r), 1); }
+        for (const r of picked) {
+          const defense = r === actor ? null : defend(r, actor, false);
+          outcomes[r.id] = defense ? defense.outcome : impair(r, 'capsized', F.stun);
+        }
+        return { affectedIds: picked.map(r => r.id), outcomes, outcome: 'hit', label: 'PHÁO HOA RỰC TRỜI!' };
+      },
       buoy(actor) {
         if (actor.guard === 'buoy') actor.guard = null;
         return { outcome: 'fallback', label: rules.epic ? 'PHAO NẢY TƯNG TƯNG!' : 'PHAO BƠM HƠI BẬT LÊN!', ...(rules.epic ? bounce(actor, tuning.buoyV3.fallbackPass) : bounce(actor)) };
@@ -913,7 +1077,7 @@
           | (impaired && r.impairKind === 'reversed' ? 256 : 0) | (impaired && r.impairKind === 'frozen' ? 512 : 0)
           | (time < r.ghostUntil ? 1024 : 0) | (impaired && r.impairKind === 'lifted' ? 2048 : 0);
         if (marks) marks[index] = (impaired && r.impairKind === 'asleep' ? 1 : 0) | (impaired && r.impairKind === 'hex' ? 2 : 0)
-          | (time < r.giantUntil ? 4 : 0) | (bombs.some(b => b.holder === r) ? 8 : 0) | (r.mirror ? 16 : 0);
+          | (time < r.giantUntil ? 4 : 0) | (bombs.some(b => b.holder === r) ? 8 : 0) | (r.mirror ? 16 : 0) | (impaired && r.impairKind === 'grabbed' ? 32 : 0);
       }
     }
     // Trait speed bonus (chaos-v3); `behind` holds the ids in the back half this tick.
@@ -941,11 +1105,22 @@
       const pulse = pulseIntegral(racer.boost, end) - pulseIntegral(racer.boost, start);
       let movement = base / HZ * (1 + extra) + pulse;
       for (const s of racer.surges) if (start >= (s.from || 0) && start < s.until) movement += s.rate / HZ;
+      if (zones.length) { const zone = zones.find(z => racer.distance >= z.fromD && racer.distance < z.toD); if (zone) movement *= zone.speed; }
       if (start < racer.impairUntil) movement *= racer.impairFactor;
       racer.distance = Math.max(0, racer.distance + movement); // reversed ducks swim backwards
       racer.baseDistance += base / HZ;
     }
 
+    // A duck entering a zone (once per zone) may be knocked about; ghosts drift through.
+    function crossZones() {
+      for (const racer of racers) zones.forEach((zone, z) => {
+        if (!zone.trip || racer.crossed[z] || racer.distance < zone.fromD) return;
+        racer.crossed[z] = true;
+        if (mapRng.unit() >= zone.trip || now < racer.ghostUntil) return;
+        const before = snapshot([racer]);
+        if (impair(racer, zone.pose, zone.time) === 'hit') emit({ type: 'terrain', terrain: zone.kind, actorId: racer.id, icon: zone.icon, label: zone.label, outcome: 'hit', before, after: snapshot([racer]) });
+      });
+    }
     let cursor = 0;
     record(0);
     for (let step = 1; step <= steps; step++) {
@@ -955,6 +1130,7 @@
       if (drafters.length) { const gap = pct(tuning.trait.draftGap); drafting = new Set(drafters.filter(d => racers.some(o => o !== d && o.distance > d.distance && o.distance - d.distance <= gap)).map(d => d.id)); }
       for (const racer of racers) move(racer, start, end, segment);
       currentStep = step; now = end;
+      if (zones.length) crossZones();
       for (const trap of [...traps]) if (trap.victim.distance >= trap.at) { traps.splice(traps.indexOf(trap), 1); slip(trap); }
       if (bombs.length) tickBombs();
       while (cursor < schedule.length && schedule[cursor].tick === step) apply(schedule[cursor++]);
@@ -972,6 +1148,7 @@
     const results = freeze(finalOrder.map(racer => ({ ...publicRacer(racer), rank: finalRanks[racer.id], baseDistance: racer.baseDistance, finalDistance: racer.distance })));
     return Object.freeze({
       version, seed, duration, sprintStart, ...(weather ? { weather } : {}), ...(dealt?.rule ? { rule: dealt.rule } : {}),
+      ...(map ? { map: { id: map.id, name: map.name, icon: map.icon, description: map.description, bend: map.bend, zones: zones.map(z => ({ kind: z.kind, from: z.fromD / finishDistance, to: z.toD / finishDistance })) } } : {}),
       racers: publicRacers, results, boosts: freeze(boosts.map(b => ({ ...b }))), events: freeze(events),
       sample(elapsedSeconds) {
         if (!Number.isFinite(elapsedSeconds)) throw new TypeError('Thời gian đã chạy phải hữu hạn.');
@@ -994,13 +1171,13 @@
           let progress = positions[racer.id].distance / finishDistance;
           if (time < duration || finalRanks[racer.id] !== 1) progress = Math.min(progress, 1 - Number.EPSILON * finalRanks[racer.id]);
           const capsized = !!(state & 32), spinning = !!(state & 64), frozen = !!(state & 512), lifted = !!(state & 2048);
-          const mark = marks ? marks[left * count + racer.id] : 0, asleep = !!(mark & 1);
+          const mark = marks ? marks[left * count + racer.id] : 0, asleep = !!(mark & 1), grabbed = !!(mark & 32);
           return { ...publicRacers[racer.id], rank: finalRanks[racer.id], currentRank: currentRanks[racer.id], progress,
             boosting: !!(state & 1), slowed: !!(state & 2), shielded: !!(state & 4), swapping: !!(state & 8), skillUsed: !!(state & 16),
             // Key order is part of the chaos-v2 golden hash: keep stunned, pose, flying.
-            stunned: capsized || spinning || frozen || lifted || asleep,
+            stunned: capsized || spinning || frozen || lifted || asleep || grabbed,
             pose: capsized ? 'capsized' : spinning ? 'spinning' : state & 256 ? 'reversed' : frozen ? 'frozen' : lifted ? 'lifted'
-              : asleep ? 'asleep' : mark & 2 ? 'hex' : state & 1024 ? 'ghost' : mark & 4 ? 'giant' : null,
+              : asleep ? 'asleep' : grabbed ? 'grabbed' : mark & 2 ? 'hex' : state & 1024 ? 'ghost' : mark & 4 ? 'giant' : null,
             flying: !!(state & 128),
             // chaos-v3 only (absent in chaos-v2, whose sample shape is pinned): who holds a bomb, whose mirror is up.
             ...(marks ? { bomb: !!(mark & 8), mirror: !!(mark & 16) } : {}) };
@@ -1009,7 +1186,7 @@
     });
   }
 
-  const v3 = Object.freeze({ version: 'chaos-v3', skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, dayRules, retiredDayRules: retiredRules,
+  const v3 = Object.freeze({ version: 'chaos-v3', skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, maps, dayRules, retiredDayRules: retiredRules,
     // lineup: { skills: [id per duck], traits: [id per duck] } as shown before the picks; omitted = dealt from the seed.
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed, lineup),
     deal: (count, seed = newSeed()) => {

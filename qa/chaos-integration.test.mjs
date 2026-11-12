@@ -236,6 +236,8 @@ test('new races carry a weather that the river shows', async () => {
     const race = game.window.DuckChaosEngineV3.createRace(names.map((_, id) => A.name(id)), 25, active.seed, active.lineup); // the lineup carries the day rule, which can change the weather
     assert.ok(game.$('weather-label').textContent.includes(race.weather.name));
     assert.ok(game.window.document.querySelector('.race-water').classList.contains(`weather-${race.weather.id}`));
+    assert.ok(game.$('map-name').textContent.includes(race.map.name.toUpperCase()), 'the river header names the map');
+    assert.ok(game.window.document.querySelector('.race-water').classList.contains(`map-${race.map.id}`));
     noErrors(game);
   } finally { await game.close(); }
 });

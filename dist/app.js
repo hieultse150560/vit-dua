@@ -98,6 +98,7 @@
     f.append(node('p','muted','Hạng cho biết hiệu ứng mạnh cỡ nào với chủ vịt. Hạng S chỉ thắng nhỉnh hơn hạng C khoảng 15–20%, nên vịt hạng nào cũng có cửa.'));
     for(const t of ['S','A','B','C']){const list=C3.skills.filter(s=>s.tier===t),h=node('h3');h.append(tierBadge(t),` Hạng ${t} · ${TIER_NOTE[t]} · ${list.length} skill`);f.append(h,ruleList(list));}
     f.append(node('h3','',`${C3.traits.length} đặc tính · Mỗi vịt một cái, tác dụng cả trận`),ruleList(C3.traits));
+    f.append(node('h3','',`Bản đồ · Mỗi trận bốc một trong ${C3.maps.length} map`),ruleList(C3.maps));
     f.append(node('h3','','Luật đặc biệt · Mỗi ngày đua một luật'),ruleList(C3.dayRules.map(r=>r.id===today?{...r,name:`${r.name} · hôm nay`}:r)));
     $('skills-content').replaceChildren(f);open('skills-dialog');
   }
@@ -239,7 +240,7 @@
     $('event-feed').hidden=!chaotic;
     $('event-history').replaceChildren();$('event-feed').replaceChildren();
     $('skill-reveal').replaceChildren(...(chaotic?race.racers.map(r=>{const owner=players.find(p=>current.picks[p.id]===r.id),chip=node('div','skill-chip');chip.dataset.duckId=String(r.id);chip.dataset.skillId=r.skill.id;chip.title=r.talent?`${r.skill.description} · Thiên phú: ${r.talent.description}`:r.skill.description;chip.append(node('strong','skill-owner',`${owner?.name||A.name(r.id)} · #${r.id+1}`),node('span','skill-name',`${r.skill.icon} ${r.skill.name}`));skillNodes[r.id]=chip;return chip;}):[]));
-    visuals?.destroy();showWeather();visuals=window.DuckRaceVisuals?.create({lite:slowFx,container:document.querySelector('.race-water'),river:$('river'),nodes,reduced:()=>reduced.matches,seed:race.seed,weather:race.weather?.id,duration:race.duration})||null;
+    visuals?.destroy();showWeather();visuals=window.DuckRaceVisuals?.create({lite:slowFx,container:document.querySelector('.race-water'),river:$('river'),nodes,reduced:()=>reduced.matches,seed:race.seed,weather:race.weather?.id,duration:race.duration,bend:bendAt,map:race.map||null})||null;
     $('river').scrollTop=0;measure();
   }
   function eventText(event,picks=current.picks){
@@ -250,7 +251,7 @@
   }
   function eventItem(event,picks){const item=node('li','race-event',`${event.time.toFixed(1)}s · ${eventText(event,picks)}`);item.dataset.eventId=String(event.id);item.dataset.eventTime=String(event.time);return item;}
   // Twist banner: newest twist in big type; simultaneous twists are counted.
-  const TWIST_TONE={blocked:'guard',reflected:'guard',immune:'guard',swapped:'swap',shuffled:'swap',fly:'boost',boost:'boost'}, TONE_HZ={harm:220,boost:880,swap:660,guard:520};
+  const TWIST_TONE={blocked:'guard',reflected:'guard',immune:'guard',swapped:'swap',shuffled:'swap',fly:'boost',boost:'boost',jackpot:'boost',mistake:'boost'}, TONE_HZ={harm:220,boost:880,swap:660,guard:520};
   function twistTone(event){return TWIST_TONE[event.outcome]||(event.outcome==='fallback'&&event.skill!=='mirror'?'boost':'harm');}
   function showBanner(list){
     const event=list.at(-1),kind=twistTone(event),banner=$('twist-banner'),icon=event.icon||'✦',full=eventText(event);
@@ -296,6 +297,8 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     const water=document.querySelector('.race-water'),w=race?.weather;
     water.classList.remove('weather-sunny','weather-rain','weather-wind','weather-storm','weather-fog','weather-night','fog-lifted');
     if(w)water.classList.add(`weather-${w.id}`);$('weather-label').textContent=w?`${w.icon} ${w.name}`:'';
+    const m=race?.map;water.classList.remove('map-jungle','map-rapids','map-lotus','map-canal','map-ice','winding');if(m){water.classList.add(`map-${m.id}`);if(m.bend?.amp)water.classList.add('winding');}
+    $('map-name').textContent=m?`${m.icon} ${m.name.toUpperCase()}`:'VƯỜN NHIỆT ĐỚI';$('map-name').title=m?.description||'';
     const rule=race?.rule;$('rule-label').textContent=rule?`${rule.icon} ${rule.name}`:'';$('rule-label').title=rule?.description||'';
   }
   // Synthesized sound for chaos-v2/v3 twists; returns false so callers fall back to a plain tone.
@@ -324,11 +327,11 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   }
   // Jumps are instant in the simulation; on screen the ducks glide there (eased) so a wave
   // visibly sweeps them back and a hook visibly reels the leader in. Results are untouched.
-  const GLIDE={hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25},tornado:{delay:.07,dur:.2},blackhole:{delay:.1,dur:.1},ghost:{delay:.03,dur:.2},buoy:{delay:0,dur:.25},dice:{delay:.12,dur:.15},giant:{delay:.05,dur:.18}};let glides={};
+  const GLIDE={whale:{delay:.06,dur:.2},ufo:{delay:.15,dur:.12},dragon:{delay:.05,dur:.22},pirate:{delay:.1,dur:.15},volcano:{delay:.1,dur:.17},wheel:{delay:.17,dur:.1},hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25},tornado:{delay:.07,dur:.2},blackhole:{delay:.1,dur:.1},ghost:{delay:.03,dur:.2},buoy:{delay:0,dur:.25},dice:{delay:.12,dur:.15},giant:{delay:.05,dur:.18}};let glides={};
   // Ducks thrown back by a tornado are lifted and twirled; by a black hole they shrink into it and pop out behind
   // (CSS, real time; matches the 1.8 s slow motion).
   // A buoy bounce hops the duck forward three times. [class, direction of the move it decorates]
-  const BODY_FX={tornado:['swept',-1],blackhole:['swallowed',-1],buoy:['bouncy',1]};
+  const BODY_FX={tornado:['swept',-1],blackhole:['swallowed',-1],buoy:['bouncy',1],ufo:['swept',-1]};
   function sweep(event){
     const [cls,dir]=BODY_FX[event.copied||event.skill]||[];if(!cls||reduced.matches)return;
     for(const [id,d] of Object.entries(event.after||{}))if((d-event.before[id])*dir>1e-9&&nodes[id]){const n=nodes[id];n.classList.remove(cls);void n.offsetWidth;n.classList.add(cls);setTimeout(()=>n.classList.remove(cls),slowmoMs()+100);}
@@ -350,7 +353,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function flashHits(event){
     if(reduced.matches)return;
     const hit=event.outcomes?Object.entries(event.outcomes).filter(([,o])=>o==='hit').map(([id])=>Number(id))
-      :event.outcome==='hit'||event.outcome==='bust'?[event.type==='hazard'||event.outcome==='bust'?event.actorId:event.targetId]:event.outcome==='reflected'?[event.actorId]:[];
+      :event.outcome==='hit'||event.outcome==='bust'?[event.type==='hazard'||event.type==='terrain'||event.outcome==='bust'?event.actorId:event.targetId]:event.outcome==='reflected'?[event.actorId]:[];
     for(const id of hit)if(nodes[id]){const n=nodes[id];n.classList.remove('hit-flash');void n.offsetWidth;n.classList.add('hit-flash');setTimeout(()=>n.classList.remove('hit-flash'),400);}
   }
   function startGlides(event,pre){
@@ -359,6 +362,8 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     const g=GLIDE[event.copied||event.skill]||{delay:0,dur:.18};
     for(const [id,d] of Object.entries(event.after))if(Math.abs(d-event.before[id])>1e-9&&pre[id])glides[id]={from:pre[id].progress,start:event.time+g.delay,end:event.time+g.delay+g.dur};
   }
+  // Winding river (drawing only): ducks bob along the map's bend, straight at the start and at the finish.
+  const bendAt=p=>{const b=race?.map?.bend;if(!b?.amp)return 0;const u=Math.max(0,Math.min(1,p));return b.amp*Math.sin(u*Math.PI*2*b.waves+.6)*Math.sin(u*Math.PI);};
   function glided(r,elapsed){
     const g=glides[r.id];if(!g)return r.progress;
     if(elapsed>=g.end){delete glides[r.id];return r.progress;}
@@ -372,7 +377,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     if(fresh.length)showBanner(fresh);else if(bannerUntil&&elapsed>=bannerUntil)hideBanner();
     if(changed){const recent=race.events.slice(Math.max(0,eventCursor-3),eventCursor);$('event-feed').replaceChildren(...recent.map(e=>node('p','live-event',eventText(e))));}
     const visible=runeSpawns.filter(e=>e.time<=elapsed&&elapsed<e.pickupTime),key=visible.map(e=>e.id).join('|');
-    if(key!==runeMarkerKey){runeMarkerKey=key;document.querySelectorAll('.rune-marker').forEach(e=>e.remove());for(const rune of visible){const runway=nodes[rune.actorId]?.parentElement;if(!runway)continue;const marker=node('span','rune-marker',rune.icon);marker.title=rune.label;marker.style.left=`${Math.max(0,Math.min(1,rune.progress))*100}%`;runway.append(marker);}}
+    if(key!==runeMarkerKey){runeMarkerKey=key;document.querySelectorAll('.rune-marker').forEach(e=>e.remove());for(const rune of visible){const runway=nodes[rune.actorId]?.parentElement;if(!runway)continue;const marker=node('span','rune-marker',rune.icon);marker.title=rune.label;marker.style.left=`${Math.max(0,Math.min(1,rune.progress))*100}%`;marker.style.translate=`0 ${bendAt(rune.progress).toFixed(1)}px`;runway.append(marker);}}
   }
   function measure(){runwayWidth=$('lanes').querySelector('.runway')?.getBoundingClientRect().width||0;visuals?.resize();if(race&&current?.active)draw(race.sample(current.active.elapsed));}
   function start(){
@@ -391,12 +396,12 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
       const view=racerViews[r.id];if(!view)continue;const e=view.element;
       // Exact engine interpolation at the display refresh rate. No CSS easing
       // on this transform: easing chases a moving target and makes overtakes lag.
-      e.style.transform=`translate3d(${(glided(r,current.active?.elapsed??race.duration)*runwayWidth).toFixed(3)}px,0,0)`;
+      const p=glided(r,current.active?.elapsed??race.duration);e.style.transform=`translate3d(${(p*runwayWidth).toFixed(3)}px,${bendAt(p).toFixed(2)}px,0)`;
       const boosting=!!r.boosting&&phase==='running',leading=current.active.elapsed>0&&r.currentRank===1;
-      const flags=(boosting?1:0)|(leading?2:0)|(r.slowed?4:0)|(r.shielded?8:0)|(r.swapping?16:0)|(r.skillUsed?32:0)|(r.pose==='capsized'?64:0)|(r.pose==='spinning'?128:0)|(r.flying?256:0)|(r.pose==='reversed'?512:0)|(r.pose==='frozen'?1024:0)|(r.pose==='ghost'?2048:0)|(r.pose==='lifted'?4096:0)|(r.pose==='asleep'?8192:0)|(r.pose==='hex'?16384:0)|(r.pose==='giant'?32768:0)|(r.bomb?65536:0)|(r.mirror?131072:0);
-      if(flags!==view.flags){view.flags=flags;e.classList.toggle('boosting',boosting);e.classList.toggle('leading',leading);e.classList.toggle('slowed',!!r.slowed);e.classList.toggle('shielded',!!r.shielded);e.classList.toggle('swapping',!!r.swapping);e.classList.toggle('skill-used',!!r.skillUsed);e.classList.toggle('stunned',!!r.stunned);e.classList.toggle('capsized',r.pose==='capsized');e.classList.toggle('spinning',r.pose==='spinning');e.classList.toggle('flying',!!r.flying);e.classList.toggle('reversed',r.pose==='reversed');e.classList.toggle('frozen',r.pose==='frozen');e.classList.toggle('ghost',r.pose==='ghost');e.classList.toggle('lifted',r.pose==='lifted');e.classList.toggle('asleep',r.pose==='asleep');e.classList.toggle('hex',r.pose==='hex');e.classList.toggle('giant',r.pose==='giant');e.classList.toggle('has-bomb',!!r.bomb);e.classList.toggle('has-mirror',!!r.mirror);view.stateBadge.textContent=r.pose==='asleep'?'💤':r.pose==='hex'?'🐸':r.pose==='giant'?'🍄':r.pose==='lifted'?'🎈':r.pose==='ghost'?'👻':r.pose==='reversed'?'↩️':r.pose==='frozen'?'🧊':r.pose==='capsized'?'🙃':r.pose==='spinning'?'💫':r.flying?'🪽':r.swapping?'🔄':r.shielded?'🛟':r.mirror?'🪞':r.slowed?'💫':boosting?'⚡':'';skillNodes[r.id]?.classList.toggle('skill-used',!!r.skillUsed);}
+      const flags=(boosting?1:0)|(leading?2:0)|(r.slowed?4:0)|(r.shielded?8:0)|(r.swapping?16:0)|(r.skillUsed?32:0)|(r.pose==='capsized'?64:0)|(r.pose==='spinning'?128:0)|(r.flying?256:0)|(r.pose==='reversed'?512:0)|(r.pose==='frozen'?1024:0)|(r.pose==='ghost'?2048:0)|(r.pose==='lifted'?4096:0)|(r.pose==='asleep'?8192:0)|(r.pose==='hex'?16384:0)|(r.pose==='giant'?32768:0)|(r.bomb?65536:0)|(r.mirror?131072:0)|(r.pose==='grabbed'?262144:0);
+      if(flags!==view.flags){view.flags=flags;e.classList.toggle('boosting',boosting);e.classList.toggle('leading',leading);e.classList.toggle('slowed',!!r.slowed);e.classList.toggle('shielded',!!r.shielded);e.classList.toggle('swapping',!!r.swapping);e.classList.toggle('skill-used',!!r.skillUsed);e.classList.toggle('stunned',!!r.stunned);e.classList.toggle('capsized',r.pose==='capsized');e.classList.toggle('spinning',r.pose==='spinning');e.classList.toggle('flying',!!r.flying);e.classList.toggle('reversed',r.pose==='reversed');e.classList.toggle('frozen',r.pose==='frozen');e.classList.toggle('ghost',r.pose==='ghost');e.classList.toggle('lifted',r.pose==='lifted');e.classList.toggle('asleep',r.pose==='asleep');e.classList.toggle('hex',r.pose==='hex');e.classList.toggle('giant',r.pose==='giant');e.classList.toggle('grabbed',r.pose==='grabbed');e.classList.toggle('has-bomb',!!r.bomb);e.classList.toggle('has-mirror',!!r.mirror);view.stateBadge.textContent=r.pose==='grabbed'?'🐙':r.pose==='asleep'?'💤':r.pose==='hex'?'🐸':r.pose==='giant'?'🍄':r.pose==='lifted'?'🎈':r.pose==='ghost'?'👻':r.pose==='reversed'?'↩️':r.pose==='frozen'?'🧊':r.pose==='capsized'?'🙃':r.pose==='spinning'?'💫':r.flying?'🪽':r.swapping?'🔄':r.shielded?'🛟':r.mirror?'🪞':r.slowed?'💫':boosting?'⚡':'';skillNodes[r.id]?.classList.toggle('skill-used',!!r.skillUsed);}
       // Faces: dizzy when knocked over, silly when spun, cool when flying, grumpy when slowed, party when winning.
-      const face=r.pose==='asleep'?'😴':r.pose==='hex'?'🐸':r.pose==='giant'?'😈':r.bomb?'😰':r.pose==='lifted'?'😨':r.pose==='ghost'?'😇':r.pose==='reversed'?'😱':r.pose==='frozen'?'🥶':r.pose==='capsized'?'😵':r.pose==='spinning'?'🤪':r.flying?'😎':r.slowed?'😣':current.active.elapsed>=race.duration&&r.rank===1?'🥳':'';
+      const face=r.pose==='grabbed'?'😖':r.pose==='asleep'?'😴':r.pose==='hex'?'🐸':r.pose==='giant'?'😈':r.bomb?'😰':r.pose==='lifted'?'😨':r.pose==='ghost'?'😇':r.pose==='reversed'?'😱':r.pose==='frozen'?'🥶':r.pose==='capsized'?'😵':r.pose==='spinning'?'🤪':r.flying?'😎':r.slowed?'😣':current.active.elapsed>=race.duration&&r.rank===1?'🥳':'';
       if(face!==view.face){view.face=face;view.emote.textContent=face;view.emote.classList.toggle('show',!!face);}
       if(view.rank!==r.currentRank){view.rank=r.currentRank;view.rankBadge.textContent=String(r.currentRank);view.rankBadge.title=`Đang hạng ${r.currentRank}`;}
     }
@@ -544,7 +549,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
       else{season=openSeason();if(!season)throw Error('Không có mùa đang mở.');const days=seasonDays(season);if(days.some(s=>T.coffeeStatus(s).status!=='resolved'))throw Error('Hoàn tất ngày đang chơi trước.');if(days.some(s=>s.date>=date))throw Error('Ngày mới phải sau ngày thi đấu gần nhất và không được trùng ngày.');}
       const duration=Number($('setup-duration').value);if(!(duration>=MIN_RACE_SECONDS))throw Error(`Mỗi lượt đua tối thiểu ${MIN_RACE_SECONDS} giây để kịp xem hết hiệu ứng.`);
       const s=T.createSession({names:season.players.map(p=>p.name),date,duration,roundLimit:Number($('setup-rounds').value)});S.validateSeason(season,[...seasonDays(season),s]);
-      if(setupMode==='season')store.seasons.push(season);clearRace();current={seasonId:season.id,session:s,type:'regular',stage:'picking',picks:{},active:null,rule:drawDayRule()};store.sessions.push(current);document.querySelector('main').hidden=false;store.currentId=s.id;store.currentSeasonId=season.id;selected=s.players[0].id;save();close('setup-dialog');$('restore-notice').hidden=true;render();
+      if(setupMode==='season')store.seasons.push(season);clearRace();current={seasonId:season.id,session:s,type:'regular',stage:'picking',picks:{},active:null,rule:drawDayRule()};store.sessions.push(current);document.querySelector('main').hidden=false;store.currentId=s.id;store.currentSeasonId=season.id;selected=s.players[0].id;save();close('setup-dialog');$('restore-notice').hidden=true;render();showSkills(); // a new day opens with the skill table, so everyone reads up before the picks
     }catch(e){$('setup-error').textContent=e.message;}
   }
   function restoreCurrent(){

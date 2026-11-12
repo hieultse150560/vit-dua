@@ -124,7 +124,7 @@ test('chaos-v3 tornado flings the top three (never the caster) to the back of th
 });
 
 test('chaos-v3 mirror glare goes for the leader', () => {
-  const glares = withRace(e => e.skill === 'mirror' && e.activation && e.outcome === 'fallback', 600);
+  const glares = withRace(e => e.skill === 'mirror' && e.activation && e.outcome === 'fallback', 1200);
   assert.ok(glares.length > 50);
   let checked = 0;
   for (const { race, e } of glares) { const top = topPick(race, e, 1, e.actorId, true); if (top) { assert.equal(e.targetId, top[0]); checked++; } }
@@ -148,10 +148,10 @@ const fresh = (race, e, id) => !race.events.some(o => o !== e && o.time <= e.tim
 const topPick = (race, e, n, skip = e.actorId, slowing = false) => { const top = order(e.ranksBefore).filter(id => id !== skip && !(slowing && race.racers[id].trait?.id === 'shell')).slice(0, n); return top.every(id => fresh(race, e, id)) ? top : null; };
 const sameSet = (a, b) => assert.deepEqual([...a].sort(), [...b].sort());
 
-test('chaos-v3 deals 27 skills on top of the 10 from chaos-v2', () => {
+test('chaos-v3 deals 37 skills: the 10 from chaos-v2 plus 27 of its own', () => {
   assert.deepEqual(V3.skills.map(s => s.id).slice(10), ['magnet', 'lightning', 'flip', 'rewind', 'reverse', 'freeze', 'missile', 'bees', 'blackhole', 'ghost', 'balloon',
-    'bomb', 'copycat', 'dice', 'lullaby', 'hex', 'giant']);
-  assert.equal(V3.skills.length, 27);
+    'bomb', 'copycat', 'dice', 'lullaby', 'hex', 'giant', 'kraken', 'dragon', 'meteor', 'whale', 'ufo', 'pirate', 'wheel', 'anchor', 'volcano', 'fireworks']);
+  assert.equal(V3.skills.length, 37);
   for (const s of V3.skills) assert.ok(s.name && s.icon && s.description);
   assert.equal(require('../dist/chaos-engine-v2.js').skills.length, 10, 'chaos-v2 keeps its 10 skills');
 });
@@ -224,7 +224,7 @@ const touchedBetween = (race, e, id, until) => race.events.some(o => o !== e && 
   && [o.actorId, o.targetId, ...(o.affectedIds || [])].includes(id));
 
 test('reverse turns the top two around: they swim backwards', () => {
-  const list = withRace(e => e.skill === 'reverse' && e.activation);
+  const list = withRace(e => e.skill === 'reverse' && e.activation, 3000);
   let picked = 0;
   for (const { race, e } of list) { assert.equal(e.affectedIds.length, 2); assert.ok(!e.affectedIds.includes(e.actorId)); const top = topPick(race, e, 2, e.actorId, true); if (top) { sameSet(e.affectedIds, top); picked++; } }
   assert.ok(picked > 100, `only ${picked} picks checked`);
@@ -276,7 +276,7 @@ test('heat-seeking missile blows the leader back and capsizes it', () => {
 });
 
 test('bees swarm the top two and slow them down', () => {
-  const list = withRace(e => e.skill === 'bees' && e.activation);
+  const list = withRace(e => e.skill === 'bees' && e.activation, 3000);
   let picked = 0;
   for (const { race, e } of list) { assert.equal(e.affectedIds.length, 2); assert.ok(!e.affectedIds.includes(e.actorId)); const top = topPick(race, e, 2, e.actorId, true); if (top) { sameSet(e.affectedIds, top); picked++; } }
   assert.ok(picked > 100, `only ${picked} picks checked`);
@@ -351,7 +351,7 @@ test('hippo tosses a top-half duck back, log blocks the leader, frog hops a back
 });
 
 test('chaos-v3 pacing (30 s): twists start early, never overlap (1.5 s apart), and the last quarter keeps 1-2 plot twists', () => {
-  const PLOT = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook', 'bomb', 'hex']), D = 30;
+  const PLOT = new Set(['torpedo', 'missile', 'lightning', 'blackhole', 'hook', 'bomb', 'hex', 'kraken', 'meteor', 'ufo', 'anchor']), D = 30;
   let mid = 0, all = 0, worst = 0;
   for (let seed = 0; seed < 1000; seed++) {
     const r = V3.createRace(names(7), D, seed), times = r.events.filter(e => e.scheduled).map(e => e.time);
@@ -382,7 +382,7 @@ test('chaos-v3 tornado never closes a race, even in small fields with no plot sk
 });
 
 test('chaos-v3 buoy: a block never costs a place; the fallback springs past one duck', () => {
-  const list = withRace(e => e.skill === 'buoy' && e.activation && e.before && e.ranksBefore[e.actorId] > 2);
+  const list = withRace(e => e.skill === 'buoy' && e.activation && e.before && e.ranksBefore[e.actorId] > 2, 3000);
   assert.ok(list.length > 100);
   let checked = 0;
   for (const { race, e } of list) {
@@ -630,7 +630,7 @@ test('without a day rule, luck 3 keeps its full 90% river-event dodge (old repla
 test('skill tiers: every chaos-v3 skill has one; the top tiers win a little more than the bottom ones (chaos-v2 has none)', () => {
   const counts = { S: 0, A: 0, B: 0, C: 0 };
   for (const s of V3.skills) { assert.ok(['S', 'A', 'B', 'C'].includes(s.tier), s.id); counts[s.tier]++; }
-  assert.deepEqual(counts, { S: 6, A: 6, B: 9, C: 6 });
+  assert.deepEqual(counts, { S: 9, A: 9, B: 11, C: 8 });
   assert.ok(V2.skills.every(s => s.tier === undefined), 'chaos-v2 skill objects stay unchanged');
   const tally = { S: [0, 0], A: [0, 0], B: [0, 0], C: [0, 0] };
   for (let seed = 1; seed <= 4000; seed++) {
@@ -711,4 +711,96 @@ test('skill and trait texts quote the tuned numbers', () => {
     [V3.skills, 'giant', pc(U.giant.boost)], [V3.skills, 'swap', sec(U.swapV3.daze)], [V3.skills, 'mirror', sec(U.mirrorV3.glareTime)]
   ];
   for (const [list, id, piece] of expect) assert.ok(text(list, id).includes(piece), `${id}: "${text(list, id)}" should say ${piece}`);
+});
+
+// ---------- the ten big-show skills ----------
+const firstUse = (id, races = 250) => racesWith(id, null, races).map(({ race }) => ({ race, e: race.events.find(x => x.skill === id && x.actorId === 0 && x.scheduled) })).filter(x => x.e);
+const at = (race, t) => race.sample(Math.min(race.duration, t));
+
+test('kraken holds up to three leading rivals still; dragon sweeps everyone ahead back', () => {
+  let held = 0, swept = 0;
+  for (const { race, e } of firstUse('kraken')) {
+    assert.ok(e.affectedIds.length <= 3 && !e.affectedIds.includes(0));
+    for (const id of e.affectedIds) if (e.outcomes[id] === 'hit') { assert.equal(at(race, e.time + 0.1)[id].pose, 'grabbed'); assert.ok(at(race, e.time + 0.1)[id].stunned); held++; }
+  }
+  for (const { race, e } of firstUse('dragon')) {
+    if (e.outcome !== 'swept') { assert.equal(e.ranksBefore[0], 1, 'only the leader rides the dragon instead'); continue; }
+    for (const id of e.affectedIds) {
+      assert.ok(e.ranksBefore[id] < e.ranksBefore[0], 'only ducks ahead');
+      if (e.outcomes[id] === 'hit' && !heavy(race, id)) { assert.ok(e.after[id] < e.before[id]); swept++; }
+    }
+    assert.ok(e.after[0] > e.before[0], 'the dragon carries its caster');
+  }
+  assert.ok(held > 200 && swept > 200, `held ${held}, swept ${swept}`);
+});
+
+test('meteors fall on the front half only; the whale launches its caster forward and splashes at most two', () => {
+  let meteors = 0, whales = 0;
+  for (const { e } of firstUse('meteor')) {
+    for (const id of e.affectedIds) { assert.ok(id !== 0 && e.ranksBefore[id] <= 4, `rank ${e.ranksBefore[id]}`); meteors++; }
+  }
+  for (const { race, e } of firstUse('whale')) {
+    assert.equal(e.outcome, 'fly'); assert.ok(e.after[0] > e.before[0]); assert.ok(e.affectedIds.length <= 2);
+    assert.ok(at(race, e.time + 0.1)[0].flying, 'airborne on the spout'); whales++;
+  }
+  assert.ok(meteors > 300 && whales > 200, `meteors ${meteors}, whales ${whales}`);
+});
+
+test('ufo drops the leader into the back half (or, by mistake, its caster near the front); pirate shells the ducks right ahead', () => {
+  let abducted = 0, mistakes = 0, shells = 0;
+  for (const { race, e } of firstUse('ufo', 400)) {
+    if (e.outcome === 'mistake') { assert.ok(e.after[0] >= e.before[0]); mistakes++; continue; }
+    if (e.outcome !== 'hit' || !lone(race, e)) continue;
+    assert.ok(e.after[e.targetId] < e.before[e.targetId]);
+    assert.ok(at(race, e.time)[e.targetId].currentRank > 3, 'lands in the back half'); abducted++;
+  }
+  for (const { race, e } of firstUse('pirate')) {
+    for (const id of e.affectedIds) {
+      const r = e.ranksBefore;
+      assert.ok(r[0] === 1 ? r[id] > 1 && r[id] <= 4 : r[id] < r[0] && r[id] >= r[0] - 3, 'the ducks right ahead (or right behind the leader)');
+      if (e.outcomes[id] === 'hit' && !heavy(race, id)) { assert.ok(e.after[id] < e.before[id]); shells++; }
+    }
+  }
+  assert.ok(abducted > 100 && mistakes > 40 && shells > 300, `abducted ${abducted}, mistakes ${mistakes}, shells ${shells}`);
+});
+
+test('wheel lands on every segment; anchor slows its target and pulls the caster; volcano and fireworks pick random ducks', () => {
+  const segments = new Set(); let anchored = 0;
+  for (const { race, e } of firstUse('wheel', 400)) {
+    segments.add(e.segment);
+    if (e.segment === 'jackpot') assert.ok(e.after[0] > e.before[0]);
+    if (e.segment === 'bust' && e.effect === 'hit') assert.equal(at(race, e.time + 0.1)[0].pose, 'capsized');
+  }
+  assert.deepEqual([...segments].sort(), ['bust', 'flip', 'freeze', 'jackpot']);
+  for (const { race, e } of firstUse('anchor')) if (e.outcome === 'hit') { assert.ok(at(race, e.time + 0.2)[e.targetId].slowed); anchored++; }
+  for (const { e } of firstUse('volcano')) { assert.equal(e.affectedIds.length, 3); assert.equal(new Set(e.affectedIds).size, 3); }
+  for (const { e } of firstUse('fireworks')) { assert.equal(e.affectedIds.length, 4); assert.equal(new Set(e.affectedIds).size, 4); }
+  assert.ok(anchored > 150, `anchored ${anchored}`);
+});
+
+// ---------- maps ----------
+test('maps: one per chaos-v3 race from the seed, zones reported in on-screen progress; chaos-v2 has none', () => {
+  assert.deepEqual(V3.maps.map(m => m.id), ['jungle', 'rapids', 'lotus', 'canal', 'ice']);
+  for (const m of V3.maps) assert.ok(m.name && m.icon && m.description, m.id);
+  const seen = new Set();
+  for (let seed = 0; seed < 200; seed++) {
+    const a = V3.createRace(names(7), 40, seed), b = V3.createRace(names(7), 40, seed);
+    assert.deepEqual(a.map, b.map); seen.add(a.map.id);
+    for (const z of a.map.zones) assert.ok(z.from > 0 && z.to < 1 && z.from <= z.to, JSON.stringify(z));
+  }
+  assert.equal(seen.size, 5);
+  assert.equal(V2.createRace(names(7), 25, 1).map, undefined);
+});
+
+test('map zones: rapids capsize, ice and bridges spin the ducks that enter them, without a scheduled twist', () => {
+  const byMap = id => { const out = []; for (let seed = 0; out.length < 40 && seed < 3000; seed++) { const r = V3.createRace(names(7), 40, seed); if (r.map.id === id) out.push(r); } return out; };
+  for (const [id, terrain, pose] of [['rapids', 'rapids', 'capsized'], ['ice', 'ice', 'spinning'], ['canal', 'bridge', 'spinning']]) {
+    let trips = 0;
+    for (const r of byMap(id)) for (const e of r.events.filter(x => x.type === 'terrain')) {
+      assert.equal(e.terrain, terrain); assert.ok(!e.scheduled, 'not a scheduled twist');
+      assert.equal(r.sample(e.time + 0.05)[e.actorId].pose, pose); trips++;
+    }
+    assert.ok(trips > 40, `${id}: ${trips} trips`);
+  }
+  for (const r of byMap('jungle').concat(byMap('lotus'))) assert.ok(!r.events.some(x => x.type === 'terrain'));
 });

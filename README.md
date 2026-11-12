@@ -37,7 +37,7 @@ Mở [game trên máy](http://127.0.0.1:8000). Dùng cùng trình duyệt và đ
 
 Các vòng mới dùng cơ chế `chaos-v2`: **chọn đủ vịt → xuất phát mới lộ skill → lật kèo liên tục đến giây cuối**. Mỗi người vẫn chọn lại một vịt mỗi vòng. Không còn thiên phú: chọn vịt không quyết định thắng thua, mọi lợi thế đến từ skill bốc ngẫu nhiên lúc xuất phát. Không thể xem skill rồi hoàn tác lựa chọn.
 
-Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ skill; đông hơn thì mỗi skill dùng tối đa `ceil(N / số skill)` lần). `chaos-v2` có 10 skill, `chaos-v3` có 27. Ở `chaos-v3`, skill và đặc tính được chia **trước khi chọn vịt** và hiện trên thẻ vịt (hạt giống chia bài khác với hạt giống trận đua, nên chọn vịt không làm lộ kết quả); trận dùng đúng bộ đã hiện, và phần xem lại lưu kèm bộ đó. Skill tự kích hoạt đúng một lần:
+Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ skill; đông hơn thì mỗi skill dùng tối đa `ceil(N / số skill)` lần). `chaos-v2` có 10 skill, `chaos-v3` có 37. Ở `chaos-v3`, skill và đặc tính được chia **trước khi chọn vịt** và hiện trên thẻ vịt (hạt giống chia bài khác với hạt giống trận đua, nên chọn vịt không làm lộ kết quả); trận dùng đúng bộ đã hiện, và phần xem lại lưu kèm bộ đó. Skill tự kích hoạt đúng một lần:
 
 | Skill | Hiệu ứng |
 | --- | --- |
@@ -68,6 +68,16 @@ Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ 
 | 💤 Ru ngủ (`chaos-v3`) | Mọi con trong tầm 6% quanh mình (ít nhất 2 con gần nhất) ngủ gật đứng yên 1,5 giây; con có phao, bong bóng, tàng hình không bị. |
 | 🪄 Biến ếch (`chaos-v3`) | Biến con dẫn đầu còn đánh được thành ếch 2 giây, nhảy chậm còn 45%. Gương dội ngược được. |
 | 🍄 Nấm khổng lồ (`chaos-v3`) | Hóa khổng lồ 2 giây, nhanh hơn 55%; tối đa 3 con ngay phía trước trong tầm 5% bị giẫm lùi 2% và quay 0,6 giây. |
+| 🐙 Bạch tuộc khổng lồ (`chaos-v3`) | Thủy quái trồi lên, xúc tu tóm 3 con dẫn đầu (trừ mình) giữ đứng im 1,8 giây. Gương dội ngược được. |
+| 🐉 Rồng nước (`chaos-v3`) | Rồng cõng mình lao lên 2%, quật mọi con phía trước lùi 4% và quay 0,9 giây (con có phao/bong bóng/tàng hình không bị). Đang dẫn thì rồng cõng lên 2,5%. |
+| ☄️ Mưa sao băng (`chaos-v3`) | Sao băng trút xuống nửa đầu đoàn (trừ mình), mỗi con trúng lật 1,3 giây; gương không dội được. |
+| 🐋 Cá voi phun nước (`chaos-v3`) | Cá voi phun mình bay vượt 3 con (đang dẫn thì vọt thêm 3%); cú đáp tóe nước hất lùi 2% và quay tối đa 2 con gần nhất. |
+| 🛸 Đĩa bay (`chaos-v3`) | Tia sáng hút con dẫn đầu lên trời 1,5 giây rồi thả ở nửa sau đoàn. 25% bắt nhầm chính mình và thả lên tốp đầu. |
+| 🏴‍☠️ Tàu cướp biển (`chaos-v3`) | Nã 3 phát đại bác vào 3 con ngay phía trước (đang dẫn thì bắn 3 con ngay sau), mỗi con lùi 7% và quay 0,6 giây. |
+| 🎡 Vòng quay may mắn (`chaos-v3`) | Quay ra: 42% độc đắc (lên sát con dẫn đầu), 25% lộn đầu đuôi, 23% đóng băng tốp đầu 1,2 giây, 10% tự lật thuyền. |
+| ⚓ Mỏ neo (`chaos-v3`) | Quăng neo móc con dẫn đầu còn đánh được, kéo lê còn nửa tốc độ trong 1,5 giây; dây xích kéo mình lao lên 1,5%. |
+| 🌋 Núi lửa phun (`chaos-v3`) | Đá nham thạch rơi trúng 3 con bất kỳ, kể cả mình: 35% bị hất lên 2%, còn lại lùi 3% và quay. |
+| 🎆 Pháo hoa (`chaos-v3`) | 4 quả pháo rơi vào 4 con khác nhau (mình ít bị chọn hơn một nửa), con trúng lật 0,9 giây. |
 
 Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 7)` khi đông vịt):
 
@@ -97,13 +107,13 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 | 🦾 Lì đòn | Bị lật, choáng, làm chậm ngắn hơn 40%. |
 | 🤸 Né đòn | 30% né được đòn skill của vịt khác (không né được hiệu ứng diện rộng). |
 | 🍀 Tốt số | 75% thoát nạn sự kiện sông nước xấu (và hộp hên xui xấu). |
-| 😤 Phục thù | Hết bị lật/choáng thì lao lên thêm 2,5% trong 1 giây. |
+| 😤 Phục thù | Hết bị lật/choáng thì lao lên thêm 1,6% trong 1 giây. |
 | 🌬️ Hút gió | Nhanh hơn 7% khi bám sát đuôi một con khác (cách dưới 2% đường đua). |
 | 👑 Đầu tàu | Nhanh hơn 9% khi đang dẫn đầu. |
 | 😴 Ngủ nướng | Chậm hơn 10% trong 1/3 đầu trận, nhanh hơn 6% trong 1/3 cuối. |
 | 🎰 Liều mạng | Cứ 4 giây tung đồng xu: 2 giây nhanh hơn 20% hoặc chậm đi 10%. |
 | 🐚 Vỏ cứng | Miễn nhiễm bị làm chậm, biến ếch, ru ngủ và bơi ngược (đàn ong, gỗ trôi, gương chói, hộp xui…); các đòn đó cũng bỏ qua nó khi chọn mục tiêu. |
-| 🏋️ Nặng ký | Bị hất, kéo, cuốn lùi chỉ mất một nửa quãng (đổi chỗ, hố đen và cú vấp đá sát đích vẫn nguyên). |
+| 🏋️ Nặng ký | Bị hất, kéo, cuốn lùi chỉ mất một nửa quãng (đổi chỗ, hố đen, đĩa bay và cú vấp đá sát đích vẫn nguyên). |
 | 😠 Thù dai | Con nào dùng skill nhắm thẳng vào mình mà trúng sẽ bị chậm 70% trong 2,5 giây, ngay sau khi đòn đó xong (đòn diện rộng thì không). |
 | 🏄 Lướt sóng | Gió thuận, cá heo, ếch cõng đẩy mình xa gấp 2,5 lần; cá heo và ếch hay chọn mình hơn. |
 | 🔋 Sạc pin | Dùng skill xong thì nhanh hơn 35% trong 2,5 giây. |
@@ -113,16 +123,16 @@ Có 18 đặc tính; mỗi trận 7 vịt nhận 7 cái khác nhau. Đo 40.000 t
 
 ### Hạng skill (`chaos-v3`)
 
-Mỗi skill có một hạng theo độ mạnh của hiệu ứng với chủ vịt, hiện trên thẻ vịt và trong **📖 Bảng kỹ năng** (nút ở khu chọn vịt; bảng sinh thẳng từ dữ liệu game nên luôn khớp). Hạng S chỉ thắng nhỉnh hơn hạng C khoảng 15–20%:
+Mỗi skill có một hạng theo độ mạnh của hiệu ứng với chủ vịt, hiện trên thẻ vịt và trong **📖 Bảng kỹ năng** (nút ở khu chọn vịt; bảng sinh thẳng từ dữ liệu game nên luôn khớp). Hạng S chỉ thắng nhỉnh hơn hạng C khoảng 15–20%. Mỗi ngày đua mới mở ra là bảng kỹ năng tự bật lên để cả hội đọc trước khi chọn vịt:
 
 | Hạng | Skill | Tỉ lệ thắng (× mức công bằng) |
 | --- | --- | --- |
-| S · Đảo cục diện | Lốc xoáy, Nam châm, Tua ngược, Sóng thần, Hố đen, Đóng băng | ≈ 1,07 |
-| A · Đòn mạnh | Cánh vàng, Sét đánh, Móc câu, Tên lửa tầm nhiệt, Nấm khổng lồ, Tàng hình | ≈ 1,02 |
-| B · Ổn định | Tên lửa, Đổi đời, Thủy lôi, Biến ếch, Xúc xắc, Đạo chích, Gương phản đòn, Ru ngủ, Phao thần | ≈ 0,99 |
-| C · Nhẹ, hên xui | Bóng bay, Bơi ngược, Bom hẹn giờ, Lộn đầu đuôi, Đàn ong, Vỏ chuối | ≈ 0,91 |
+| S · Đảo cục diện | Lốc xoáy, Nam châm, Tua ngược, Sóng thần, Hố đen, Đóng băng, Bạch tuộc khổng lồ, Rồng nước, Mưa sao băng | ≈ 1,07 |
+| A · Đòn mạnh | Cánh vàng, Sét đánh, Móc câu, Tên lửa tầm nhiệt, Nấm khổng lồ, Tàng hình, Cá voi phun nước, Đĩa bay, Tàu cướp biển | ≈ 1,03 |
+| B · Ổn định | Tên lửa, Đổi đời, Thủy lôi, Biến ếch, Xúc xắc, Đạo chích, Gương phản đòn, Ru ngủ, Phao thần, Vòng quay may mắn, Mỏ neo | ≈ 0,99 |
+| C · Nhẹ, hên xui | Bóng bay, Bơi ngược, Bom hẹn giờ, Lộn đầu đuôi, Đàn ong, Vỏ chuối, Núi lửa phun, Pháo hoa | ≈ 0,90 |
 
-Số đo từ 40.000 trận 7 vịt × 40 giây; thứ tự hạng giữ nguyên ở trận 25 và 60 giây. Phao thần trước đây mạnh nhất (≈ 1,20) vì đỡ mãi các đòn diện rộng mà không xẹp; giờ đỡ một đòn là xẹp.
+Số đo từ 40.000–50.000 trận 7 vịt × 40 giây; thứ tự hạng giữ nguyên ở trận 25 và 60 giây. Phao thần trước đây mạnh nhất (≈ 1,20) vì đỡ mãi các đòn diện rộng mà không xẹp; giờ đỡ một đòn là xẹp.
 
 **Badge vượt mặt:** mỗi pha giúp vịt tiến lên (bay, nam châm, phao, ếch, gió, cá heo, tên lửa, tàng hình…) hiện nhãn **⏩ VƯỢT +N** trên đầu vịt khi pha đó xong, nên nhìn là biết vừa vượt bao nhiêu con. Vịt đang tăng tốc kéo theo bóng mờ và vệt tốc độ.
 
@@ -150,6 +160,20 @@ Mỗi vòng mới bốc một kiểu thời tiết, hiện trên đầu sông v�
 | 🌙 Đêm trăng | 10% | Thêm 1 sự kiện, nhiều ếch và hà mã; sông tối, mỗi con vịt có quầng đèn riêng, trăng và sao |
 
 Mặt sông đổi màu theo thời tiết, có mưa rơi, gió thổi và chớp giật khi bão.
+
+### Bản đồ (`chaos-v3`)
+
+Mỗi trận bốc một map theo hạt giống trận (xem lại vẫn ra đúng map đó), hiện trên thanh tên sông. Sông uốn lượn theo từng map (thẳng ở vạch xuất phát và vạch đích); chướng ngại nằm cố định theo đoạn đường:
+
+| Map | Tỉ lệ | Chướng ngại |
+| --- | --- | --- |
+| 🌴 Sông nhiệt đới | 30% | Uốn nhẹ, không chướng ngại. |
+| 🏞️ Thác ghềnh | 20% | Hai đoạn nước xiết: nhanh hơn 25%, lao vào thì 25% bị lật 0,8 giây. |
+| 🪷 Đầm sen | 18% | Hai bãi sen dày: bơi qua chậm hơn 25%; ếch hay ra gấp 3. |
+| 🏯 Kênh phố cổ | 16% | Kênh thẳng, 3 cây cầu đá: 30% đụng cột cầu, quay 0,6 giây (vịt bơi chui dưới cầu). |
+| ❄️ Sông băng | 16% | Ba mặt băng trơn: nhanh hơn 15%, lao vào thì 30% bị xoay 0,6 giây. |
+
+Cú vấp vì địa hình không chiếu chậm, không hiện banner để trận không bị ngắt quãng liên tục; vịt tàng hình lướt qua không sao. Cảnh map vẽ ở lớp dưới vịt (cầu đá ở lớp trên), vẫn hiện khi bật giảm chuyển động.
 
 ### Luật đặc biệt của ngày (`chaos-v3`)
 
