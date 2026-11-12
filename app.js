@@ -13,7 +13,12 @@
   const SLOWMO_WINDOW=.27, SLOW_FX_KEY='vit-dua-slow-fx', HIT_STOP_MS=110;
   // Slow effects by default (screen sharing lags); only an explicit '0' keeps fast effects.
   let slowFx=(()=>{try{return localStorage.getItem(SLOW_FX_KEY)!=='0';}catch{return true;}})(), hitStop=0;
-  const slowmoMs=()=>slowFx?3000:1200, slowmoRate=()=>SLOWMO_WINDOW*1000/slowmoMs();
+  // Slow effects (screen sharing): each twist's slow motion is sized from how many twists the race has, between SLOW_MIN
+  // and SLOW_MAX ms, so all the slow motion adds at most half the race length (a 40 s race lasts about a minute).
+  const SLOW_MIN=1800, SLOW_MAX=3200;let slowMs=SLOW_MAX;
+  const slowmoMs=()=>slowFx?slowMs:1200, slowmoRate=()=>SLOWMO_WINDOW*1000/slowmoMs();
+  function planSlowmo(){let n=0,last=-Infinity;for(const e of race?.events||[])if((e.type==='skill'||e.type==='hazard')&&e.scheduled&&e.time-last>=SLOWMO_WINDOW){n++;last=e.time;}
+    slowMs=Math.round(Math.max(SLOW_MIN,Math.min(SLOW_MAX,((race?.duration||40)*.5/Math.max(1,n)+SLOWMO_WINDOW)*1000)));document.documentElement.style.setProperty('--fx-time',`${slowmoMs()/1000}s`);}
   // New days race at least this long so every twist has room to play out (older days keep their length).
   const MIN_RACE_SECONDS=40;let slowmoUntil=0;
   // Photo finish: when the runner-up ends within PHOTO_GAP of the line, the last
@@ -218,7 +223,7 @@
     let x;const cap=4294967296-(4294967296%pool.length);do{x=crypto.getRandomValues(new Uint32Array(1))[0];}while(x>=cap);pick(pool[x%pool.length]);
   }
   function makeTrack(){
-    photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();glides={};gains=[];hitStop=0;const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
+    photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();planSlowmo();glides={};gains=[];hitStop=0;const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
     owners=race.racers.map(r=>players.find(p=>current.picks[p.id]===r.id)?.name||A.name(r.id));
     runeSpawns=(race.events||[]).filter(e=>e.type==='rune-spawn');
     $('lanes').replaceChildren(...race.racers.map(r=>{
@@ -353,7 +358,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function flashHits(event){
     if(reduced.matches)return;
     const hit=event.outcomes?Object.entries(event.outcomes).filter(([,o])=>o==='hit').map(([id])=>Number(id))
-      :event.outcome==='hit'||event.outcome==='bust'?[event.type==='hazard'||event.type==='terrain'||event.outcome==='bust'?event.actorId:event.targetId]:event.outcome==='reflected'?[event.actorId]:[];
+      :event.outcome==='hit'||event.outcome==='bust'?[event.type==='hazard'||event.outcome==='bust'?event.actorId:event.targetId]:event.outcome==='reflected'?[event.actorId]:[];
     for(const id of hit)if(nodes[id]){const n=nodes[id];n.classList.remove('hit-flash');void n.offsetWidth;n.classList.add('hit-flash');setTimeout(()=>n.classList.remove('hit-flash'),400);}
   }
   function startGlides(event,pre){
