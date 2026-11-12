@@ -348,3 +348,41 @@ test('cancelling the open season mid-day deletes its days and fund, then opens a
     noErrors(game);
   } finally { await game.close(); }
 });
+
+test('the skill table lists every skill by tier, every trait and the day rules; duck cards show each skill tier', async () => {
+  const game = loadGame();
+  try {
+    setup(game, 2);
+    const V3 = game.window.DuckChaosEngineV3, lineup = current(game).lineup;
+    for (let id = 0; id < 3; id++) assert.equal(duck(game, id).querySelector('.skill-tag .tier')?.textContent, V3.skills.find(s => s.id === lineup.skills[id]).tier);
+    game.click('open-skills');
+    assert.equal(game.$('skills-dialog').open, true);
+    const content = game.$('skills-content'), text = content.textContent;
+    for (const item of [...V3.skills, ...V3.traits, ...V3.dayRules]) assert.ok(text.includes(item.name), item.name);
+    assert.equal(content.querySelectorAll('h3 .tier').length, 4, 'one heading per tier');
+    assert.ok(text.includes('· hôm nay'), "today's rule is marked");
+    game.click('skills-close');
+    assert.equal(game.$('skills-dialog').open, false);
+    game.click('open-skills-inline');
+    assert.equal(game.$('skills-dialog').open, true);
+    noErrors(game);
+  } finally { await game.close(); }
+});
+
+test('a saved day that drew the retired "double" rule still loads: the day loses the rule, finished races keep their replays', async () => {
+  const game = loadGame(); let restored;
+  try {
+    setup(game, 2);
+    chooseAll(game); runRound(game);
+    const saved = state(game), envelope = saved.sessions.find(e => e.session.id === saved.currentId);
+    envelope.rule = 'double'; envelope.raceReplays.at(-1).lineup.rule = 'double';
+    restored = loadGame({ [KEY]: JSON.stringify(saved) });
+    assert.equal(restored.$('storage-warning').hidden, true, 'the save is not rejected');
+    assert.equal(restored.$('day-rule').hidden, true, 'no rule shown for that day any more');
+    restored.click('next'); // moves on to the next round, which saves
+    assert.equal(current(restored).stage, 'picking');
+    assert.equal(current(restored).rule, undefined, 'the retired rule is dropped on the next save');
+    assert.equal(current(restored).raceReplays.at(-1).lineup.rule, 'double', 'the finished race keeps what it was played with');
+    noErrors(restored);
+  } finally { await game.close(); await restored?.close(); }
+});

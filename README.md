@@ -44,19 +44,19 @@ Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ 
 | 🪽 Cánh vàng | Bay vượt lên 2–3 con phía trước. Đang dẫn thì bay cao thêm một đoạn. |
 | 💣 Thủy lôi | Ném vào con đang dẫn đầu (hoặc hạng 2 nếu mình đang dẫn), lật thuyền đứng yên 2 giây. |
 | 🌊 Sóng thần | Top 3 (trừ mình) dạt lùi 4% đường đua, mình lướt sóng tiến 3% trong 1 giây. Bản `chaos-v3`: bức tường nước cuốn top 3 trôi về ngay sau lưng mình. |
-| 🔄 Đổi đời | Đổi chỗ với một con đang hơn mình 1–3 bậc. Đang dẫn thì đổi với con kém mình 1–3 bậc, tự tụt! |
+| 🔄 Đổi đời | Đổi chỗ với một con đang hơn mình 1–3 bậc. Đang dẫn thì đổi với con kém mình 1–3 bậc, tự tụt! `chaos-v3`: con bị đổi xuống choáng quay 0,8 giây. |
 | 🚀 Tên lửa | 70% phóng +150% tốc độ trong 1,5 giây, 30% nổ máy tự lật 2 giây. |
-| 🪞 Gương phản đòn | Đòn đầu tiên từ skill vịt khác bị dội ngược: kẻ tấn công lãnh đúng cái hại đó. Không ai đánh thì đến giờ chiếu chói con ngay trên mình (chậm 50% trong 1,5 giây).  `chaos-v3`: dội đòn xong còn bật lên vượt 2 con; không ai đánh thì (ô gần cuối khoảng giữa trận) chiếu chói 2 con dẫn đầu còn đánh được, chậm 50% trong 2 giây, rồi bật lên vượt 1 con. |
+| 🪞 Gương phản đòn | Đòn đầu tiên từ skill vịt khác bị dội ngược: kẻ tấn công lãnh đúng cái hại đó. Không ai đánh thì đến giờ chiếu chói con ngay trên mình (chậm 50% trong 1,5 giây). `chaos-v3`: dội đòn xong còn bật lên vượt 1 con; không ai đánh thì (ô gần cuối khoảng giữa trận) chiếu chói con dẫn đầu còn đánh được, chậm 50% trong 1,5 giây. |
 | 🎣 Cần câu | Kéo con ngay trên mình lùi về chỗ mình rồi vượt lên ngay trước nó. Bản `chaos-v3`: móc con dẫn đầu, giật nó tụt về ngay sau mình. Đang dẫn thì móc bờ kéo mình lên 3%. |
 | 🌪️ Lốc xoáy | `chaos-v2`: xáo trộn vị trí của 3 con ngẫu nhiên, có thể gồm cả mình. `chaos-v3`: cuốn 3 con dẫn đầu (trừ mình) lên trời, quăng mỗi con về khoảng cuối đoàn (có thể ra sau cả con chót 2%), rồi quay mòng mòng 0,8 giây; trung bình mỗi con tụt gần 3 bậc. |
 | 🍌 Vỏ chuối | Thả tại chỗ; con bám ngay sau chạm tới thì trượt quay vòng 1,5 giây. Đang bét thì ném lên trúng con ngay trên. |
-| 🛟 Phao thần | Chặn đòn đầu tiên (skill hoặc sự kiện sông nước) rồi bật lên vượt 1 con (`chaos-v3`: nảy tưng tưng 3 nhịp, vượt 2 con). Không ai đánh thì đến giờ phao bơm hơi đẩy lên vượt 1 con (`chaos-v3`: 2 con). |
+| 🛟 Phao thần | Chặn đòn đầu tiên (skill hoặc sự kiện sông nước) rồi bật lên vượt 1 con. Không ai đánh thì đến giờ phao bơm hơi đẩy lên vượt 1 con. `chaos-v3`: chặn xong chỉ nảy nhẹ tại chỗ; đỡ một đòn diện rộng (Lốc xoáy, Tua ngược, Đóng băng, Ru ngủ, Nấm khổng lồ) cũng làm phao xẹp. |
 | 🧲 Nam châm (`chaos-v3`) | Hút mình lên ngay sau con dẫn đầu; đang nhì thì vọt lên dẫn. |
-| ⚡ Sét đánh (`chaos-v3`) | Sét đánh trúng 2 con dẫn đầu (trừ mình), lật thuyền 1,2 giây. |
+| ⚡ Sét đánh (`chaos-v3`) | Sét đánh trúng 2 con dẫn đầu (trừ mình), lật thuyền 1,4 giây. |
 | 🔃 Lộn đầu đuôi (`chaos-v3`) | Con dẫn đầu và con chót đổi chỗ. Mình đang dẫn thì con nhì đổi với con chót. |
-| ⏪ Tua ngược (`chaos-v3`) | Mọi con khác (trừ con có phao/bong bóng/tàng hình) bị tua lùi về chỗ của 1,2 giây trước. |
+| ⏪ Tua ngược (`chaos-v3`) | Mọi con khác (trừ con có phao/bong bóng/tàng hình) bị tua lùi về chỗ của 2 giây trước. |
 | ↩️ Bơi ngược (`chaos-v3`) | Hai con dẫn đầu quay đầu bơi ngược chiều 1,5 giây. |
-| 🧊 Đóng băng (`chaos-v3`) | Cả sông đóng băng 1 giây, chỉ mình bơi; con có phao/bong bóng không bị đóng băng. |
+| 🧊 Đóng băng (`chaos-v3`) | Cả sông đóng băng 2 giây, chỉ mình bơi; con có phao/bong bóng không bị đóng băng. |
 | 🎯 Tên lửa tầm nhiệt (`chaos-v3`) | Bám đuôi con dẫn đầu rồi nổ, hất nó lùi 4% và lật 1 giây. |
 | 🐝 Đàn ong (`chaos-v3`) | Ong đuổi 2 con dẫn đầu, chậm 60% trong 2 giây. |
 | 🕳️ Hố đen (`chaos-v3`) | Mở hố đen ngay trên con dẫn đầu (trừ mình): nó xoáy nhỏ dần rồi biến mất, sau đó bị nhả ra sau con chót 1%. Phao, bong bóng, tàng hình chặn được; gương dội ngược thì chính mình bị nuốt. |
@@ -67,7 +67,7 @@ Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ 
 | 🎲 Xúc xắc (`chaos-v3`) | Gieo 1–6: ra 1 tự lật 1 giây; 2–5 vượt 1–4 con; ra 6 vọt lên dẫn đầu. Đang dẫn thì nhảy lên thêm 0,6% × số điểm. |
 | 💤 Ru ngủ (`chaos-v3`) | Mọi con trong tầm 6% quanh mình (ít nhất 2 con gần nhất) ngủ gật đứng yên 1,5 giây; con có phao, bong bóng, tàng hình không bị. |
 | 🪄 Biến ếch (`chaos-v3`) | Biến con dẫn đầu còn đánh được thành ếch 2 giây, nhảy chậm còn 45%. Gương dội ngược được. |
-| 🍄 Nấm khổng lồ (`chaos-v3`) | Hóa khổng lồ 2 giây, nhanh hơn 35%; tối đa 3 con ngay phía trước trong tầm 5% bị giẫm lùi 2% và quay 0,6 giây. |
+| 🍄 Nấm khổng lồ (`chaos-v3`) | Hóa khổng lồ 2 giây, nhanh hơn 55%; tối đa 3 con ngay phía trước trong tầm 5% bị giẫm lùi 2% và quay 0,6 giây. |
 
 Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 7)` khi đông vịt):
 
@@ -91,15 +91,38 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 | Đặc tính | Tác dụng |
 | --- | --- |
 | 💪 Bền bỉ | Nhanh hơn 3,5% suốt trận. |
-| 🏃 Xuất phát thần tốc | Nhanh hơn 18% trong 1/4 đầu trận. |
+| 🏃 Xuất phát thần tốc | Nhanh hơn 30% trong 1/4 đầu trận. |
 | 🏁 Nước rút | Nhanh hơn 7% trong 1/5 cuối trận. |
 | 🔥 Bám đuổi | Nhanh hơn 8% khi đang ở nửa sau đoàn. |
 | 🦾 Lì đòn | Bị lật, choáng, làm chậm ngắn hơn 40%. |
 | 🤸 Né đòn | 30% né được đòn skill của vịt khác (không né được hiệu ứng diện rộng). |
 | 🍀 Tốt số | 75% thoát nạn sự kiện sông nước xấu (và hộp hên xui xấu). |
 | 😤 Phục thù | Hết bị lật/choáng thì lao lên thêm 2,5% trong 1 giây. |
+| 🌬️ Hút gió | Nhanh hơn 7% khi bám sát đuôi một con khác (cách dưới 2% đường đua). |
+| 👑 Đầu tàu | Nhanh hơn 9% khi đang dẫn đầu. |
+| 😴 Ngủ nướng | Chậm hơn 10% trong 1/3 đầu trận, nhanh hơn 6% trong 1/3 cuối. |
+| 🎰 Liều mạng | Cứ 4 giây tung đồng xu: 2 giây nhanh hơn 20% hoặc chậm đi 10%. |
+| 🐚 Vỏ cứng | Miễn nhiễm bị làm chậm, biến ếch, ru ngủ và bơi ngược (đàn ong, gỗ trôi, gương chói, hộp xui…); các đòn đó cũng bỏ qua nó khi chọn mục tiêu. |
+| 🏋️ Nặng ký | Bị hất, kéo, cuốn lùi chỉ mất một nửa quãng (đổi chỗ, hố đen và cú vấp đá sát đích vẫn nguyên). |
+| 😠 Thù dai | Con nào dùng skill nhắm thẳng vào mình mà trúng sẽ bị chậm 70% trong 2,5 giây, ngay sau khi đòn đó xong (đòn diện rộng thì không). |
+| 🏄 Lướt sóng | Gió thuận, cá heo, ếch cõng đẩy mình xa gấp 2,5 lần; cá heo và ếch hay chọn mình hơn. |
+| 🔋 Sạc pin | Dùng skill xong thì nhanh hơn 35% trong 2,5 giây. |
+| 🔮 Săn rune | Rune hay rơi vào mình gấp 3 lần, rune tăng tốc kéo dài gấp đôi. |
 
-Test cân bằng chạy 5.000 trận 7 vịt × 40 giây: người có đặc tính nào cũng thắng trong khoảng 0,7–1,3 lần mức công bằng.
+Có 18 đặc tính; mỗi trận 7 vịt nhận 7 cái khác nhau. Đo 40.000 trận 7 vịt × 40 giây: người có đặc tính nào cũng thắng trong khoảng 0,85–1,14 lần mức công bằng (test giữ mốc 0,7–1,3).
+
+### Hạng skill (`chaos-v3`)
+
+Mỗi skill có một hạng theo độ mạnh của hiệu ứng với chủ vịt, hiện trên thẻ vịt và trong **📖 Bảng kỹ năng** (nút ở khu chọn vịt; bảng sinh thẳng từ dữ liệu game nên luôn khớp). Hạng S chỉ thắng nhỉnh hơn hạng C khoảng 15–20%:
+
+| Hạng | Skill | Tỉ lệ thắng (× mức công bằng) |
+| --- | --- | --- |
+| S · Đảo cục diện | Lốc xoáy, Nam châm, Tua ngược, Sóng thần, Hố đen, Đóng băng | ≈ 1,07 |
+| A · Đòn mạnh | Cánh vàng, Sét đánh, Móc câu, Tên lửa tầm nhiệt, Nấm khổng lồ, Tàng hình | ≈ 1,02 |
+| B · Ổn định | Tên lửa, Đổi đời, Thủy lôi, Biến ếch, Xúc xắc, Đạo chích, Gương phản đòn, Ru ngủ, Phao thần | ≈ 0,99 |
+| C · Nhẹ, hên xui | Bóng bay, Bơi ngược, Bom hẹn giờ, Lộn đầu đuôi, Đàn ong, Vỏ chuối | ≈ 0,91 |
+
+Số đo từ 40.000 trận 7 vịt × 40 giây; thứ tự hạng giữ nguyên ở trận 25 và 60 giây. Phao thần trước đây mạnh nhất (≈ 1,20) vì đỡ mãi các đòn diện rộng mà không xẹp; giờ đỡ một đòn là xẹp.
 
 **Badge vượt mặt:** mỗi pha giúp vịt tiến lên (bay, nam châm, phao, ếch, gió, cá heo, tên lửa, tàng hình…) hiện nhãn **⏩ VƯỢT +N** trên đầu vịt khi pha đó xong, nên nhìn là biết vừa vượt bao nhiêu con. Vịt đang tăng tốc kéo theo bóng mờ và vệt tốc độ.
 
@@ -130,12 +153,11 @@ Mặt sông đổi màu theo thời tiết, có mưa rơi, gió thổi và chớ
 
 ### Luật đặc biệt của ngày (`chaos-v3`)
 
-Mỗi ngày đua mới bốc ngẫu nhiên một luật, hiện ngay dưới tiêu đề ngày và áp dụng cho mọi vòng (kể cả đua phụ) của ngày đó. Luật đi kèm đội hình của từng trận nên phần xem lại dựng lại đúng trận. Ngày tạo trước khi có tính năng này giữ nguyên, không có luật.
+Mỗi ngày đua mới bốc ngẫu nhiên một luật, hiện ngay dưới tiêu đề ngày và áp dụng cho mọi vòng (kể cả đua phụ) của ngày đó. Luật đi kèm đội hình của từng trận nên phần xem lại dựng lại đúng trận. Ngày tạo trước khi có tính năng này giữ nguyên, không có luật. Luật **Skill kép** đã bỏ vì dễ rối: ngày lỡ bốc trúng thì bỏ luật, các trận đã đua vẫn xem lại đúng như cũ.
 
 | Luật | Tác dụng |
 | --- | --- |
 | 🌀 Ngày hỗn loạn | Sự kiện sông nước nhiều gấp đôi. |
-| ⚡ Skill kép | Mỗi vịt tung skill chủ động 2 lần (Gương, Phao vẫn 1 lần). |
 | 💎 Mưa rune | Rune trên sông nhiều gấp đôi. |
 | ⛈️ Trời nổi giông | Không có nắng đẹp: trận nào cũng mưa, gió, bão, sương mù hoặc đêm. |
 | 🎬 Về đích nghẹt thở | Trận nào cũng có cú vấp đá sát đích quật ngã con dẫn đầu. |

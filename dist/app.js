@@ -77,10 +77,11 @@
   }
   // chaos-v3 lineup: one skill and one trait per duck, dealt before the picks and shown on the duck cards.
   const lineupOk=(l,count)=>!!l&&typeof l==='object'&&['skills','traits'].every(k=>Array.isArray(l[k])&&l[k].length===count)&&l.skills.every(id=>C3.skills.some(s=>s.id===id))&&l.traits.every(id=>C3.traits.some(t=>t.id===id))
-    &&(l.luck===undefined||Array.isArray(l.luck)&&l.luck.length===count&&l.luck.every(v=>Number.isInteger(v)&&v>=0&&v<=3))&&(l.rule===undefined||!!dayRuleOf(l.rule));
+    &&(l.luck===undefined||Array.isArray(l.luck)&&l.luck.length===count&&l.luck.every(v=>Number.isInteger(v)&&v>=0&&v<=3))&&(l.rule===undefined||knownRule(l.rule));
   const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{}),...(l.rule?{rule:l.rule}:{})});
   // Day rule: drawn once per new race day, applied to every race of that day (old days have none).
   const dayRuleOf=id=>C3.dayRules.find(r=>r.id===id);
+  const knownRule=id=>!!dayRuleOf(id)||C3.retiredDayRules.some(r=>r.id===id); // retired rules still rebuild races already played
   const drawDayRule=()=>C3.dayRules[crypto.getRandomValues(new Uint32Array(1))[0]%C3.dayRules.length].id;
   // Comeback luck for the players trailing the day's standings (regular rounds only), per duck they picked.
   const luckOf=()=>current&&current.type==='regular'&&!isLegacy()?T.luckLevels(current.session):{};
@@ -88,6 +89,18 @@
   const lastPlaceIds=()=>{if(!current||current.type!=='regular'||isLegacy()||!current.session.rounds.length)return new Set();const table=T.standings(current.session),worst=Math.max(...table.map(r=>r.rank));return new Set(table.filter(r=>r.rank===worst).map(r=>r.playerId));};
   const luckByDuck=()=>{const levels=luckOf(),out=participants().map(()=>0);for(const [id,duck] of Object.entries(current.picks))out[duck]=levels[id]||0;return out;};
   const skillOf=id=>C3.skills.find(s=>s.id===id), traitOf=id=>C3.traits.find(t=>t.id===id);
+  // Skill table: built from the engine's own lists, so it can never drift from the game.
+  const TIER_NOTE={S:'Đảo cục diện',A:'Đòn mạnh',B:'Ổn định',C:'Nhẹ, hên xui'};
+  const tierBadge=t=>{const b=node('span',`tier tier-${t}`,t);b.title=`Hạng ${t}: ${TIER_NOTE[t]}`;return b;};
+  function ruleList(items){const dl=node('dl','skill-rule-list');for(const it of items){const d=node('div');d.append(node('dt','',`${it.icon} ${it.name}`),node('dd','',it.description));dl.append(d);}return dl;}
+  function showSkills(){
+    const f=document.createDocumentFragment(),today=current&&!isLegacy()?current.rule:null;
+    f.append(node('p','muted','Hạng cho biết hiệu ứng mạnh cỡ nào với chủ vịt. Hạng S chỉ thắng nhỉnh hơn hạng C khoảng 15–20%, nên vịt hạng nào cũng có cửa.'));
+    for(const t of ['S','A','B','C']){const list=C3.skills.filter(s=>s.tier===t),h=node('h3');h.append(tierBadge(t),` Hạng ${t} · ${TIER_NOTE[t]} · ${list.length} skill`);f.append(h,ruleList(list));}
+    f.append(node('h3','',`${C3.traits.length} đặc tính · Mỗi vịt một cái, tác dụng cả trận`),ruleList(C3.traits));
+    f.append(node('h3','','Luật đặc biệt · Mỗi ngày đua một luật'),ruleList(C3.dayRules.map(r=>r.id===today?{...r,name:`${r.name} · hôm nay`}:r)));
+    $('skills-content').replaceChildren(f);open('skills-dialog');
+  }
   function ensureLineup(){
     if(!current||current.active||current.stage!=='picking'||isLegacy())return;
     if(!lineupOk(current.lineup,participants().length)){current.lineup=plainLineup(C3.deal(participants().length));save();}
@@ -101,7 +114,7 @@
     const stars=raw.stars===undefined?[]:raw.stars;
     if(!Array.isArray(stars)||new Set(stars).size!==stars.length||stars.some(id=>typeof id!=='string'||!Object.hasOwn(clean.picks,id)||!T.starAvailable(clean.session,id))||(stars.length&&(clean.type!=='regular'||clean.stage!=='picking')))throw Error('Ngôi sao hy vọng đã lưu không hợp lệ.');
     if(stars.length)clean.stars=[...stars]; // ponytail: absent means none, so old saves keep their exact shape
-    if(raw.rule!==undefined){if(!dayRuleOf(raw.rule)||clean.session.version===2)throw Error('Luật của ngày không hợp lệ.');clean.rule=raw.rule;}
+    if(raw.rule!==undefined){if(!knownRule(raw.rule)||clean.session.version===2)throw Error('Luật của ngày không hợp lệ.');if(dayRuleOf(raw.rule))clean.rule=raw.rule;} // a retired rule is dropped from the day
     if(clean.stage==='picking'&&lineupOk(raw.lineup,players.length))clean.lineup=plainLineup(raw.lineup); // invalid or missing: dealt again
     if(raw.active){const a=raw.active;T.validatePicks(players,clean.picks);if(clean.stage!=='picking'||!Number.isInteger(a.seed)||a.seed<0||a.seed>4294967295||typeof a.id!=='string'||!a.id||a.id.length>128||!Number.isFinite(a.elapsed)||a.elapsed<0||a.elapsed>clean.session.duration||!Number.isFinite(a.countdownLeft)||a.countdownLeft<0||a.countdownLeft>3)throw Error('Lượt đang đua không hợp lệ.');if(clean.type==='regular'&&clean.session.rounds.length>=clean.session.roundLimit)throw Error('Lượt đã hoàn tất.');if(clean.type==='tie'&&T.coffeeStatus(clean.session).status!=='tie')throw Error('Lượt phụ không hợp lệ.');if([...clean.session.rounds,...clean.session.tiebreaks].some(r=>r.id===a.id))throw Error('Lượt bị trùng.');clean.active={id:a.id,seed:a.seed,elapsed:a.elapsed,countdownLeft:a.countdownLeft};}
     if(raw.active?.engine!==undefined){if(!engineFor(raw.active.engine))throw Error('Phiên bản cuộc đua chưa được hỗ trợ.');clean.active.engine=raw.active.engine;}
@@ -167,7 +180,7 @@
       const b=node('button',`duck-card${owner?' claimed':''}`);b.dataset.duckId=String(id);b.disabled=!picking||!!owner||!selected;b.setAttribute('aria-label',`${A.name(id)} số ${id+1}${owner?` — ${owner.name} đã chọn`:' — còn trống'}`);b.setAttribute('aria-pressed',String(!!owner));
       const art=node('span');art.innerHTML=A.svg(id);b.append(node('span','duck-number',`#${String(id+1).padStart(2,'0')}`),art,node('strong','',A.name(id)),node('small','',owner?`${owner.name} ✓`:'Chọn vịt này'));
       const sk=!isLegacy()&&current.lineup&&skillOf(current.lineup.skills[id]),tr=sk&&traitOf(current.lineup.traits[id]);
-      if(sk){b.append(node('small','skill-tag',`${sk.icon} ${sk.name}`),node('small','skill-detail',sk.description),node('small','talent-tag',`${tr.icon} ${tr.name}`),node('small','talent-detail',tr.description));b.setAttribute('aria-label',`${b.getAttribute('aria-label')} · Skill ${sk.name}: ${sk.description} · Đặc tính ${tr.name}: ${tr.description}`);}
+      if(sk){const tag=node('small','skill-tag',`${sk.icon} ${sk.name} `);tag.append(tierBadge(sk.tier));b.append(tag,node('small','skill-detail',sk.description),node('small','talent-tag',`${tr.icon} ${tr.name}`),node('small','talent-detail',tr.description));b.setAttribute('aria-label',`${b.getAttribute('aria-label')} · Skill ${sk.name} hạng ${sk.tier}: ${sk.description} · Đặc tính ${tr.name}: ${tr.description}`);}
       b.onclick=()=>pick(id);return b;
     }));
     $('random-picks').disabled=!picking||chosen===players.length;
@@ -551,6 +564,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   $('sample-names').onclick=()=>{$('setup-names').value='Phú\nHiếu\nAn\nBình\nChi\nDũng\nHà';};
   $('random-picks').onclick=randomPicks;$('undo-last-pick').onclick=undoPick;$('star-toggle').onclick=()=>{if(!current||current.active||current.stage!=='picking'||$('star-toggle').hidden||$('star-toggle').disabled)return;starArmed=!starArmed;render();};$('start').onclick=start;$('pause').onclick=pause;$('resume-overlay').onclick=pause;$('next').onclick=next;
   $('season-fund').onclick=()=>showFund();$('fund-close').onclick=()=>close('fund-dialog');$('export-fund').onclick=exportFund;$('close-season').onclick=requestCloseSeason;$('close-season-close').onclick=()=>close('close-season-dialog');$('confirm-close-season').onclick=confirmCloseSeason;
+  $('open-skills').onclick=showSkills;$('open-skills-inline').onclick=showSkills;$('skills-close').onclick=()=>close('skills-dialog');
   $('cancel-season').onclick=requestCancelSeason;$('cancel-season-close').onclick=()=>close('cancel-season-dialog');$('confirm-cancel-season').onclick=confirmCancelSeason;
   $('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
   $('final-summary').onclick=()=>{if(outcome().status==='tie'){if(current.stage==='picking'&&current.type==='tie'){toast('Chọn vịt cho nhóm đồng điểm ở bên dưới.');return;}next();}else{current.stage='complete';save();render();showFinal();}};
