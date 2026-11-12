@@ -294,7 +294,7 @@ test('commentator captions each twist and speaks Vietnamese when sound is on', a
   const { e } = loneTwist(4242, 4);
   const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) }, { beforeScripts(window) {
     window.__spoken = [];
-    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speak: u => window.__spoken.push({ text: u.text, lang: u.lang }), cancel() {}, getVoices: () => [] } });
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speak: u => window.__spoken.push({ text: u.text, lang: u.lang, voice: u.voice?.name }), cancel() {}, getVoices: () => [{ lang: 'en-US', name: 'David' }, { lang: 'vi-VN', name: 'HoaiMy' }] } });
     Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: class { constructor(text) { this.text = text; } } });
     fakeAudio(window);
   } });
@@ -307,10 +307,30 @@ test('commentator captions each twist and speaks Vietnamese when sound is on', a
     const spoken = game.window.__spoken.at(-1);
     assert.equal(spoken.text, caption.textContent.replace(/^🎙️\s*/, ''));
     assert.equal(spoken.lang, 'vi-VN');
+    assert.equal(spoken.voice, 'HoaiMy', 'reads with the Vietnamese voice');
     game.click('sound');
     const count = game.window.__spoken.length;
     game.advance(6000, 50);
     assert.equal(game.window.__spoken.length, count, 'muted: captions only, no voice');
+    assert.deepEqual(game.errors.map(String), []);
+  } finally { await game.close(); }
+});
+
+test('without a Vietnamese voice the commentator shows captions only and hints to use Edge', async () => {
+  const { e } = loneTwist(4242, 4);
+  const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) }, { beforeScripts(window) {
+    window.__spoken = [];
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speak: u => window.__spoken.push(u), cancel() {}, getVoices: () => [{ lang: 'en-US', name: 'David' }] } });
+    Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: class { constructor(text) { this.text = text; } } });
+    fakeAudio(window);
+  } });
+  try {
+    game.click('resume-overlay'); advanceToTwist(game, e);
+    assert.equal(game.$('commentary').hidden, false, 'the caption still shows');
+    assert.equal(game.window.__spoken.length, 0, 'no English voice reading Vietnamese');
+    assert.equal(game.$('toast').hidden, false);
+    assert.match(game.$('toast').textContent, /tiếng Việt/);
+    assert.match(game.$('toast').textContent, /Edge/);
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
 });

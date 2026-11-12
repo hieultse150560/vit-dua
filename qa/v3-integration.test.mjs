@@ -271,12 +271,13 @@ test('each duck shows its dealt skill and trait before the picks; the race, a re
     const restored = loadGame(game.storage());
     try { assert.deepEqual(current(restored).lineup, lineup, 'a reload keeps the same lineup while picking'); } finally { await restored.close(); }
     chooseAll(game); game.click('start');
-    assert.deepEqual(current(game).active.lineup, lineup, 'the race uses the lineup that was shown');
+    const raced = { ...lineup, rule: current(game).rule }; // the day rule rides along with the lineup
+    assert.deepEqual(current(game).active.lineup, raced, 'the race uses the lineup that was shown');
     const racers = [...game.window.document.querySelectorAll('.racer')];
     racers.forEach((r, id) => assert.ok(r.querySelector('.racer-trait'), `duck ${id} wears its trait`));
     runRound(game);
     const replay = current(game).raceReplays.at(-1);
-    assert.deepEqual(replay.lineup, lineup, 'the replay remembers the lineup');
+    assert.deepEqual(replay.lineup, raced, 'the replay remembers the lineup');
     game.click('result-next');
     assert.notDeepEqual(current(game).lineup, undefined);
     assert.equal(current(game).lineup.skills.length, 3, 'a fresh deal for the next round');
@@ -299,6 +300,51 @@ test('after a round, trailing players get comeback luck on their pick; only last
     for (const [id, duckId] of Object.entries(picks)) assert.equal(active.lineup.luck[duckId], levels[id], `duck of ${id} carries its owner's luck, shown or not`);
     const racers = game.window.document.querySelectorAll('.racer');
     for (const [id, duckId] of Object.entries(picks)) assert.equal(!!racers[duckId].querySelector('.racer-luck'), last.has(id), `clover on the race duck only for last place (${id})`);
+    noErrors(game);
+  } finally { await game.close(); }
+});
+
+test('each new day draws one day rule: shown above the picks, carried into the race, its replay and a reload', async () => {
+  const game = loadGame(); let restored;
+  try {
+    setup(game, 2);
+    const rules = game.window.DuckChaosEngineV3.dayRules, rule = current(game).rule;
+    assert.ok(rules.some(r => r.id === rule), `rule ${rule}`);
+    assert.equal(game.$('day-rule').hidden, false);
+    assert.ok(game.$('day-rule').textContent.includes(rules.find(r => r.id === rule).name), game.$('day-rule').textContent);
+    chooseAll(game); game.click('start');
+    assert.equal(current(game).active.lineup.rule, rule);
+    assert.ok(game.$('rule-label').textContent.includes(rules.find(r => r.id === rule).name), 'the river header names the rule during the race');
+    game.advance(120000, 50);
+    assert.equal(current(game).raceReplays.at(-1).lineup.rule, rule);
+    restored = loadGame(game.storage());
+    assert.equal(current(restored).rule, rule, 'the rule survives a reload');
+    assert.ok(restored.$('day-rule').textContent.includes(rules.find(r => r.id === rule).name));
+    noErrors(game); noErrors(restored);
+  } finally { await game.close(); await restored?.close(); }
+});
+
+test('cancelling the open season mid-day deletes its days and fund, then opens a fresh season with the same roster', async () => {
+  const game = loadGame();
+  try {
+    setup(game, 3);
+    chooseAll(game); runRound(game); game.click('result-next');
+    assert.equal(game.$('cancel-season').disabled, false);
+    game.click('cancel-season');
+    assert.equal(game.$('cancel-season-dialog').open, true);
+    assert.ok(game.$('cancel-season-summary').textContent.includes('Mùa thử nghiệm'));
+    game.click('confirm-cancel-season');
+    assert.equal(game.$('cancel-season-dialog').open, false);
+    assert.deepEqual(state(game).seasons, []);
+    assert.deepEqual(state(game).sessions, []);
+    assert.equal(game.$('setup-dialog').open, true);
+    assert.equal(game.$('setup-names').value, 'Phú\nAn\nBình');
+    assert.equal(game.$('setup-season-name').value, 'Mùa giải 1');
+    assert.equal(game.window.document.querySelector('main').hidden, true, 'the deleted season is not left on screen');
+    setup(game);
+    assert.equal(game.window.document.querySelector('main').hidden, false);
+    assert.equal(state(game).seasons.length, 1);
+    assert.equal(current(game).session.rounds.length, 0);
     noErrors(game);
   } finally { await game.close(); }
 });

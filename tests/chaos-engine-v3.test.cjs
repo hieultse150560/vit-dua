@@ -561,3 +561,61 @@ test('comeback luck: a lucky duck is faster, escapes bad river events and draws 
   assert.equal(V3.createRace(names(7), 40, 3, { ...V3.deal(7, 3), luck: [2, 0, 0, 0, 0, 0, 0] }).racers[0].luck, 2);
   assert.throws(() => V3.createRace(names(7), 40, 1, { ...V3.deal(7, 1), luck: [9, 0, 0, 0, 0, 0, 0] }), /may mắn/);
 });
+
+// ---------- day rules (one per race day, carried in the lineup so replays rebuild the same race) ----------
+const ruled = (seed, rule, count = 7, extra = {}) => V3.createRace(names(count), 40, seed, { ...V3.deal(count, seed), ...(rule ? { rule } : {}), ...extra });
+
+test('day rules are listed, validated, deterministic and reported on the race', () => {
+  assert.deepEqual(V3.dayRules.map(r => r.id), ['chaos', 'double', 'runes', 'storm', 'thriller', 'comeback']);
+  for (const r of V3.dayRules) assert.ok(r.name && r.icon && r.description, r.id);
+  const a = ruled(99, 'chaos'), b = ruled(99, 'chaos');
+  assert.deepEqual(a.events, b.events);
+  assert.deepEqual(a.results, b.results);
+  assert.equal(a.rule.id, 'chaos');
+  assert.equal(ruled(99, null).rule, undefined);
+  assert.throws(() => ruled(99, 'nope'), /luật/i);
+});
+
+test('day rule chaos doubles the river events, runes doubles the runes', () => {
+  let plain = 0, chaos = 0;
+  for (let seed = 0; seed < 40; seed++) {
+    plain += hazardsOf(ruled(seed, null)).length; chaos += hazardsOf(ruled(seed, 'chaos')).length;
+    const runes = race => race.events.filter(e => e.type === 'rune-spawn').length;
+    assert.equal(runes(ruled(seed, 'runes')), 2 * runes(ruled(seed, null)));
+  }
+  assert.ok(chaos >= 1.8 * plain && chaos <= 2.2 * plain, `${chaos} vs ${plain}`);
+});
+
+test('day rule storm never deals sunny weather; thriller always ends on the finale rock', () => {
+  for (let seed = 0; seed < 60; seed++) {
+    assert.notEqual(ruled(seed, 'storm').weather.id, 'sunny');
+    assert.ok(ruled(seed, 'thriller').events.some(e => e.type === 'hazard' && e.finale), `seed ${seed}`);
+  }
+});
+
+test('day rule double: every active skill fires twice, a passive one at most once', () => {
+  const PASSIVE = new Set(['mirror', 'buoy']);
+  for (let seed = 0; seed < 30; seed++) {
+    const race = ruled(seed, 'double');
+    for (const r of race.racers) {
+      const uses = race.events.filter(e => e.type === 'skill' && e.scheduled && e.actorId === r.id).length;
+      if (PASSIVE.has(r.skill.id)) assert.ok(uses <= 1, `seed ${seed} ${r.skill.id}`);
+      else assert.equal(uses, 2, `seed ${seed} ${r.skill.id}`);
+    }
+  }
+});
+
+test('day rule comeback doubles the comeback luck', () => {
+  const luck = [2, 1, 0, 0, 0, 0, 0];
+  assert.deepEqual(ruled(3, null, 7, { luck }).racers.map(r => r.luck || 0), luck);
+  assert.deepEqual(ruled(3, 'comeback', 7, { luck }).racers.map(r => r.luck || 0), [4, 2, 0, 0, 0, 0, 0]);
+});
+
+test('without a day rule, luck 3 keeps its full 90% river-event dodge (old replays rebuild unchanged)', () => {
+  let dodged = 0, hits = 0;
+  for (let seed = 0; seed < 300; seed++) {
+    const race = ruled(seed, null, 7, { luck: [3, 3, 3, 3, 3, 3, 3] });
+    for (const e of race.events.filter(e => e.type === 'hazard' && !e.finale && ['croc', 'whirlpool', 'hippo', 'log', 'rock'].includes(e.hazard))) e.outcome === 'blocked' ? dodged++ : hits++;
+  }
+  assert.ok(dodged / (dodged + hits) > 0.8, `dodge rate ${dodged / (dodged + hits)}`);
+});

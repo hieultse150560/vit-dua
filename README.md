@@ -128,6 +128,21 @@ Mỗi vòng mới bốc một kiểu thời tiết, hiện trên đầu sông v�
 
 Mặt sông đổi màu theo thời tiết, có mưa rơi, gió thổi và chớp giật khi bão.
 
+### Luật đặc biệt của ngày (`chaos-v3`)
+
+Mỗi ngày đua mới bốc ngẫu nhiên một luật, hiện ngay dưới tiêu đề ngày và áp dụng cho mọi vòng (kể cả đua phụ) của ngày đó. Luật đi kèm đội hình của từng trận nên phần xem lại dựng lại đúng trận. Ngày tạo trước khi có tính năng này giữ nguyên, không có luật.
+
+| Luật | Tác dụng |
+| --- | --- |
+| 🌀 Ngày hỗn loạn | Sự kiện sông nước nhiều gấp đôi. |
+| ⚡ Skill kép | Mỗi vịt tung skill chủ động 2 lần (Gương, Phao vẫn 1 lần). |
+| 💎 Mưa rune | Rune trên sông nhiều gấp đôi. |
+| ⛈️ Trời nổi giông | Không có nắng đẹp: trận nào cũng mưa, gió, bão, sương mù hoặc đêm. |
+| 🎬 Về đích nghẹt thở | Trận nào cũng có cú vấp đá sát đích quật ngã con dẫn đầu. |
+| 🍀 Lội ngược dòng | Bùa may của người đang thua mạnh gấp đôi (né sự kiện xấu tối đa 75%). |
+
+Đo 2.500 trận 7 vịt × 40 giây cho mỗi luật: người cầm skill hay đặc tính nào cũng thắng trong khoảng 0,75–1,3 lần mức công bằng; ngày Lội ngược dòng, người chót bảng thắng khoảng 1,7 lần mức công bằng (ngày thường khoảng 1,5).
+
 `chaos-v3` còn chỉnh hai điểm so với `chaos-v2`:
 
 - **Skill thông minh:** vẫn ngẫu nhiên nhưng nghiêng về con đang dẫn: Đổi đời ưu tiên con cao nhất trong tầm 1–3 bậc (nhất là con đang dẫn), Lốc xoáy luôn cuốn 3 con dẫn đầu, Gương không bị đánh thì chiếu chói thẳng con đang dẫn (con cao nhất chưa bị choáng).
@@ -144,7 +159,7 @@ Mặt sông đổi màu theo thời tiết, có mưa rơi, gió thổi và chớ
 
 - Mỗi pha có một câu bình luận tiếng Việt hiện trên thanh nhỏ ngay dưới mặt sông, không che vịt (`dist/commentary.js`), kèm câu mở màn theo thời tiết và câu chốt khi về đích.
 - Âm thanh **bật sẵn** và nhớ lựa chọn bật/tắt trên từng trình duyệt. Trong lúc đua có tiếng nước sông chảy nền; về đích có tiếng reo hò.
-- Khi bật âm thanh, câu bình luận được đọc bằng giọng tiếng Việt của trình duyệt (Web Speech) nếu máy có; không có thì chỉ hiện chữ.
+- Khi bật âm thanh, câu bình luận được đọc bằng giọng tiếng Việt của trình duyệt (Web Speech). Máy không có giọng tiếng Việt thì chỉ hiện chữ (không để giọng tiếng Anh đọc tiếng Việt) và nhắc một lần: mở bằng Microsoft Edge để có sẵn giọng tiếng Việt.
 - Hiệu ứng âm thanh được tổng hợp bằng Web Audio, không cần file (`dist/sound-fx.js`): nổ nước, đuôi tên lửa, gương "keng", cá sấu đớp, cá heo kêu, vỏ chuối trượt…
 
 ### Danh hiệu cuối ngày
@@ -196,6 +211,8 @@ Chỉ khi ngày đã hoàn tất và phân định xong mới ghi **100.000đ ph
 **Quỹ mùa giải** hiển thị theo từng người: số ngày hoàn tất, số lần chót/kế chót, tổng phải đóng, đã thu thực tế và còn thiếu. Có danh sách khoản theo từng ngày để đánh dấu **Đã thu** hoặc bỏ dấu nếu cần sửa. Kết quả đua không tự đánh dấu tiền đã được thu; ứng dụng không thực hiện chuyển tiền.
 
 **Chốt mùa** mở bảng tổng kết để kiểm tra trước khi xác nhận. Chỉ chốt khi có ít nhất một ngày hoàn tất và không còn ngày chưa xong. Sau khi chốt, mùa cũ giữ nguyên lịch sử và kết quả, không thêm ngày đua; vẫn có thể cập nhật khoản thực thu còn thiếu. Sau đó mở mùa mới với điểm và quỹ mới bằng 0. Có thể hủy màn hình tạo mùa mới và tạo lại sau.
+
+**Hủy mùa** dùng khi cần đua lại từ đầu, kể cả đang giữa ngày: sau khi xác nhận, mùa đang mở bị xóa hẳn cùng mọi ngày đua, điểm, kết quả và khoản quỹ của nó (không khôi phục được), rồi màn hình tạo mùa mới mở ra với sẵn danh sách người chơi cũ. Không hủy được khi vịt đang chạy (tạm dừng thì được). Mùa đã chốt không hủy được.
 
 **Lịch sử** mở lại từng ngày và quỹ các mùa trước. Có CSV cho bảng điểm/chi tiết từng vòng của ngày và CSV cho quỹ mùa cùng từng khoản đóng.
 
