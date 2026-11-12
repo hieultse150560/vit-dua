@@ -37,7 +37,7 @@
     mirrorV3: { glareTargets: 2, glareTime: 2, glareSlow: 0.5 }, buoyV3: { fallbackPass: 3 },
     // Duck traits (chaos-v3), dealt with the skills before the picks. Speeds are extra fractions of base speed.
     // Comeback luck (chaos-v3): per level, extra speed, a chance to escape bad river events, more weight for helpful ones.
-    luck: { speed: 0.02, dodge: 0.3, help: 2 },
+    luck: { speed: 0.02, dodge: 0.3, help: 2, maxDodge: 0.75 },
     trait: { steady: 0.035, early: 0.18, earlyUntil: 0.25, late: 0.07, lateFrom: 0.8, catchup: 0.08, tough: 0.6, dodge: 0.3, lucky: 0.75, revengePush: 2.5, revengeTime: 1 }, // chaos-v3: victims land from `behind` % past the last duck up to `keep` of their lead over it
     rune: { boost: 0.4, time: 1.5, slow: 0.6 },
     hazard: { countMin: 2, countMax: 4, rockStun: 1.5, rockLateWindow: 3, rockLateChance: 0.7, crocPull: 5, windPush: 6, whirlStun: 1.5, dolphinPush: 5, surgeTime: 1, finaleKnock: 0.6,
@@ -180,7 +180,9 @@
   function planSlots(racers, duration, hazardRng, scheduleRng, weather, rules, finaleRng) {
     const H = tuning.hazard, count = racers.length;
     const slots = racers.map(r => ({ kind: 'skill', actorId: r.id, passive: PASSIVE.has(r.skill.id) }));
-    const hazardCount = (H.countMin + hazardRng.integer(H.countMax - H.countMin + 1) + (weather?.extra || 0)) * Math.ceil(count / 7);
+    // Day rule "double": every active skill gets a second slot.
+    if (rules.doubleSkill) racers.filter(r => !PASSIVE.has(r.skill.id)).forEach(r => slots.push({ kind: 'skill', actorId: r.id, passive: false }));
+    const hazardCount = (H.countMin + hazardRng.integer(H.countMax - H.countMin + 1) + (weather?.extra || 0)) * Math.ceil(count / 7) * (rules.hazardScale || 1);
     const pickHazard = weather ? () => weighted(rules.hazards, h => weather.weights[h.id] || 1, hazardRng) : () => rules.hazards[hazardRng.integer(rules.hazards.length)];
     for (let i = 0; i < hazardCount; i++) slots.push({ kind: 'hazard', hazard: pickHazard() });
     const first = tuning.firstPhase, last = duration - 0.2, minGap = rules.gap ?? tuning.minGap;
@@ -243,6 +245,17 @@
     return slots;
   }
 
+  // Day rules (chaos-v3): one per race day, carried in the lineup so a replay rebuilds the same race.
+  const dayRules = freeze([
+    { id: 'chaos', name: 'Ngày hỗn loạn', icon: '🌀', description: 'Sự kiện sông nước nhiều gấp đôi.' },
+    { id: 'double', name: 'Skill kép', icon: '⚡', description: 'Mỗi vịt tung skill chủ động 2 lần (Gương, Phao vẫn 1 lần).' },
+    { id: 'runes', name: 'Mưa rune', icon: '💎', description: 'Rune trên sông nhiều gấp đôi.' },
+    { id: 'storm', name: 'Trời nổi giông', icon: '⛈️', description: 'Không có nắng đẹp: trận nào cũng mưa, gió, bão, sương mù hoặc đêm.' },
+    { id: 'thriller', name: 'Về đích nghẹt thở', icon: '🎬', description: 'Trận nào cũng có cú vấp đá sát đích quật ngã con dẫn đầu.' },
+    { id: 'comeback', name: 'Lội ngược dòng', icon: '🍀', description: 'Bùa may của người đang thua mạnh gấp đôi.' }
+  ]);
+  const RULE_TWEAKS = { chaos: { hazardScale: 2 }, double: { doubleSkill: true }, runes: { runeScale: 2 }, storm: { noSun: true }, thriller: { finaleChance: 1 }, comeback: { luckScale: 2 } };
+
   // smartTargets (chaos-v3): random picks lean toward the leading ducks.
   // epic (chaos-v3): hook reels in the leader, wave sweeps the top 3 behind the caster.
   // finaleChance (chaos-v3): share of races ending with a decisive rock trip.
@@ -265,20 +278,26 @@
     if (!lineup || typeof lineup !== 'object') throw new TypeError('Đội hình skill không hợp lệ.');
     const luck = lineup.luck === undefined ? Array(count).fill(0) : lineup.luck;
     if (!Array.isArray(luck) || luck.length !== count || luck.some(l => !Number.isInteger(l) || l < 0 || l > 3)) throw new RangeError('Mức may mắn phải là số nguyên 0–3 cho từng vịt.');
-    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck };
+    const rule = lineup.rule === undefined ? null : dayRules.find(r => r.id === lineup.rule);
+    if (rule === undefined) throw new RangeError(`Luật của ngày không hợp lệ: ${lineup.rule}`);
+    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule };
   }
   function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed(), lineup = null) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;
     const ids = Array.from({ length: count }, (_, id) => id);
+    // chaos-v3 deals skills and traits (or takes the lineup shown before the picks); chaos-v2 keeps its deck.
+    const dealt = rules.traits ? cleanLineup(rules, count, lineup || dealLineup(rules, count, seed)) : null;
+    // The day rule (if any) tweaks this race's rules; every random stream stays the same.
+    const R = dealt?.rule ? { ...rules, ...RULE_TWEAKS[dealt.rule.id] } : rules;
     const motionRng = randomFor(seed, 0x4d4f5432);
     const skillRng = randomFor(seed, 0x534b4932);
     const scheduleRng = randomFor(seed, 0x53434832);
     const hazardRng = randomFor(seed, 0x48415a32);
-    const weather = rules.weather ? weighted(weathers, w => w.chance, randomFor(seed, 0x57544852)) : null;
+    const weather = rules.weather ? weighted(weathers, w => (R.noSun && w.id === 'sunny' ? 0 : w.chance), randomFor(seed, 0x57544852)) : null;
     const runeRng = randomFor(seed, 0x52554e32);
     const effectRng = randomFor(seed, 0x45464632);
-    const finaleRng = rules.finaleChance ? randomFor(seed, 0x46494e33) : null;
+    const finaleRng = R.finaleChance ? randomFor(seed, 0x46494e33) : null;
     const traitRng = rules.traits ? randomFor(seed, 0x54524e44) : null;
     const pct = value => value / 100 * duration;
     const sprintStart = duration - 5;
@@ -304,18 +323,16 @@
       racers[id].boost = boost;
       return boost;
     });
-    // chaos-v3 deals skills and traits (or takes the lineup shown before the picks); chaos-v2 keeps its deck.
-    const dealt = rules.traits ? cleanLineup(rules, count, lineup || dealLineup(rules, count, seed)) : null;
     const deck = dealt ? dealt.skills : shuffled(Array.from({ length: Math.ceil(count / rules.skills.length) }, () => rules.skills).flat(), skillRng);
     racers.forEach((racer, index) => {
       racer.skill = deck[index];
-      if (dealt) { racer.trait = dealt.traits[index]; racer.luck = dealt.luck[index]; }
+      if (dealt) { racer.trait = dealt.traits[index]; racer.luck = dealt.luck[index] * (R.luckScale || 1); }
       if (racer.skill.id === 'mirror') racer.mirror = true;
       if (racer.skill.id === 'buoy') racer.guard = 'buoy';
     });
 
-    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, rules, finaleRng).map((slot, index) => ({ ...slot, index }));
-    const runeCount = Math.max(3, Math.ceil(count / 3));
+    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, R, finaleRng).map((slot, index) => ({ ...slot, index }));
+    const runeCount = Math.max(3, Math.ceil(count / 3)) * (R.runeScale || 1);
     for (let i = 0; i < runeCount; i++) {
       // chaos-v3: lucky ducks find runes more often (all weights 1 without luck: the same draw as before).
       const actorId = rules.traits ? weighted(racers, r => 1 + r.luck, runeRng).id : runeRng.integer(count), rune = runeTypes[runeRng.integer(runeTypes.length)];
@@ -402,7 +419,8 @@
       const trait = victim.trait?.id, T = tuning.trait;
       if (trait === 'dodgy' && attacker && attacker !== victim && traitRng.unit() < T.dodge) return { outcome: 'blocked', guard: 'dodge' };
       if (trait === 'lucky' && !attacker && traitRng.unit() < T.lucky) return { outcome: 'blocked', guard: 'lucky' };
-      if (victim.luck && !attacker && traitRng.unit() < tuning.luck.dodge * victim.luck) return { outcome: 'blocked', guard: 'lucky' };
+      // The cap only binds on a "comeback" day (doubled luck), so rule-less races rebuild exactly as before.
+      if (victim.luck && !attacker && traitRng.unit() < Math.min(R.luckScale ? tuning.luck.maxDodge : Infinity, tuning.luck.dodge * victim.luck)) return { outcome: 'blocked', guard: 'lucky' };
       if (victim.guard) {
         const guard = victim.guard;
         victim.guard = null;
@@ -724,7 +742,7 @@
       }
     };
     function applySkill(actor) {
-      if (actor.skillUsed) return; // a passive skill already reacted earlier
+      if (actor.skillUsed && PASSIVE.has(actor.skill.id)) return; // a passive skill already reacted earlier (active ones may fire twice on a "double" day)
       const ranks = ranksNow();
       const effect = skillEffects[actor.skill.id](actor, ranks);
       actor.skillUsed = true;
@@ -905,7 +923,7 @@
     const publicRacers = freeze(racers.map(publicRacer));
     const results = freeze(finalOrder.map(racer => ({ ...publicRacer(racer), rank: finalRanks[racer.id], baseDistance: racer.baseDistance, finalDistance: racer.distance })));
     return Object.freeze({
-      version, seed, duration, sprintStart, ...(weather ? { weather } : {}),
+      version, seed, duration, sprintStart, ...(weather ? { weather } : {}), ...(dealt?.rule ? { rule: dealt.rule } : {}),
       racers: publicRacers, results, boosts: freeze(boosts.map(b => ({ ...b }))), events: freeze(events),
       sample(elapsedSeconds) {
         if (!Number.isFinite(elapsedSeconds)) throw new TypeError('Thời gian đã chạy phải hữu hạn.');
@@ -943,7 +961,7 @@
     });
   }
 
-  const v3 = Object.freeze({ version: 'chaos-v3', skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers,
+  const v3 = Object.freeze({ version: 'chaos-v3', skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, dayRules,
     // lineup: { skills: [id per duck], traits: [id per duck] } as shown before the picks; omitted = dealt from the seed.
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed, lineup),
     deal: (count, seed = newSeed()) => {
