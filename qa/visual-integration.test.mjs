@@ -254,25 +254,30 @@ test('fast effects (opt-in): the camera snaps in, the twist plays 1.2 s of slow 
   } finally { await game.close(); }
 });
 
-test('slow effects (default, for laggy screen sharing): 3 s slow motion, no zoom or shake', async () => {
+test('slow effects (default, for laggy screen sharing): slow motion sized to keep the race near 1.5x its length, no zoom or shake', async () => {
   const { e } = loneTwist(4242, 4);
   const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) });
   const elapsedNow = () => { game.click('pause'); const value = current(game).active.elapsed; game.click('pause'); return value; };
   try {
     assert.equal(game.$('slow-fx').getAttribute('aria-pressed'), 'true', 'slow effects by default');
-    assert.equal(game.window.document.documentElement.style.getPropertyValue('--fx-time'), '3s');
     game.click('resume-overlay'); advanceToTwist(game, e);
+    const fx = parseFloat(game.window.document.documentElement.style.getPropertyValue('--fx-time'));
+    assert.ok(fx >= 1.8 && fx <= 3.2, `slow motion per twist ${fx} s`);
     const water = game.window.document.querySelector('.race-water');
     assert.equal(water.classList.contains('zoom'), false, 'no camera zoom while screen sharing');
     assert.equal(water.classList.contains('shake'), false, 'no shake while screen sharing');
     const start = elapsedNow();
     game.advance(500, 50);
-    const slow = elapsedNow() - start;
-    assert.ok(slow > 0.03 && slow < 0.06, `slow motion (0.09x) advanced ${slow} race-s in 0.5 s`);
-    game.advance(2200, 50);
-    assert.ok(water.classList.contains('slowmo'), 'slow motion still on at 2.7 s');
-    game.advance(500, 50);
+    const slow = elapsedNow() - start, expected = 0.27 * 0.5 / fx;
+    assert.ok(Math.abs(slow - expected) < 0.012, `slow motion advanced ${slow} race-s in 0.5 s (expected ${expected})`);
+    game.advance(Math.round(fx * 1000) - 800, 50);
+    assert.ok(water.classList.contains('slowmo'), 'slow motion still on just before it ends');
+    game.advance(600, 50);
     assert.equal(water.classList.contains('slowmo'), false);
+    const later = elapsedNow();
+    game.advance(500, 50);
+    const normal = elapsedNow() - later;
+    assert.ok(normal > 0.45 && normal < 0.55, `then normal speed: ${normal} race-s in 0.5 s`);
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
 });

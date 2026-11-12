@@ -129,8 +129,8 @@
     function event(event, sample, elapsed, pre = sample) {
       if (destroyed || reduced() || elapsed - event.time > .3 || event.type === 'rune-spawn') return;
       const origin = point(event.actorId, sample), target = point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, sample);
-      const kind = event.type === 'terrain' ? 'terrain' : kindOf(event);
-      bursts.push({ time: elapsed, kind, origin, target, icon: event.icon, blocked: ['shielded', 'immune', 'resisted'].includes(event.outcome), id: event.id.length + event.actorId * 7,
+      const kind = kindOf(event);
+      bursts.push({ time: elapsed, kind, origin, target, blocked: ['shielded', 'immune', 'resisted'].includes(event.outcome), id: event.id.length + event.actorId * 7,
         affected: (event.affectedIds || []).map(id => point(id, sample)), shielded: (event.affectedIds || []).map(id => (event.protectedIds || []).includes(id)), atActor: AT_ACTOR.has(kind) || event.outcome === 'dropped', life: TWIST[kind] ? TWIST_LIFE : BURST_LIFE,
         outcome: event.outcome, reflected: event.outcome === 'reflected', roll: event.roll, actorId: event.actorId, targetId: event.targetId,
         segment: event.segment, outcomes: event.outcomes, affectedIds: event.affectedIds,
@@ -180,10 +180,7 @@
           ring(burst.target.x, burst.target.y, 6 + hit * 38, 5 + hit * 23, burst.blocked ? '#eaffff' : '#d7b0ff', 1 - hit, 3);
         }
       } else if (burst.kind === 'impact') { drawImpact(burst, p);
-      } else if (burst.kind === 'terrain') {
-        splash(burst.origin, p * 1.2, 1 - p, burst.id, '#ffffff', 14);
-        ring(burst.origin.x, burst.origin.y + 6, 16 + p * 46, 5 + p * 13, '#ffffff', 1 - p, 3);
-        emoji(burst.icon || '💦', burst.origin.x, burst.origin.y - 42 - p * 14, 26, 1 - p);
+
       } else if (burst.kind === 'shield') {
         ring(burst.target.x, burst.target.y - 8, 19 + p * 18, 22 + p * 15, '#f0ffff', (1 - p) * .85, 3);
         particles(burst.target, p, '#c2fbff', 9, 32, burst.id);
@@ -1096,7 +1093,7 @@
       // The sky dims; fiery meteors with long tails crash onto the front half of the field.
       meteor(b, f) {
         const spots = b.affected;
-        ctx.globalAlpha = f.alpha * .28 * Math.sin(clamp01(f.m) * Math.PI); ctx.fillStyle = '#250c45'; ctx.fillRect(0, 0, width, height);
+        ctx.globalAlpha = f.alpha * .1 * Math.sin(clamp01(f.m) * Math.PI); ctx.fillStyle = '#250c45'; ctx.fillRect(0, 0, width, height);
         spots.forEach((p, i) => {
           const start = i * .09, t = clamp01((f.m - start) / .45), hit = { x: p.x, y: p.y - 18 };
           if (f.m < start) return;
@@ -1231,7 +1228,7 @@
       volcano(b, f) {
         const spots = b.pre.affected, after = b.affected, vx = spots.length ? spots.reduce((s, p) => s + p.x, 0) / spots.length : b.origin.x, vy = 108;
         const rise = ease(f.m / .22), top = vy - 80 * rise;
-        ctx.globalAlpha = f.alpha * .18 * Math.sin(clamp01(f.m + .2) * Math.PI); ctx.fillStyle = '#ff3b1f'; ctx.fillRect(0, 0, width, height);
+        ctx.globalAlpha = f.alpha * .06 * Math.sin(clamp01(f.m + .2) * Math.PI); ctx.fillStyle = '#ff3b1f'; ctx.fillRect(0, 0, width, height);
         const cone = ctx.createLinearGradient(0, top, 0, vy + 34); cone.addColorStop(0, '#3a2a24'); cone.addColorStop(1, '#120c0a');
         ctx.globalAlpha = f.alpha; ctx.fillStyle = cone; ctx.beginPath(); ctx.moveTo(vx - 110, vy + 34); ctx.lineTo(vx - 26, top); ctx.lineTo(vx + 26, top); ctx.lineTo(vx + 110, vy + 34); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = '#ff7b29'; ctx.lineWidth = 4; ctx.lineCap = 'round';
@@ -1258,7 +1255,7 @@
       // Rockets streak up from the caster and burst into coloured stars over each duck they fall on.
       fireworks(b, f) {
         const start = { x: b.pre.origin.x, y: b.pre.origin.y - 30 }, COLORS = ['#ff5ea8', '#ffd166', '#7cf5ff', '#b67bff', '#7dff8a'];
-        ctx.globalAlpha = f.alpha * .16 * Math.sin(clamp01(f.m) * Math.PI); ctx.fillStyle = '#120a35'; ctx.fillRect(0, 0, width, height);
+        ctx.globalAlpha = f.alpha * .06 * Math.sin(clamp01(f.m) * Math.PI); ctx.fillStyle = '#120a35'; ctx.fillRect(0, 0, width, height);
         b.pre.affected.forEach((p, i) => {
           const launch = i * .08, t = clamp01((f.m - launch) / .34), top = { x: p.x, y: Math.max(64, p.y - 150) }, col = COLORS[(i + b.id) % COLORS.length];
           if (f.m < launch) return;

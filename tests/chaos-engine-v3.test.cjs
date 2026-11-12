@@ -792,15 +792,9 @@ test('maps: one per chaos-v3 race from the seed, zones reported in on-screen pro
   assert.equal(V2.createRace(names(7), 25, 1).map, undefined);
 });
 
-test('map zones: rapids capsize, ice and bridges spin the ducks that enter them, without a scheduled twist', () => {
-  const byMap = id => { const out = []; for (let seed = 0; out.length < 40 && seed < 3000; seed++) { const r = V3.createRace(names(7), 40, seed); if (r.map.id === id) out.push(r); } return out; };
-  for (const [id, terrain, pose] of [['rapids', 'rapids', 'capsized'], ['ice', 'ice', 'spinning'], ['canal', 'bridge', 'spinning']]) {
-    let trips = 0;
-    for (const r of byMap(id)) for (const e of r.events.filter(x => x.type === 'terrain')) {
-      assert.equal(e.terrain, terrain); assert.ok(!e.scheduled, 'not a scheduled twist');
-      assert.equal(r.sample(e.time + 0.05)[e.actorId].pose, pose); trips++;
-    }
-    assert.ok(trips > 40, `${id}: ${trips} trips`);
+test('maps are scenery only: no terrain events, and the river events stay as they were (2–4 plus the weather)', () => {
+  for (let seed = 0; seed < 300; seed++) {
+    const r = V3.createRace(names(7), 40, seed);
+    assert.ok(!r.events.some(e => e.type === 'terrain'), `seed ${seed}`);
   }
-  for (const r of byMap('jungle').concat(byMap('lotus'))) assert.ok(!r.events.some(x => x.type === 'terrain'));
 });
