@@ -76,3 +76,38 @@ test('with a room open, a player who does not pick within 5 s gets a random duck
     assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
   } finally { await host.close(); await viewer?.close(); }
 });
+
+test("a player's page follows the host: a paused race's totals, the next pick round, the day summary", async () => {
+  const host = loadGame({}, withChannel); let viewer;
+  const pickAll = async () => { for (let i = 0; i < 5 && host.$('start').disabled; i++) host.click('random-picks'); await sync(host, viewer); };
+  const race = async () => { for (let i = 0; i < 30 && !host.$('result-dialog').open; i++) { host.advance(4000, 50); viewer.advance(4000, 50); await settle(); } await sync(host, viewer); };
+  try {
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    submit(host, 'setup-form'); await settle();
+    const code = host.storage()['vit-dua-room'];
+    host.click('room-close'); host.click('skills-close');
+    viewer = loadGame({}, { ...withChannel, url: `http://localhost/?phong=${code}&ten=An` });
+    await sync(host, viewer);
+
+    await pickAll();
+    host.click('start'); await sync(host, viewer);
+    for (let i = 0; i < 3; i++) { host.advance(4000, 50); viewer.advance(4000, 50); await settle(); }
+    host.click('pause'); await sync(host, viewer); host.click('pause'); await sync(host, viewer); // the pause snapshot reaches the player mid-race
+    await race();
+    assert.equal(viewer.$('result-dialog').open, true);
+    const totals = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.lastElementChild.textContent);
+    assert.deepEqual(totals(viewer), totals(host), "the player's totals match the host's after a paused race");
+    assert.ok(viewer.$('result-content').querySelector('.race-recap'), 'the player gets the recap too');
+
+    host.click('result-next'); await sync(host, viewer);
+    assert.equal(viewer.$('result-dialog').open, false, "the host's next pick round closes the player's result, so they can pick");
+
+    while (current(host).stage !== 'complete') {
+      await pickAll(); host.click('start'); await sync(host, viewer);
+      await race(); host.click('result-next'); await sync(host, viewer);
+    }
+    assert.equal(viewer.$('result-dialog').open, true, 'the player sees the day summary');
+    assert.match(viewer.$('result-label').textContent, /TỔNG KẾT NGÀY/);
+    assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
+  } finally { await host.close(); await viewer?.close(); }
+});

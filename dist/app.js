@@ -577,7 +577,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function roomSnapshot(){
     if(!current||isLegacy())return null;const a=current.active;
     return {v:1,day:`${currentSeason()?.name||'Vịt Đua'} · Ngày ${dateLabel(current.session.date)}`,session:current.session,type:current.type,stage:current.stage,picks:current.picks,stars:starsOf(),
-      lineup:current.lineup||null,rule:current.rule||null,pickDeadline,active:a&&a.engine?{id:a.id,seed:a.seed,engine:a.engine,lineup:a.lineup,startAt:roomStartAt,paused:phase==='paused'}:null};
+      lineup:current.lineup||null,rule:current.rule||null,pickDeadline,raceReplays:current.raceReplays||[],active:a&&a.engine?{id:a.id,seed:a.seed,engine:a.engine,lineup:a.lineup,startAt:roomStartAt,paused:phase==='paused'}:null};
   }
   function publishRoom(){if(!room||viewer)return;clearTimeout(publishTimer);publishTimer=setTimeout(()=>{Promise.resolve(room?.publish(roomSnapshot())).catch(e=>toast(`Phòng: ${e.message}`));},120);}
   function roomRequest(req){
@@ -642,15 +642,19 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     if(!state){if(!current?.active){$('viewer-pill').hidden=false;$('viewer-pill').textContent=`📡 Phòng ${viewerCode} chưa mở hoặc đã đóng.`;}return;}
     if(current?.active){latestState=state;const a=state.active;if(a&&a.id===current.active.id&&a.paused!==(phase==='paused')&&['running','paused'].includes(phase))pause();return;}
     let session;try{session=T.validateSession(state.session);}catch{return;}
-    meId=session.players.find(p=>DuckRoom.sameName(p.name,viewerName))?.id||null;pickDeadline=Number(state.pickDeadline)||0;
-    current={seasonId:null,session,type:state.type,stage:state.stage,picks:{...state.picks},active:null,raceReplays:[],...(state.stars?.length?{stars:[...state.stars]}:{}),...(state.lineup?{lineup:state.lineup}:{}),...(state.rule?{rule:state.rule}:{})};
+    meId=session.players.find(p=>DuckRoom.sameName(p.name,viewerName))?.id||null;pickDeadline=Number(state.pickDeadline)||0;const was=current?.stage;
+    const replays=Array.isArray(state.raceReplays)?state.raceReplays.filter(r=>r&&engineFor(r.engine)):[];
+    current={seasonId:null,session,type:state.type,stage:state.stage,picks:{...state.picks},active:null,raceReplays:replays,...(state.stars?.length?{stars:[...state.stars]}:{}),...(state.lineup?{lineup:state.lineup}:{}),...(state.rule?{rule:state.rule}:{})};
     const a=state.active;
     if(a&&a.id!==viewerRaceId){
       viewerRaceId=a.id;const lead=(a.startAt-room.now())/1000;
       if(lead>-1.5){startViewerRace(a,lead);return;}
       toast('Trận này đã bắt đầu trước khi bạn vào, đợi vòng sau nhé.');
     }
+    // Follow the host: their next pick round closes this page's result; their day summary opens here too.
+    if(state.stage==='picking')close('result-dialog');
     render();
+    if(state.stage==='complete'&&was!=='complete')showFinal();
   }
   function startViewerRace(a,lead){
     try{race=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,a.lineup);}catch(e){toast(e.message);render();return;}
@@ -660,10 +664,12 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     stop();const type=current.type,a=current.active;
     const input={id:a.id,picks:{...current.picks},order:race.results.map(r=>r.id),completedAt:new Date().toISOString(),...(type==='regular'?{stars:starsOf()}:{})};
     let record=null;try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);}catch{}
+    current.raceReplays=[...(current.raceReplays||[]).filter(r=>r.id!==a.id),{id:a.id,seed:a.seed,engine:a.engine,...(a.lineup?{lineup:a.lineup}:{})}];
     endAmbience();if(sound&&audio&&audio.state==='running')window.DuckSfx?.play(audio,'cheer');
     const [first,second]=race.results;say(window.DuckCommentary?.finish(owners[first.id],owners[second?.id],photoFinish));
     current.active=null;current.stage='result';clearRace();
-    if(latestState){const s=latestState;latestState=null;viewerState(s);}else render();
+    // A snapshot from during this race (a pause) is older than the result just recorded: wait for the host's next one.
+    const s=latestState;latestState=null;if(s&&s.active?.id!==a.id)viewerState(s);else render();
     if(record)showRound(record,type,false);
   }
   function restoreCurrent(){
