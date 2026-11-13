@@ -98,5 +98,7 @@
   const sameName = (a, b) => String(a).normalize('NFC').trim().toLocaleLowerCase('vi-VN') === String(b).normalize('NFC').trim().toLocaleLowerCase('vi-VN');
   const link = (code, name, base = root.location.href.split(/[?#]/)[0]) => `${base}?phong=${encodeURIComponent(code)}&ten=${encodeURIComponent(name)}`;
 
-  root.DuckRoom = Object.freeze({ host, join, newCode, validCode, sameName, link, online: () => !!config() });
+  // A room can open when Firebase is configured, or (for a try on one machine) when tabs can talk.
+  const available = () => !!config() || typeof root.BroadcastChannel === 'function';
+  root.DuckRoom = Object.freeze({ host, join, newCode, validCode, sameName, link, online: () => !!config(), available });
 })(typeof window !== 'undefined' ? window : globalThis);
