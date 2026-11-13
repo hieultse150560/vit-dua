@@ -152,7 +152,7 @@
     }catch{storageBlocked=true;warning('Không đọc được dữ liệu đã lưu. Bản cũ được giữ nguyên; phiên này không ghi đè dữ liệu. Bạn vẫn có thể tạo mùa để chơi thử và tải CSV.');}
   }
   function close(id){if($(id).open)$(id).close();}
-  function open(id){if(!$(id).open)$(id).showModal();}
+  function open(id){if(!$(id).open){$(id).showModal();armPickTimer();}}
   function setSlowFx(){$('slow-fx').setAttribute('aria-pressed',String(slowFx));$('slow-fx').querySelector('span').textContent=slowFx?'🐢 Hiệu ứng chậm':'⚡ Hiệu ứng nhanh';$('slow-fx').title=slowFx?'Đang chiếu chậm từng pha 3 giây, không zoom (hợp khi share Teams bị giật). Bấm để về hiệu ứng nhanh.':'Đang zoom nhanh, khựng hình, chiếu chậm 1,2 giây mỗi pha. Bấm để chiếu chậm 3 giây không zoom (hợp khi share Teams bị giật).';document.documentElement.style.setProperty('--fx-time',`${slowmoMs()/1000}s`);}
   function setSound(){const span=$('sound').querySelector('span');span.textContent=sound?'Âm thanh bật':'Âm thanh tắt';$('sound').setAttribute('aria-pressed',String(sound));$('sound').setAttribute('aria-label',sound?'Tắt âm thanh':'Bật âm thanh');}
   function activateAudio(){if(!sound)return;try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume().catch(()=>{});}catch{sound=false;setSound();toast('Trình duyệt chưa hỗ trợ âm thanh.');}}
@@ -587,7 +587,8 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   }
   function armPickTimer(){
     if(viewer)return;
-    const next=room&&current&&!current.active&&current.stage==='picking'&&!isLegacy()?queue().nextPlayerId:null;
+    // The clock waits while the host has a dialog open (sharing links, reading skills, a result): players may still pick.
+    const next=room&&current&&!current.active&&current.stage==='picking'&&!isLegacy()&&!document.querySelector('dialog[open]')?queue().nextPlayerId:null;
     if(next===pickTurn)return;
     clearTimeout(pickTimer);pickTurn=next;pickDeadline=next?room.now()+PICK_SECONDS*1000:0;publishRoom();
     if(next)pickTimer=setTimeout(()=>{if(pickTurn===next&&current?.stage==='picking'&&!current.active&&queue().nextPlayerId===next){toast(`${playerName(next)} chưa chọn kịp, chọn ngẫu nhiên.`,2500);randomPicks();}},PICK_SECONDS*1000);
@@ -693,7 +694,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   document.addEventListener('keydown',e=>{if(e.code!=='Space'||e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,button,a,select')||document.querySelector('dialog[open]')||viewer)return;e.preventDefault();if(current?.active)pause();else if(current?.stage==='picking')start();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&current?.active)save();});window.addEventListener('pagehide',()=>{if(current)save();});
   new ResizeObserver(measure).observe($('river'));
-  setInterval(showPickClock,250);
+  setInterval(showPickClock,250);document.querySelectorAll('dialog').forEach(d=>d.addEventListener('close',armPickTimer));
   window.speechSynthesis?.getVoices?.(); // Chrome loads its voice list lazily: ask early so the first comment finds it
   if(viewer){setSound();setSlowFx();joinRoom();}
   else{load();setSound();setSlowFx();if(current){restoreCurrent();$('restore-notice').textContent=current.active?'Đã khôi phục lượt đang đua ở trạng thái tạm dừng. Bấm Tiếp tục; lựa chọn và mô phỏng được giữ nguyên.':isLegacy()?'Dữ liệu trước mùa giải được giữ nguyên trong Lịch sử; không tính tiền hồi tố. Bấm Mùa mới để bắt đầu quỹ.':'Đã khôi phục mùa giải, điểm và quỹ. Mùa chỉ kết thúc khi bạn bấm Chốt mùa.';$('restore-notice').hidden=false;}else openSetup('season');

@@ -217,12 +217,32 @@ Bảng tổng kết ngày trao 4 danh hiệu từ các vòng `chaos-v2`/`chaos-v
 Tạo mùa hoặc ngày đua mới là phòng tự mở và hiện ngay danh sách link (cũng mở lại được bằng nút **📡 Phòng** trên máy giữ giải, tức máy chủ phòng): app tạo mã phòng và một link riêng cho từng người, dạng `.../vit-dua/?phong=MÃ&ten=Tên`. Gửi mỗi người đúng link của họ (nút **Sao chép tất cả link** chép sẵn danh sách `Tên: link` để dán vào Teams).
 
 - Người mở link thấy dải **📡 Phòng MÃ · Bạn là Tên**; tới lượt thì dải chuyển cam **ĐẾN LƯỢT BẠN CHỌN VỊT** và họ tự bấm chọn vịt (bật được ngôi sao hy vọng của mình). Lựa chọn được gửi về máy chủ phòng, máy chủ kiểm tra đúng lượt rồi mới nhận; máy chủ vẫn chọn hộ được người vắng mặt.
-- Khi phòng đang mở, mỗi lượt chọn có **5 giây** (đồng hồ hiện ở cả máy chủ và máy người chơi); hết giờ mà chưa chọn thì máy chủ chọn ngẫu nhiên cho người đó. Muốn tự chọn hộ cả nhóm không giới hạn giờ thì bấm **Đóng phòng**.
+- Khi phòng đang mở, mỗi lượt chọn có **5 giây** (đồng hồ hiện ở cả máy chủ và máy người chơi); hết giờ mà chưa chọn thì máy chủ chọn ngẫu nhiên cho người đó. Đồng hồ chỉ chạy khi máy chủ không mở hộp thoại nào (danh sách link, bảng kỹ năng, kết quả lượt…), nên lúc đang gửi link chưa ai bị chọn ngẫu nhiên; trong lúc đó người chơi vẫn tự chọn được. Muốn tự chọn hộ cả nhóm không giới hạn giờ thì bấm **Đóng phòng**.
 - Khi máy chủ bấm **Xuất phát**, máy mọi người cùng đếm ngược rồi tự chạy đúng trận đó (cùng hạt giống và đội hình nên ra đúng kết quả), có âm thanh, không giật như share màn hình. Máy chủ tạm dừng thì máy mọi người tạm dừng theo. Hết trận, mỗi máy hiện bảng kết quả; điểm và quỹ chỉ được ghi ở máy chủ phòng.
 - Trang của người chơi ẩn các nút quản lý giải và không bao giờ ghi vào dữ liệu đã lưu của trình duyệt đó. Vào phòng khi trận đã chạy thì đợi vòng sau.
 - Tên trong link không phải đăng nhập: chỉ để biết ai đang xem.
 
 **Kết nối:** phòng dùng Firebase Realtime Database (gói miễn phí) khi `dist/room-config.js` có cấu hình web của Firebase; cấu hình này không phải bí mật, quyền ghi được bảo vệ bằng Rules (chỉ máy chủ phòng ghi trạng thái, người chơi chỉ gửi được yêu cầu chọn vịt). Chưa có cấu hình thì phòng chỉ chạy giữa các tab của cùng một trình duyệt (để thử). Dữ liệu đi qua Firebase gồm tên người chơi, lựa chọn vịt và điểm trong ngày; tiền quỹ không gửi đi.
+
+Cấu hình đang dùng: dự án Firebase `duavitngaymoi`, Realtime Database ở Singapore (`asia-southeast1`), đăng nhập **Anonymous** đã bật. Rules của database:
+
+```json
+{
+  "rules": {
+    "rooms": {
+      "$room": {
+        ".read": true,
+        "host": { ".write": "auth != null && newData.val() === auth.uid && (!data.exists() || data.val() === auth.uid)" },
+        "state": { ".write": "auth != null && root.child('rooms').child($room).child('host').val() === auth.uid" },
+        "requests": {
+          ".write": "auth != null && root.child('rooms').child($room).child('host').val() === auth.uid",
+          "$req": { ".write": "auth != null && !data.exists() && newData.exists()" }
+        }
+      }
+    }
+  }
+}
+```
 
 ## Đua và điểm ngày
 

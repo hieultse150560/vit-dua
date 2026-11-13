@@ -42,7 +42,9 @@ export function loadGame(saved = {}, options = {}) {
   options.beforeScripts?.(window);
   for (const filename of scripts) {
     if (!/^[a-z0-9.-]+\.js$/i.test(filename)) throw Error(`Unexpected script path ${filename}`);
-    window.eval(options.scripts?.[filename] ?? readFileSync(resolve(site, filename), 'utf8'));
+    // Tests never reach the real Firebase: without its config, rooms use the BroadcastChannel.
+    const offline = filename === 'room-config.js' ? 'window.VIT_DUA_FIREBASE = null;' : null;
+    window.eval(options.scripts?.[filename] ?? offline ?? readFileSync(resolve(site, filename), 'utf8'));
   }
   observers.forEach(fn => fn());
 

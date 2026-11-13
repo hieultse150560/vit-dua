@@ -62,6 +62,10 @@ test('with a room open, a player who does not pick within 5 s gets a random duck
     const code = host.storage()['vit-dua-room'];
     viewer = loadGame({}, { ...withChannel, url: `http://localhost/?phong=${code}&ten=An` });
     await sync(host, viewer);
+    host.advance(6000, 100); viewer.advance(6000, 100); await settle(); // both pages share one wall clock
+    assert.equal(Object.keys(current(host).picks).length, 0, 'no clock while the host still shares the links');
+    assert.equal(host.$('pick-clock').hidden, true);
+    host.click('room-close'); host.click('skills-close'); await sync(host, viewer);
     assert.equal(host.$('pick-clock').hidden, false);
     assert.match(viewer.$('pick-clock').textContent, /⏱ [345]s/, 'the player sees the countdown too');
     host.advance(5200, 100); await settle();
