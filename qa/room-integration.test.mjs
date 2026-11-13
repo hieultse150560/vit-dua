@@ -18,12 +18,14 @@ test('a race room: each player picks on their own turn from their own page and w
   const host = loadGame({}, withChannel); let viewer;
   try {
     host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
-    submit(host, 'setup-form');
-    host.click('room-open'); host.click('#room-start'); await settle();
+    submit(host, 'setup-form'); await settle();
+    assert.equal(host.$('room-dialog').open, true, 'a new day opens the room with everyone\'s link');
     const code = host.storage()['vit-dua-room'];
     assert.match(code, /^[A-Z0-9]{6}$/);
     assert.match(host.$('room-open').textContent, new RegExp(code));
     assert.ok(host.$('room-content').textContent.includes(`phong=${code}&ten=An`), 'the host lists a link per player');
+    host.click('room-close');
+    assert.equal(host.$('skills-dialog').open, true, 'then the skill table'); host.click('skills-close');
 
     viewer = loadGame({}, { ...withChannel, url: `http://localhost/?phong=${code}&ten=an` });
     await sync(host, viewer);
@@ -48,6 +50,25 @@ test('a race room: each player picks on their own turn from their own page and w
     assert.equal(current(host).session.rounds.length, 1, 'the host scored the round');
     assert.equal(viewer.$('result-dialog').open, true, 'the player sees the result');
     assert.equal(viewer.storage()[KEY], undefined, "a player's page never writes the tournament");
+    assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
+  } finally { await host.close(); await viewer?.close(); }
+});
+
+test('with a room open, a player who does not pick within 5 s gets a random duck', async () => {
+  const host = loadGame({}, withChannel); let viewer;
+  try {
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    submit(host, 'setup-form'); await settle();
+    const code = host.storage()['vit-dua-room'];
+    viewer = loadGame({}, { ...withChannel, url: `http://localhost/?phong=${code}&ten=An` });
+    await sync(host, viewer);
+    assert.equal(host.$('pick-clock').hidden, false);
+    assert.match(viewer.$('pick-clock').textContent, /⏱ [345]s/, 'the player sees the countdown too');
+    host.advance(5200, 100); await settle();
+    assert.equal(Object.keys(current(host).picks).length, 1, "Phú's turn ran out: a random duck");
+    assert.ok(current(host).picks.p0 !== undefined);
+    host.advance(5200, 100); await settle();
+    assert.equal(Object.keys(current(host).picks).length, 2, "then An's");
     assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
   } finally { await host.close(); await viewer?.close(); }
 });

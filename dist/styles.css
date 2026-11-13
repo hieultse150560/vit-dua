@@ -25,6 +25,8 @@ body.viewer #room-open,body.viewer #saved-games,body.viewer #new-game,body.viewe
 .viewer-pill.my-turn{background:linear-gradient(90deg,#e5582b,#d9822b);animation:my-turn 1s ease-in-out infinite alternate}
 @keyframes my-turn{to{transform:scale(1.02)}}
 .duck-card.mine{outline:3px solid #e5582b;outline-offset:2px}
+.pick-clock{margin-left:10px;padding:3px 10px;border-radius:999px;background:#1f3d33;color:#fff;font-weight:800;font-size:13px;font-variant-numeric:tabular-nums}
+.pick-clock.urgent{background:#c2412b;animation:my-turn .5s ease-in-out infinite alternate}
 .racer.mine .duck-body{filter:drop-shadow(0 0 8px #ffb347) drop-shadow(0 0 3px #fff)}
 .room-links{list-style:none;padding:0;margin:12px 0;display:grid;gap:8px}.room-links li{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;border:1px solid #e9dfca;border-radius:9px;padding:8px 10px;background:#fcf6e8}
 .room-links code{font-size:11px;overflow-wrap:anywhere;color:#5b4a2c}

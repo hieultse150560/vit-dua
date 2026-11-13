@@ -214,9 +214,10 @@ Bảng tổng kết ngày trao 4 danh hiệu từ các vòng `chaos-v2`/`chaos-v
 
 ## Phòng chơi: mỗi người chọn vịt và xem trận trên máy mình
 
-Bấm **📡 Mở phòng** trên máy giữ giải (máy chủ phòng): app tạo mã phòng và một link riêng cho từng người, dạng `.../vit-dua/?phong=MÃ&ten=Tên`. Gửi mỗi người đúng link của họ (nút **Sao chép tất cả link** chép sẵn danh sách `Tên: link` để dán vào Teams).
+Tạo mùa hoặc ngày đua mới là phòng tự mở và hiện ngay danh sách link (cũng mở lại được bằng nút **📡 Phòng** trên máy giữ giải, tức máy chủ phòng): app tạo mã phòng và một link riêng cho từng người, dạng `.../vit-dua/?phong=MÃ&ten=Tên`. Gửi mỗi người đúng link của họ (nút **Sao chép tất cả link** chép sẵn danh sách `Tên: link` để dán vào Teams).
 
 - Người mở link thấy dải **📡 Phòng MÃ · Bạn là Tên**; tới lượt thì dải chuyển cam **ĐẾN LƯỢT BẠN CHỌN VỊT** và họ tự bấm chọn vịt (bật được ngôi sao hy vọng của mình). Lựa chọn được gửi về máy chủ phòng, máy chủ kiểm tra đúng lượt rồi mới nhận; máy chủ vẫn chọn hộ được người vắng mặt.
+- Khi phòng đang mở, mỗi lượt chọn có **5 giây** (đồng hồ hiện ở cả máy chủ và máy người chơi); hết giờ mà chưa chọn thì máy chủ chọn ngẫu nhiên cho người đó. Muốn tự chọn hộ cả nhóm không giới hạn giờ thì bấm **Đóng phòng**.
 - Khi máy chủ bấm **Xuất phát**, máy mọi người cùng đếm ngược rồi tự chạy đúng trận đó (cùng hạt giống và đội hình nên ra đúng kết quả), có âm thanh, không giật như share màn hình. Máy chủ tạm dừng thì máy mọi người tạm dừng theo. Hết trận, mỗi máy hiện bảng kết quả; điểm và quỹ chỉ được ghi ở máy chủ phòng.
 - Trang của người chơi ẩn các nút quản lý giải và không bao giờ ghi vào dữ liệu đã lưu của trình duyệt đó. Vào phòng khi trận đã chạy thì đợi vòng sau.
 - Tên trong link không phải đăng nhập: chỉ để biết ai đang xem.
