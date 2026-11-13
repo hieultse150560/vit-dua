@@ -7,7 +7,7 @@ const site = resolve(import.meta.dirname, '../dist');
 export function loadGame(saved = {}, options = {}) {
   const errors = [];
   const window = new Window({
-    url: 'http://localhost/', width: 1440, height: 1000,
+    url: options.url || 'http://localhost/', width: 1440, height: 1000,
     settings: { disableCSSFileLoading: true, disableJavaScriptFileLoading: true, enableJavaScriptEvaluation: true, suppressInsecureJavaScriptEnvironmentWarning: true }
   });
   window.addEventListener('error', event => { errors.push(event.error || event.message); event.preventDefault(); });
