@@ -463,6 +463,15 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .cast-button.charging{background:linear-gradient(90deg,#ffb300,#ff5a1f);color:#fff;box-shadow:0 0 0 4px rgba(255,140,0,.25),0 6px 18px rgba(255,90,31,.45)}
 .cast-button.ready{animation:cast-pulse .9s ease-in-out infinite alternate}
 .cast-button:focus-visible{outline:3px solid #1f3d33;outline-offset:3px}
+.cast-targets{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;max-width:640px;margin:8px auto 0;padding:8px 10px;border:2px dashed #e5582b;border-radius:16px;background:#fff8f1}
+.cast-targets[hidden]{display:none}
+.cast-aim-label{font-weight:900;color:#a8401c;font-size:13px}
+.cast-keys{flex-basis:100%;text-align:center;font-size:12px;color:#6b665a}
+@media (hover:none){.cast-keys{display:none}}
+.cast-target{padding:6px 12px;border:2px solid #e7dcc4;border-radius:999px;background:#fff;color:#2b2a25;font:inherit;font-weight:800;font-size:14px;cursor:pointer;transition:transform .12s,background .12s,border-color .12s}
+.cast-target:hover{border-color:#e5582b;transform:translateY(-1px)}
+.cast-target.on{background:#e5582b;border-color:#e5582b;color:#fff;box-shadow:0 4px 12px rgba(229,88,43,.35)}
+.cast-target:focus-visible{outline:3px solid #1f3d33;outline-offset:2px}
 @keyframes cast-pulse{to{transform:scale(1.06);box-shadow:0 8px 22px rgba(229,88,43,.55)}}
 body:not(.viewer) .skill-chip[data-cast="ready"]{cursor:pointer;border-color:#e5582b;box-shadow:0 0 0 2px rgba(229,88,43,.22)}
 body:not(.viewer) .skill-chip[data-cast="ready"]:hover{background:#fff1e8}
