@@ -17,7 +17,8 @@
   // and SLOW_MAX ms, so all the slow motion adds at most half the race length (a 40 s race lasts about a minute).
   const SLOW_MIN=1800, SLOW_MAX=3200;let slowMs=SLOW_MAX;
   const slowmoMs=()=>slowFx?slowMs:1200, slowmoRate=()=>SLOWMO_WINDOW*1000/slowmoMs();
-  function planSlowmo(){let n=0,last=-Infinity;for(const e of race?.events||[])if((e.type==='skill'||e.type==='hazard')&&e.scheduled&&e.time-last>=SLOWMO_WINDOW){n++;last=e.time;}
+  function planSlowmo(){const cast=!!current?.active?.lineup?.casts;let n=0,last=-Infinity;for(const e of race?.events||[])if((e.type==='hazard'||e.type==='skill'&&!cast)&&e.scheduled&&e.time-last>=SLOWMO_WINDOW){n++;last=e.time;}
+    if(cast)n+=race.racers.filter(r=>!C3.passive.includes(r.skill.id)).length; // a race with casts sizes it from every skill to come, so it never changes mid-race
     slowMs=Math.round(Math.max(SLOW_MIN,Math.min(SLOW_MAX,((race?.duration||40)*.5/Math.max(1,n)+SLOWMO_WINDOW)*1000)));document.documentElement.style.setProperty('--fx-time',`${slowmoMs()/1000}s`);}
   // New days race at least this long so every twist has room to play out (older days keep their length).
   const MIN_RACE_SECONDS=40;let slowmoUntil=0;
@@ -31,6 +32,8 @@
   let room=null,roomCode=null,roomStartAt=0,publishTimer=null,meId=null,viewerRaceId=null,latestState=null,skillsAfterRoom=false;
   // With a room open, each turn to pick lasts PICK_SECONDS; then the host picks a random duck for that player.
   const PICK_SECONDS=10;let pickTurn=null,pickDeadline=0,pickTimer=null;
+  // With a room open, each player casts their own skill (race seconds of wind-up let the cast reach every page first).
+  const CAST_WINDUP=1;let castSentAt=0,autoCastRace=null;
   let store={version:3,currentId:null,currentSeasonId:null,seasons:[],sessions:[]}, current=null, selected=null, setupMode='season', starArmed=false;
   let race=null, phase='idle', raf=null, lastTime=0, lastSaved=0, nodes=[], runwayWidth=0;
   let audio=null, sound=soundPref(), lastTick=-1, sprintAnnounced=false, leadersKey='', toastTimer;
@@ -88,9 +91,10 @@
   }
   // chaos-v3 lineup: one skill and one trait per duck, dealt before the picks and shown on the duck cards.
   const lineupOk=(l,count)=>!!l&&typeof l==='object'&&['skills','traits'].every(k=>Array.isArray(l[k])&&l[k].length===count)&&l.skills.every(id=>C3.skills.some(s=>s.id===id))&&l.traits.every(id=>C3.traits.some(t=>t.id===id))
-    &&(l.luck===undefined||Array.isArray(l.luck)&&l.luck.length===count&&l.luck.every(v=>Number.isInteger(v)&&v>=0&&v<=3))&&(l.rule===undefined||knownRule(l.rule));
-  const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{}),...(l.rule?{rule:l.rule}:{})});
-  // Day rule: drawn once per new race day, applied to every race of that day (old days have none).
+    &&(l.luck===undefined||Array.isArray(l.luck)&&l.luck.length===count&&l.luck.every(v=>Number.isInteger(v)&&v>=0&&v<=3))&&(l.rule===undefined||knownRule(l.rule))
+    &&(l.casts===undefined||Array.isArray(l.casts)&&l.casts.length===count&&l.casts.every(t=>t===null||Number.isFinite(t)&&t>=0));
+  const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{}),...(l.rule?{rule:l.rule}:{}),...(l.casts?{casts:[...l.casts]}:{})});
+  // Special rule: a new one each round (days made before rules existed have none).
   const dayRuleOf=id=>C3.dayRules.find(r=>r.id===id);
   const knownRule=id=>!!dayRuleOf(id)||C3.retiredDayRules.some(r=>r.id===id); // retired rules still rebuild races already played
   // Each round draws its own rule, never the one just played, so the river always changes between rounds.
@@ -253,6 +257,8 @@
     $('event-feed').hidden=!chaotic;
     $('event-history').replaceChildren();$('event-feed').replaceChildren();
     $('skill-reveal').replaceChildren(...(chaotic?race.racers.map(r=>{const owner=players.find(p=>current.picks[p.id]===r.id),chip=node('div','skill-chip');chip.dataset.duckId=String(r.id);chip.dataset.skillId=r.skill.id;chip.title=r.talent?`${r.skill.description} · Thiên phú: ${r.talent.description}`:r.skill.description;chip.append(node('strong','skill-owner',`${owner?.name||A.name(r.id)} · #${r.id+1}`),node('span','skill-name',`${r.skill.icon} ${r.skill.name}`));skillNodes[r.id]=chip;return chip;}):[]));
+    const casting=!!current.active?.lineup?.casts;$('skill-mode').textContent=`Mỗi vịt một skill · ${!casting?'Tự kích hoạt':viewer?'Chủ vịt tự bấm tung':'Chủ vịt tự bấm · bấm ô để tung hộ'}`;
+    if(!viewer&&casting)skillNodes.forEach((chip,id)=>{chip.tabIndex=0;chip.setAttribute('role','button');chip.title=`Bấm để tung skill hộ ${owners[id]}`;chip.onclick=()=>{if(!castFor(id))toast('Chưa tung được skill này lúc này.');};});
     visuals?.destroy();showWeather();visuals=window.DuckRaceVisuals?.create({lite:slowFx,container:document.querySelector('.race-water'),river:$('river'),nodes,reduced:()=>reduced.matches,seed:race.seed,weather:race.weather?.id,duration:race.duration,bend:bendAt,map:race.map||null})||null;
     if(viewer&&meId&&current.picks[meId]!==undefined)racerViews[current.picks[meId]]?.element.classList.add('mine');
     $('river').scrollTop=0;measure();
@@ -398,7 +404,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     if(viewer||!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;
     // Last round: any star still unused is spent now (covers random picks and older saves).
     if(current.type==='regular'){const forced=participants().map(p=>p.id).filter(id=>T.starForced(current.session,id)&&!starsOf().includes(id));if(forced.length)current.stars=[...starsOf(),...forced];}
-    try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);ensureLineup();if(!isLegacy()){const luck=luckByDuck();current.lineup={...plainLineup(current.lineup),...(luck.some(Boolean)?{luck}:{}),...(current.rule?{rule:current.rule}:{})};}race=isLegacy()?DuckRaceEngine.createRace(participants().map((_,i)=>A.name(i)),current.session.duration):C3.createRace(participants().map((_,i)=>A.name(i)),current.session.duration,undefined,current.lineup);}catch(e){toast(e.message);return;}
+    try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);ensureLineup();if(!isLegacy()){const luck=luckByDuck();current.lineup={...plainLineup(current.lineup),...(luck.some(Boolean)?{luck}:{}),...(current.rule?{rule:current.rule}:{}),casts:room?Array(participants().length).fill(null):undefined};}race=isLegacy()?DuckRaceEngine.createRace(participants().map((_,i)=>A.name(i)),current.session.duration):C3.createRace(participants().map((_,i)=>A.name(i)),current.session.duration,undefined,current.lineup);}catch(e){toast(e.message);return;}
     roomStartAt=room?room.now()+3000:0;stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C3.version,lineup:plainLineup(current.lineup)})};save();beginRace();
   }
   // Kicks off current.active (its countdownLeft seconds of countdown, then the race): the host's start and a player's page.
@@ -438,12 +444,12 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     if(phase==='running'){
       startAmbience();
       const frozen=hitStop>0;if(frozen)hitStop=Math.max(0,hitStop-delta*1000); // hit-stop: the race holds still a beat on impact
-      a.elapsed=Math.min(race.duration,a.elapsed+(frozen?0:delta*playbackRate(a.elapsed)));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();showGains(a.elapsed);const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
+      a.elapsed=Math.min(race.duration,a.elapsed+(frozen?0:delta*playbackRate(a.elapsed)));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();showGains(a.elapsed);const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));if(a.lineup?.casts&&!viewer)autoCasts();const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
       if(a.elapsed>=race.sprintStart){if(!sprintAnnounced){sprintAnnounced=true;document.querySelector('.race-water')?.classList.add('fog-lifted');$('arena-title').textContent='NƯỚC RÚT! Cơ hội lật ngược!';$('race-status').textContent='⚡ Tăng tốc ngẫu nhiên — vịt cuối vẫn có cơ hội!';tone(950,.2);}$('sprint-label').textContent='⚡ 5 GIÂY CUỐI · BỨT PHÁ!';const second=Math.ceil(remaining);if(second!==lastTick&&second>0){lastTick=second;tone(650,.06);}}
       if(a.elapsed>=race.duration){finish();return;}
     }
     if(now-lastSaved>=500){saveCheckpoint();lastSaved=now;}
-    schedule();
+    renderCasts();schedule();
   }
   function pause(){
     if(!current?.active)return;
@@ -577,14 +583,75 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   // Player (?phong=CODE&ten=NAME): follows the snapshot, picks on their turn, plays each race on their own screen.
   function roomSnapshot(){
     if(!current||isLegacy())return null;const a=current.active;
-    return {v:1,day:`${currentSeason()?.name||'Vịt Đua'} · Ngày ${dateLabel(current.session.date)}`,session:current.session,type:current.type,stage:current.stage,picks:current.picks,stars:starsOf(),
+    return {v:1,fx:slowFx,day:`${currentSeason()?.name||'Vịt Đua'} · Ngày ${dateLabel(current.session.date)}`,session:current.session,type:current.type,stage:current.stage,picks:current.picks,stars:starsOf(),
       lineup:current.lineup||null,rule:current.rule||null,pickDeadline,raceReplays:current.raceReplays||[],active:a&&a.engine?{id:a.id,seed:a.seed,engine:a.engine,lineup:a.lineup,startAt:roomStartAt,paused:phase==='paused'}:null};
   }
   function publishRoom(){if(!room||viewer)return;clearTimeout(publishTimer);publishTimer=setTimeout(()=>{Promise.resolve(room?.publish(roomSnapshot())).catch(e=>toast(`Phòng: ${e.message}`));},120);}
   function roomRequest(req){
+    if(req?.kind==='cast'){const duck=current?.active?current.picks[req.player]:undefined;if(Number.isInteger(duck))castFor(duck);return;}
     if(!current||current.active||current.stage!=='picking'||!req||typeof req.player!=='string')return;
     if(queue().nextPlayerId!==req.player)return; // not their turn (or a stale request)
     starArmed=req.star===true&&current.type==='regular'&&T.starAvailable(current.session,req.player);pick(Number(req.duck));
+  }
+  // ---- Casting (race room): each player casts their own active skill; the host decides when it lands ----
+  const castable=id=>!!race?.racers[id]&&!C3.passive.includes(race.racers[id].skill.id);
+  function castState(id){
+    const a=current.active,w=race.castWindow,t=a.lineup.casts[id];
+    if(!castable(id))return 'passive';if(t!==null)return a.elapsed<t?'charging':'done';
+    return a.elapsed<w.from?'wait':a.elapsed<=w.to?'ready':'late';
+  }
+  // A cast keeps `gap` from every other twist (river events, skills already cast, `extra` being placed) so the race keeps
+  // its calm. When the race is too full for that, it takes the free moment farthest from any twist. It always lands
+  // before the finale rock, which stays the race's last twist.
+  function castSlot(earliest,gap,extra=[]){
+    const busy=race.events.filter(e=>e.scheduled).map(e=>e.time).concat(extra).sort((p,q)=>p-q),finale=race.events.find(e=>e.finale)?.time;
+    const limit=Math.min(race.duration-1.5,finale===undefined?Infinity:finale-gap/2),clear=t=>Math.min(Infinity,...busy.map(x=>Math.abs(t-x)));
+    let t=earliest;for(const x of busy)if(Math.abs(t-x)<gap)t=x+gap;
+    if(t>limit)t=[limit,...busy.flatMap(x=>[x-gap,x+gap])].filter(c=>c>=earliest&&c<=limit).reduce((best,c)=>clear(c)>clear(best)+1e-9?c:best,Math.min(earliest,limit));
+    return Math.round(t*1000)/1000;
+  }
+  // Players cast between castWindow.from and .to; after that the host casts for them (auto). One rebuild for any number of casts.
+  function castDucks(ducks,auto=false){
+    const a=current?.active,w=race?.castWindow;if(viewer||!a?.lineup?.casts||!w||phase!=='running'||a.elapsed<w.from-.5||!auto&&a.elapsed>w.to)return false;
+    const casts=[...a.lineup.casts],placed=[];
+    for(const duck of ducks){if(!castable(duck)||casts[duck]!==null)continue;const t=castSlot(Math.max(w.from,a.elapsed+CAST_WINDUP),w.gap,placed);if(t<=a.elapsed+.05)continue;casts[duck]=t;placed.push(t);}
+    if(!placed.length)return false;
+    const lineup={...plainLineup(a.lineup),casts};let next;
+    try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch(e){toast(e.message);return false;}
+    a.lineup=lineup;swapRace(next);save();return true;
+  }
+  const castFor=duck=>castDucks([duck]);
+  // Past the deadline the host casts, once, every skill still waiting: in random order, `gap` apart.
+  function autoCasts(){
+    const a=current.active,w=race.castWindow;if(!w||a.elapsed<w.to||autoCastRace===a.id)return;autoCastRace=a.id;
+    const waiting=race.racers.map(r=>r.id).filter(id=>castable(id)&&a.lineup.casts[id]===null);
+    for(let i=waiting.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[waiting[i],waiting[j]]=[waiting[j],waiting[i]];}
+    if(waiting.length)castDucks(waiting,true);
+  }
+  // A new cast only changes the race from its own time on, so the race swaps in place. A page already past it (its clock
+  // ran ahead) just catches up: positions jump, nothing already shown is replayed.
+  function swapRace(next){
+    race=next;eventCursor=race.events.filter(e=>e.time<=current.active.elapsed+1e-8).length;
+    photoFinish=closeFinish(race);runeSpawns=race.events.filter(e=>e.type==='rune-spawn');runeMarkerKey='';
+  }
+  function viewerCasts(lineup){
+    const a=current.active;if(!lineupOk(lineup,participants().length))return;
+    let next;try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch{return;}
+    a.lineup=lineup;swapRace(next);
+  }
+  function viewerCast(){
+    const duck=meId?current?.picks[meId]:undefined;if(!viewer||!room||!current?.active?.lineup?.casts||!Number.isInteger(duck)||castState(duck)!=='ready'||performance.now()-castSentAt<2500)return;
+    castSentAt=performance.now();Promise.resolve(room.send({kind:'cast',player:meId})).catch(e=>toast(e.message));renderCasts();
+    setTimeout(()=>{if(current?.active&&race?.racers[duck]&&castState(duck)==='ready')toast('Máy chủ chưa nhận lệnh tung skill (có thể đang tạm dừng), bấm lại nhé.',2500);},2700);
+  }
+  function renderCasts(){
+    const a=current?.active,button=$('cast');
+    if(!a?.lineup?.casts||!race?.castWindow){if(button&&!button.hidden)button.hidden=true;return;}
+    for(const r of race.racers){const s=castState(r.id),chip=skillNodes[r.id];if(chip&&chip.dataset.cast!==s)chip.dataset.cast=s;racerViews[r.id]?.element.classList.toggle('charging',s==='charging');}
+    const duck=viewer&&meId?current.picks[meId]:undefined;button.hidden=!Number.isInteger(duck)||!race.racers[duck];if(button.hidden)return;
+    const s=castState(duck),skill=race.racers[duck].skill,sent=s==='ready'&&performance.now()-castSentAt<2500,name=`${skill.icon} ${skill.name}`;
+    const text=s==='passive'?`🛡️ ${name} tự kích hoạt`:s==='wait'?`🔒 ${name} · mở sau ${Math.ceil(race.castWindow.from-a.elapsed)}s`:s==='charging'?`⏳ Đang gồng ${name}…`:s==='done'?`✓ Đã tung ${name}`:s==='late'?`⌛ Hết giờ, máy tung hộ ${name}`:sent?'Đang gửi…':`🔥 TUNG ${name}! · còn ${Math.max(0,Math.ceil(race.castWindow.to-a.elapsed))}s`;
+    if(button.textContent!==text)button.textContent=text;button.disabled=s!=='ready'||sent;button.classList.toggle('ready',s==='ready'&&!sent);button.classList.toggle('charging',s==='charging');
   }
   function armPickTimer(){
     if(viewer)return;
@@ -640,8 +707,9 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     try{room=await DuckRoom.join(viewerCode,{onState:viewerState});}catch(e){$('viewer-pill').textContent=`📡 Không vào được phòng ${viewerCode}: ${e.message}`;}
   }
   function viewerState(state){
+    if(state&&typeof state.fx==='boolean'&&state.fx!==slowFx){slowFx=state.fx;setSlowFx();} // the host's effect speed keeps every race clock together
     if(!state){if(!current?.active){$('viewer-pill').hidden=false;$('viewer-pill').textContent=`📡 Phòng ${viewerCode} chưa mở hoặc đã đóng.`;}return;}
-    if(current?.active){latestState=state;const a=state.active;if(a&&a.id===current.active.id&&a.paused!==(phase==='paused')&&['running','paused'].includes(phase))pause();return;}
+    if(current?.active){latestState=state;const a=state.active;if(a&&a.id===current.active.id&&a.lineup?.casts&&JSON.stringify(a.lineup.casts)!==JSON.stringify(current.active.lineup?.casts))viewerCasts(a.lineup);if(a&&a.id===current.active.id&&a.paused!==(phase==='paused')&&['running','paused'].includes(phase))pause();return;}
     let session;try{session=T.validateSession(state.session);}catch{return;}
     meId=session.players.find(p=>DuckRoom.sameName(p.name,viewerName))?.id||null;pickDeadline=Number(state.pickDeadline)||0;const was=current?.stage;
     const replays=Array.isArray(state.raceReplays)?state.raceReplays.filter(r=>r&&engineFor(r.engine)):[];
@@ -693,9 +761,9 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   $('room-open').onclick=()=>{renderRoom();open('room-dialog');};$('room-close').onclick=()=>{close('room-dialog');if(skillsAfterRoom){skillsAfterRoom=false;showSkills();}};
   $('open-skills').onclick=showSkills;$('open-skills-inline').onclick=showSkills;$('skills-close').onclick=()=>close('skills-dialog');
   $('cancel-season').onclick=requestCancelSeason;$('cancel-season-close').onclick=()=>close('cancel-season-dialog');$('confirm-cancel-season').onclick=confirmCancelSeason;
-  $('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
+  $('cast').onclick=viewerCast;$('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
   $('final-summary').onclick=()=>{if(outcome().status==='tie'){if(current.stage==='picking'&&current.type==='tie'){toast('Chọn vịt cho nhóm đồng điểm ở bên dưới.');return;}next();}else{current.stage='complete';save();render();showFinal();}};
-  $('slow-fx').onclick=()=>{slowFx=!slowFx;try{localStorage.setItem(SLOW_FX_KEY,slowFx?'1':'0');}catch{}setSlowFx();};
+  $('slow-fx').onclick=()=>{slowFx=!slowFx;try{localStorage.setItem(SLOW_FX_KEY,slowFx?'1':'0');}catch{}setSlowFx();publishRoom();};
   $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem(SOUND_KEY,sound?'1':'0');}catch{}if(!sound){endAmbience();window.speechSynthesis?.cancel?.();}setSound();activateAudio();tone(700);};
   $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.body.requestFullscreen)await document.body.requestFullscreen();else toast('Dùng phím F11 để mở toàn màn hình.');}catch{toast('Dùng phím F11 để mở toàn màn hình.');}};
   document.addEventListener('keydown',e=>{if(e.code!=='Space'||e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,button,a,select')||document.querySelector('dialog[open]')||viewer)return;e.preventDefault();if(current?.active)pause();else if(current?.stage==='picking')start();});
