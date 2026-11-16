@@ -175,13 +175,13 @@ Mỗi trận bốc một map theo hạt giống trận (xem lại vẫn ra đún
 
 Cảnh map vẽ ở lớp dưới vịt (cầu đá ở lớp trên, vịt bơi chui qua), vẫn hiện khi bật giảm chuyển động.
 
-### Luật đặc biệt của ngày (`chaos-v3`)
+### Luật đặc biệt của từng vòng (`chaos-v3`)
 
-Mỗi ngày đua mới bốc ngẫu nhiên một luật, hiện ngay dưới tiêu đề ngày và áp dụng cho mọi vòng (kể cả đua phụ) của ngày đó. Luật đi kèm đội hình của từng trận nên phần xem lại dựng lại đúng trận. Ngày tạo trước khi có tính năng này giữ nguyên, không có luật. Luật **Skill kép** đã bỏ vì dễ rối: ngày lỡ bốc trúng thì bỏ luật, các trận đã đua vẫn xem lại đúng như cũ.
+Mỗi vòng đua (kể cả đua phụ) bốc ngẫu nhiên một luật, luôn khác luật của vòng vừa đua, hiện ngay dưới tiêu đề ngày (**Luật vòng này**) trong lúc chọn vịt. Map cũng đổi theo từng trận. Luật đi kèm đội hình của từng trận nên phần xem lại dựng lại đúng trận. Ngày tạo trước khi có tính năng này giữ nguyên, không có luật. Luật **Skill kép** đã bỏ vì dễ rối: ngày lỡ bốc trúng thì bỏ luật, các trận đã đua vẫn xem lại đúng như cũ.
 
 | Luật | Tác dụng |
 | --- | --- |
-| 🌀 Ngày hỗn loạn | Sự kiện sông nước nhiều gấp đôi. |
+| 🌀 Vòng hỗn loạn | Sự kiện sông nước nhiều gấp đôi. |
 | 💎 Mưa rune | Rune trên sông nhiều gấp đôi. |
 | ⛈️ Trời nổi giông | Không có nắng đẹp: trận nào cũng mưa, gió, bão, sương mù hoặc đêm. |
 | 🎬 Về đích nghẹt thở | Trận nào cũng có cú vấp đá sát đích quật ngã con dẫn đầu. |

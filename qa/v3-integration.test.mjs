@@ -304,7 +304,7 @@ test('after a round, trailing players get comeback luck on their pick; only last
   } finally { await game.close(); }
 });
 
-test('each new day draws one day rule: shown above the picks, carried into the race, its replay and a reload', async () => {
+test('each round draws its own rule: shown above the picks, carried into the race, its replay and a reload', async () => {
   const game = loadGame(); let restored;
   try {
     setup(game, 2);
@@ -320,6 +320,12 @@ test('each new day draws one day rule: shown above the picks, carried into the r
     restored = loadGame(game.storage());
     assert.equal(current(restored).rule, rule, 'the rule survives a reload');
     assert.ok(restored.$('day-rule').textContent.includes(rules.find(r => r.id === rule).name));
+    game.click('result-next');
+    const next = current(game).rule;
+    assert.ok(rules.some(r => r.id === next) && next !== rule, `the next round draws another rule (${rule} -> ${next})`);
+    assert.ok(game.$('day-rule').textContent.includes(rules.find(r => r.id === next).name), 'and shows it above the picks');
+    chooseAll(game); game.click('start');
+    assert.equal(current(game).active.lineup.rule, next, "the new rule rides with that round's race");
     noErrors(game); noErrors(restored);
   } finally { await game.close(); await restored?.close(); }
 });
@@ -360,7 +366,7 @@ test('the skill table lists every skill by tier, every trait and the day rules; 
     const content = game.$('skills-content'), text = content.textContent;
     for (const item of [...V3.skills, ...V3.traits, ...V3.dayRules]) assert.ok(text.includes(item.name), item.name);
     assert.equal(content.querySelectorAll('h3 .tier').length, 4, 'one heading per tier');
-    assert.ok(text.includes('· hôm nay'), "today's rule is marked");
+    assert.ok(text.includes('· vòng này'), "this round's rule is marked");
     game.click('skills-close');
     assert.equal(game.$('skills-dialog').open, false);
     game.click('open-skills-inline');
