@@ -6,6 +6,7 @@
   const VERSION = 'chaos-v2';
   const UINT32 = 0x100000000;
   const HZ = 20;
+  const AUTO_WINDUP = 1; // race room: seconds between the cast deadline and the first skill that casts itself
   const TIME_EXPONENT = 0.8; // phase density grows toward the finish
   const freeze = value => {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -335,7 +336,21 @@
     const casts = lineup.casts === undefined ? null : lineup.casts;
     if (casts !== null && (!Array.isArray(casts) || casts.length !== count || casts.some(t => t !== null && !(typeof t === 'number' && Number.isFinite(t) && t >= 0))))
       throw new RangeError('Thời điểm tung skill không hợp lệ.');
-    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule, casts };
+    // The rival each duck's owner aimed its skill at (null = the skill picks as usual).
+    const targets = lineup.targets === undefined ? null : lineup.targets;
+    if (targets !== null && (!Array.isArray(targets) || targets.length !== count || targets.some(t => t !== null && !(Number.isInteger(t) && t >= 0 && t < count))))
+      throw new RangeError('Mục tiêu skill không hợp lệ.');
+    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule, casts, targets };
+  }
+  // Race room: the first moment from `earliest` that keeps `gap` from every busy moment. When the race is too full for
+  // that before `limit`, the moment farthest from any of them (never before `earliest`, unless limit is earlier still).
+  function freeSlot(earliest, gap, busy, limit) {
+    const sorted = [...busy].sort((p, q) => p - q), clear = t => Math.min(Infinity, ...sorted.map(x => Math.abs(t - x)));
+    let t = earliest;
+    for (const x of sorted) if (Math.abs(t - x) < gap) t = x + gap;
+    if (t > limit) t = [limit, ...sorted.flatMap((x, i) => [x - gap, x + gap, (x + (sorted[i + 1] ?? x)) / 2])].filter(c => c >= earliest && c <= limit)
+      .reduce((best, c) => (clear(c) > clear(best) + 1e-9 ? c : best), Math.min(earliest, limit));
+    return Math.round(t * 1000) / 1000;
   }
   // scaled = false: a partial race only measures its finish for the display scale of a race with casts.
   function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed(), lineup = null, scaled = true) {
@@ -393,14 +408,17 @@
     });
 
     const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, R, finaleRng).map((slot, index) => ({ ...slot, index }));
-    // Race room (chaos-v3): an active skill fires when its owner cast it; one not cast yet waits. The plan is still drawn
-    // in full first, so every random stream stays the same and a new cast only changes the race from its own time on.
+    // Race room (chaos-v3): an active skill fires when its owner cast it. One nobody cast casts itself after the deadline
+    // (castWindow.to), at a moment every page works out alone: fixed by the plan, never by the casts, so a new cast
+    // only changes the race from its own time on. The plan is still drawn in full first, so every random stream stays the same.
     const castWindow = rules.midSpread ? { from: duration * .12, to: duration * .55, gap: Math.min(R.gap ?? tuning.minGap, duration * .62 / Math.max(1, schedule.filter(sl => !sl.finale).length)) } : null;
-    if (dealt?.casts) for (let i = schedule.length - 1; i >= 0; i--) {
-      const slot = schedule[i];
-      if (slot.kind !== 'skill' || slot.passive) continue;
-      const time = dealt.casts[slot.actorId];
-      if (time === null) schedule.splice(i, 1); else slot.tick = Math.max(1, tick(time));
+    if (dealt?.casts) {
+      const own = sl => sl.kind === 'skill' && !sl.passive, finale = schedule.find(sl => sl.finale);
+      const busy = schedule.filter(sl => !own(sl)).map(sl => sl.tick / HZ);
+      const limit = Math.min(duration - 1.5, finale ? finale.tick / HZ - castWindow.gap / 2 : Infinity);
+      castWindow.auto = Array(count).fill(null);
+      for (const slot of schedule.filter(own)) { const t = freeSlot(castWindow.to + AUTO_WINDUP, castWindow.gap, busy, limit); castWindow.auto[slot.actorId] ??= t; busy.push(t); }
+      for (const slot of schedule.filter(own)) slot.tick = Math.max(1, tick(dealt.casts[slot.actorId] ?? castWindow.auto[slot.actorId]));
     }
     const runeCount = Math.max(3, Math.ceil(count / 3)) * (R.runeScale || 1);
     for (let i = 0; i < runeCount; i++) {
@@ -431,9 +449,13 @@
     // A shell duck shrugs off slowing kinds, so for those it is never an open target either.
     const SHELL_KINDS = new Set(['slow', 'hex', 'asleep', 'reversed']);
     const open = (r, kind) => now >= r.impairUntil && now >= r.immuneUntil && !(kind && r.trait?.id === 'shell' && SHELL_KINDS.has(kind));
+    // Race room: the rival the actor's owner aimed at (any duck but itself), struck first. An aim rides with a cast:
+    // a skill that casts itself picks as usual.
+    const aim = actor => { const id = actor && dealt?.casts?.[actor.id] != null ? dealt.targets?.[actor.id] : null; return Number.isInteger(id) && id !== actor.id ? racers[id] : null; };
     const topRivals = (actor, n, kind) => {
-      const order = ranked().filter(r => r !== actor);
-      return (rules.smartTargets ? [...order.filter(r => open(r, kind)), ...order.filter(r => !open(r, kind))] : order).slice(0, n);
+      const order = ranked().filter(r => r !== actor), aimed = aim(actor);
+      const picked = rules.smartTargets ? [...order.filter(r => open(r, kind)), ...order.filter(r => !open(r, kind))] : order;
+      return (aimed ? [aimed, ...picked.filter(r => r !== aimed)] : picked).slice(0, n);
     };
 
     function jump(racer, distance, exact = false) {
@@ -570,9 +592,10 @@
         const hi = rank === 1 ? Math.min(count, rank + S.reachMax) : rank - S.reachMin;
         // Smart: the farther up (and the leader most of all), the likelier the target.
         const reach = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
-        const target = atRank(rules.smartTargets && rank !== 1 ? weighted(reach, r => rank - r + (r === 1 ? 2 : 0), effectRng) : lo + effectRng.integer(hi - lo + 1));
-        const harmed = rank === 1 ? actor : target, before = snapshot([actor, target]);
-        const defense = defend(harmed, actor, harmed !== actor);
+        const target = aim(actor) || atRank(rules.smartTargets && rank !== 1 ? weighted(reach, r => rank - r + (r === 1 ? 2 : 0), effectRng) : lo + effectRng.integer(hi - lo + 1));
+        // The swap harms whichever of the two is ahead (an aimed swap may well reach back down the field).
+        const harmed = ranks[target.id] < rank ? target : actor, before = snapshot([actor, target]);
+        const defense = aim(actor) && harmed === actor ? null : defend(harmed, actor, harmed !== actor); // aiming down the field: no guard of its own fights it
         let result;
         if (defense?.outcome === 'blocked') result = { outcome: 'blocked', guard: defense.guard, label: LABEL.blocked(defense.guard) };
         else if (defense) { reflect(target, actor, impair(actor, 'capsized', tuning.mirror.reflectStun)); result = { outcome: 'reflected', label: LABEL.reflected }; }
@@ -581,7 +604,7 @@
           jump(actor, b, true); jump(target, a, true);
           actor.swapUntil = target.swapUntil = tick(now + 0.7) / HZ;
           // chaos-v3: the duck swapped down is left dizzy for a moment.
-          if (rules.epic && rank !== 1) impair(target, 'spinning', tuning.swapV3.daze);
+          if (rules.epic && harmed === target) impair(target, 'spinning', tuning.swapV3.daze);
           result = { outcome: 'swapped', label: 'ĐỔI ĐỜI!' };
         }
         return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
@@ -618,15 +641,15 @@
       },
       hook(actor, ranks) {
         const H = tuning.hook, rank = ranks[actor.id], before = snapshot([actor]);
-        if (rank === 1) {
+        if (rank === 1 && !aim(actor)) {
           jump(actor, actor.distance + pct(H.selfPull));
           return { outcome: 'fallback', label: 'MÓC BỜ KÉO LÊN!', before, after: snapshot([actor]) };
         }
         if (rules.epic) {
-          const leader = atRank(1);
+          const leader = aim(actor) || atRank(1), leading = leader === atRank(1); // ranked before the pull drops it
           Object.assign(before, snapshot([leader]));
           const result = strike(actor, leader,
-            () => { jump(leader, Math.min(leader.distance - pct(tuning.epic.hookPull), actor.distance - pct(tuning.epic.hookGap))); return { outcome: 'hit', label: 'CẦN CÂU GIẬT CON DẪN ĐẦU!' }; },
+            () => { jump(leader, Math.min(leader.distance - pct(tuning.epic.hookPull), actor.distance - pct(tuning.epic.hookGap))); return { outcome: 'hit', label: leading ? 'CẦN CÂU GIẬT CON DẪN ĐẦU!' : 'CẦN CÂU GIẬT LÙI!' }; },
             () => impair(actor, 'capsized', tuning.mirror.reflectStun));
           return { targetId: leader.id, ...result, before, after: snapshot([actor, leader]) };
         }
@@ -726,7 +749,7 @@
           outcome: 'rewound', label: 'TUA NGƯỢC THỜI GIAN!', before, after: snapshot([actor, ...others]) };
       },
       missile(actor, ranks) {
-        const M = tuning.missile, target = ranks[actor.id] === 1 ? atRank(2) : atRank(1), before = snapshot([actor, target]);
+        const M = tuning.missile, target = aim(actor) || (ranks[actor.id] === 1 ? atRank(2) : atRank(1)), before = snapshot([actor, target]);
         // effect: whether the stun landed (a duck still in its immunity window only gets knocked back)
         const blast = duck => { jump(duck, duck.distance - pct(M.knock)); return impair(duck, 'capsized', M.stun); };
         const result = strike(actor, target, () => ({ outcome: 'hit', effect: blast(target), label: 'TÊN LỬA TẦM NHIỆT TRÚNG ĐÍCH!' }), () => blast(actor));
@@ -745,7 +768,7 @@
       },
       blackhole(actor) {
         // A black hole opens on the top rival, swallows it and spits it out behind the last duck.
-        const target = ranked().find(r => r !== actor), before = snapshot([actor, target]);
+        const target = aim(actor) || ranked().find(r => r !== actor), before = snapshot([actor, target]);
         const swallow = duck => { const tail = ranked().filter(r => r !== duck).at(-1); jump(duck, Math.min(duck.distance, tail.distance - pct(tuning.blackhole.behind)), true); return 'hit'; };
         const result = strike(actor, target, () => ({ outcome: swallow(target), label: 'HỐ ĐEN NUỐT CHỬNG!' }), () => swallow(actor));
         return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
@@ -865,10 +888,10 @@
           impair(actor, 'lifted', U.selfLift);
           return { targetId: actor.id, outcome: 'mistake', label: 'ĐĨA BAY BẮT NHẦM... THẢ LÊN TỐP ĐẦU!', before, after: snapshot([actor]) };
         }
-        const target = ranked().find(r => r !== actor), before = snapshot([actor, target]);
+        const target = aim(actor) || ranked().find(r => r !== actor), before = snapshot([actor, target]), leading = target === ranked().find(r => r !== actor);
         const drop = duck => { const pool = ranked().filter(r => r !== duck).slice(half - 1), spot = pool[effectRng.integer(pool.length)];
           jump(duck, Math.min(duck.distance, spot.distance - pct(U.behind)), true); return impair(duck, 'lifted', U.lift); }; // an abduction, not a knock-back: exact even for a heavy duck
-        const result = strike(actor, target, () => ({ outcome: (drop(target), 'hit'), label: 'ĐĨA BAY BẮT CÓC CON DẪN ĐẦU!' }), () => drop(actor));
+        const result = strike(actor, target, () => ({ outcome: (drop(target), 'hit'), label: leading ? 'ĐĨA BAY BẮT CÓC CON DẪN ĐẦU!' : 'ĐĨA BAY BẮT CÓC!' }), () => drop(actor));
         return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
       },
       pirate(actor, ranks) {
@@ -1196,7 +1219,9 @@
     });
   }
 
-  const v3 = Object.freeze({ version: 'chaos-v3', passive: freeze([...PASSIVE]), skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, maps, dayRules, retiredDayRules: retiredRules,
+  // Race room: skills whose owner may aim them at any rival (lineup.targets); multi-target ones strike the aimed duck first.
+  const TARGETED = freeze(['torpedo', 'swap', 'hook', 'lightning', 'reverse', 'missile', 'bees', 'blackhole', 'balloon', 'hex', 'kraken', 'ufo', 'anchor']);
+  const v3 = Object.freeze({ version: 'chaos-v3', passive: freeze([...PASSIVE]), targeted: TARGETED, freeSlot, skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, maps, dayRules, retiredDayRules: retiredRules,
     // lineup: { skills: [id per duck], traits: [id per duck] } as shown before the picks; omitted = dealt from the seed.
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed, lineup),
     deal: (count, seed = newSeed()) => {

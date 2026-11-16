@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { loadGame } from './harness.mjs';
 
 // Two pages talk through Node's BroadcastChannel, the same transport room.js uses between tabs.
@@ -12,6 +13,13 @@ const state = game => JSON.parse(game.storage()[KEY]);
 const current = game => { const store = state(game); return store.sessions.find(entry => entry.session.id === store.currentId); };
 const submit = (game, id) => game.$(id).dispatchEvent(new game.window.Event('submit', { bubbles: true, cancelable: true }));
 const duck = (game, id) => game.window.document.querySelector(`#duck-grid [data-duck-id="${id}"]`);
+// Every duck deals the heat-seeking missile: an active skill that aims, so the cast tests never depend on the deal.
+const engine = readFileSync(new URL('../dist/chaos-engine-v2.js', import.meta.url), 'utf8');
+const missileDeal = 'return dealLineup(V3_RULES, count, seed);';
+if (!engine.includes(missileDeal)) throw Error('the engine changed: update missileDeal');
+const missiles = { ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, "return { ...dealLineup(V3_RULES, count, seed), skills: Array(count).fill('missile') };") } };
+const key = (game, code, name = code) => game.window.document.body.dispatchEvent(new game.window.KeyboardEvent('keydown', { code, key: name, bubbles: true }));
+const order = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.children[1].textContent);
 async function sync(host, viewer, ms = 200) { host.advance(ms, 50); viewer?.advance(ms, 50); await settle(); host.advance(50, 50); viewer?.advance(50, 50); await settle(); }
 
 test('a race room: each player picks on their own turn from their own page and watches the race there', async () => {
@@ -116,24 +124,21 @@ test("a player's page follows the host: a paused race's totals, the next pick ro
   } finally { await host.close(); await viewer?.close(); }
 });
 
-test('in a room each player casts their own skill from their page; the host casts for others, then for whoever waits too long', async () => {
-  const host = loadGame({}, withChannel); let viewer;
-  const PASSIVE = ['mirror', 'buoy'];
+test('in a room each player casts their own skill from their page, aimed at any rival; the host casts for others; a skill nobody cast casts itself', async () => {
+  const host = loadGame({}, missiles); let viewer;
   try {
     host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
     submit(host, 'setup-form'); await settle();
     const code = host.storage()['vit-dua-room'];
     host.click('room-close'); host.click('skills-close');
-    viewer = loadGame({}, { ...withChannel, url: `http://localhost/?phong=${code}&ten=An` });
+    viewer = loadGame({}, { ...missiles, url: `http://localhost/?phong=${code}&ten=An` });
     await sync(host, viewer);
-
-    // An takes a duck with an active skill, Phú (picked on the host) another one, Bình the last.
-    const skills = current(host).lineup.skills, active = skills.map((s, i) => i).filter(i => !PASSIVE.includes(skills[i]));
-    const anDuck = active[0], phuDuck = active.length > 1 ? active[1] : [0, 1, 2].find(i => i !== anDuck);
+    const [phuDuck, anDuck] = [0, 1];
     duck(host, phuDuck).click(); await sync(host, viewer);
     duck(viewer, anDuck).click(); await sync(host, viewer);
     host.click('random-picks'); await sync(host, viewer);
-    assert.equal(current(host).picks.p1, anDuck);
+    const binhDuck = current(host).picks.p2;
+    assert.equal(binhDuck, 2);
 
     host.click('slow-fx'); await sync(host, viewer); // the host switches to fast effects
     assert.equal(viewer.$('slow-fx').getAttribute('aria-pressed'), 'false', "players play at the host's effect speed, so their race clocks stay together");
@@ -142,38 +147,53 @@ test('in a room each player casts their own skill from their page; the host cast
     assert.equal(viewer.$('cast').hidden, false, 'the player sees their skill button');
     assert.equal(viewer.$('cast').disabled, true);
     assert.match(viewer.$('cast').textContent, /mở sau/, 'locked for the first seconds');
+    assert.equal(viewer.$('cast-targets').hidden, true, 'no aiming while it is locked');
     assert.match(viewer.$('skill-mode').textContent, /Chủ vịt tự bấm/); assert.match(host.$('skill-mode').textContent, /bấm ô để tung hộ/);
 
     for (let i = 0; i < 40 && viewer.$('cast').disabled; i++) await sync(host, viewer, 500);
-    assert.match(viewer.$('cast').textContent, /TUNG .* còn \d+s/);
-    viewer.click('cast'); await sync(host, viewer);
-    const cast = current(host).active.lineup.casts[anDuck], at = current(host).active.elapsed;
+    assert.match(viewer.$('cast').textContent, /TUNG .* → .* còn \d+s/, 'the button names the duck it aims at');
+    assert.equal(viewer.$('cast-targets').hidden, false, 'a skill that aims lists the rivals');
+    const targets = () => [...viewer.window.document.querySelectorAll('#cast-targets .cast-target')];
+    const aimed = () => targets().filter(b => b.getAttribute('aria-checked') === 'true').map(b => Number(b.dataset.duckId));
+    assert.equal(targets().length, 2, 'any rival can be aimed at');
+    assert.equal(aimed().length, 1);
+    assert.match(targets().find(b => b.classList.contains('on')).textContent, /🥇|🥈/, 'the top rival is suggested');
+    // An clicks the other rival, the arrows move the aim around, and Space casts.
+    const button = targets().find(b => !b.classList.contains('on')), other = Number(button.dataset.duckId);
+    button.click(); assert.deepEqual(aimed(), [other]);
+    key(viewer, 'ArrowRight'); assert.notDeepEqual(aimed(), [other], 'an arrow moves the aim');
+    key(viewer, 'ArrowLeft'); assert.deepEqual(aimed(), [other]);
+    const at = current(host).active.elapsed;
+    key(viewer, 'Space', ' '); await sync(host, viewer);
+    const cast = current(host).active.lineup.casts[anDuck];
     assert.ok(Number.isFinite(cast) && cast >= at && cast <= at + 4.3, `An's cast lands ahead of the race clock, within ~4 s of the press (${cast} vs ${at})`);
+    assert.equal(current(host).active.lineup.targets[anDuck], other, 'aimed where An chose');
     await sync(host, viewer); // the host's snapshot hops back to the player
     assert.match(viewer.$('cast').textContent, /Đang gồng|Đã tung/, "the player's page follows");
+    assert.equal(viewer.$('cast-targets').hidden, true);
     assert.equal(viewer.window.document.querySelector(`#skill-reveal [data-duck-id="${anDuck}"]`).dataset.cast, 'charging');
 
-    // The host casts Phú's skill by clicking its chip (Phú plays on the host's screen).
-    if (!PASSIVE.includes(skills[phuDuck])) {
-      host.click(`#skill-reveal [data-duck-id="${phuDuck}"]`); await sync(host, viewer);
-      assert.ok(Number.isFinite(current(host).active.lineup.casts[phuDuck]), "the host cast Phú's skill");
-    }
+    // The host casts Phú's skill by clicking its chip (Phú plays on the host's screen). Nobody casts Bình's.
+    host.click(`#skill-reveal [data-duck-id="${phuDuck}"]`); await sync(host, viewer);
+    assert.ok(Number.isFinite(current(host).active.lineup.casts[phuDuck]), "the host cast Phú's skill");
     for (let i = 0; i < 40 && !host.$('result-dialog').open; i++) { host.advance(4000, 50); viewer.advance(4000, 50); await settle(); }
     await sync(host, viewer);
 
-    const replay = current(host).raceReplays.at(-1), casts = replay.lineup.casts;
-    for (const [i, s] of skills.entries()) assert.equal(PASSIVE.includes(s) ? casts[i] === null : Number.isFinite(casts[i]), true, `duck ${i} (${s}): ${casts[i]}`);
+    const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
+    assert.equal(replay.lineup.casts[binhDuck], null, "Bình's skill was never cast by hand");
     const race = host.window.DuckChaosEngineV3.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 40, replay.seed, replay.lineup);
-    const fired = race.events.find(e => e.type === 'skill' && e.activation && e.actorId === anDuck);
-    assert.ok(fired && Math.abs(fired.time - cast) < 0.06, "the replay fires An's skill when An cast it");
+    const fired = id => race.events.filter(e => e.type === 'skill' && e.activation && e.actorId === id);
+    assert.ok(Math.abs(fired(anDuck)[0].time - cast) < 0.06, "the replay fires An's skill when An cast it");
+    assert.equal(fired(anDuck)[0].targetId, other, 'at the rival An aimed at');
+    assert.equal(fired(binhDuck).length, 1, "Bình's skill cast itself after the deadline");
+    assert.ok(Math.abs(fired(binhDuck)[0].time - race.castWindow.auto[binhDuck]) < 0.06 && fired(binhDuck)[0].time > 40 * 0.55);
     assert.deepEqual(current(host).session.rounds[0].entries.map(e => e.duckId), Array.from(race.results, r => r.id), 'the replay rebuilds the scored race');
-    const order = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.children[1].textContent);
     assert.deepEqual(order(viewer), order(host), 'the player saw the same race');
     assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
   } finally { await host.close(); await viewer?.close(); }
 });
 
-test('when nobody casts, the host casts every skill after the deadline, spread out and before the finale rock', async () => {
+test('when nobody casts, every skill casts itself after the deadline, spread out and before the finale rock', async () => {
   const host = loadGame({}, withChannel);
   try {
     host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'A\nB\nC\nD\nE\nF\nG\nH'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
@@ -182,13 +202,51 @@ test('when nobody casts, the host casts every skill after the deadline, spread o
     for (let i = 0; i < 8; i++) host.click('random-picks');
     host.click('start');
     for (let i = 0; i < 40 && !host.$('result-dialog').open; i++) host.advance(4000, 50);
-    const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills, casts = replay.lineup.casts;
-    for (const [i, s] of skills.entries()) assert.equal(['mirror', 'buoy'].includes(s) ? casts[i] === null : casts[i] >= 40 * 0.55, true, `duck ${i} (${s}) cast at ${casts[i]}`);
+    const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
+    assert.ok(replay.lineup.casts.every(c => c === null), 'nobody cast by hand');
     const race = host.window.DuckChaosEngineV3.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 40, replay.seed, replay.lineup);
-    const finale = race.events.find(e => e.finale), times = casts.filter(c => c !== null);
-    if (finale) assert.ok(times.every(c => c < finale.time), `every cast lands before the finale rock (${finale.time})`);
-    const twists = race.events.filter(e => e.scheduled).map(e => e.time);
-    for (const c of times) assert.ok(twists.filter(x => Math.abs(x - c) < 0.25).length === 1, `no twist on top of the cast at ${c}`);
+    const active = skills.map((s, i) => i).filter(i => !['mirror', 'buoy'].includes(skills[i]));
+    const fired = race.events.filter(e => e.type === 'skill' && e.activation && e.scheduled && active.includes(e.actorId));
+    assert.deepEqual(Array.from(fired, e => e.actorId).sort(), Array.from(active), 'every active skill fired, once');
+    const finale = race.events.find(e => e.finale), twists = race.events.filter(e => e.scheduled).map(e => e.time);
+    for (const e of fired) {
+      assert.ok(e.time >= 40 * 0.55, `after the deadline (${e.time})`);
+      if (finale) assert.ok(e.time < finale.time, `before the finale rock (${finale.time})`);
+      assert.equal(twists.filter(x => Math.abs(x - e.time) < 0.25).length, 1, `no twist on top of the cast at ${e.time}`);
+    }
     assert.deepEqual(host.errors.map(String), []);
   } finally { await host.close(); }
+});
+
+test("with the host's tab in the background (its race clock stopped), a player's cast still lands where they pressed and every skill still fires on their page", async () => {
+  const host = loadGame({}, missiles); let viewer;
+  try {
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    submit(host, 'setup-form'); await settle();
+    const code = host.storage()['vit-dua-room'];
+    host.click('room-close'); host.click('skills-close');
+    viewer = loadGame({}, { ...missiles, url: `http://localhost/?phong=${code}&ten=An` });
+    await sync(host, viewer);
+    duck(host, 0).click(); await sync(host, viewer);
+    duck(viewer, 1).click(); await sync(host, viewer);
+    host.click('random-picks'); await sync(host, viewer);
+    host.click('start'); await sync(host, viewer);
+    // From here only the player's page runs frames: the browser runs none in a background tab.
+    for (let i = 0; i < 40 && viewer.$('cast').disabled; i++) { viewer.advance(500, 50); await settle(); }
+    viewer.click('cast'); await settle(); await settle(); viewer.advance(100, 50); // the request hops to the host, its answer hops back
+    const cast = current(host).active.lineup.casts[1];
+    assert.ok(Number.isFinite(cast) && cast >= 40 * 0.12 + 1 - 1e-9 && cast <= 40 * 0.12 + 5, `placed from the player's own race time (${cast})`);
+    assert.match(viewer.$('cast').textContent, /Đang gồng/, "the player's page has it before the wind-up ends");
+    let missilesFired = 0; // the race log, read until the result clears it
+    for (let i = 0; i < 60 && !viewer.$('result-dialog').open; i++) {
+      missilesFired = [...viewer.window.document.querySelectorAll('#event-history > *')].filter(e => e.textContent.includes('🎯')).length;
+      viewer.advance(1000, 50); await settle();
+    }
+    assert.equal(viewer.$('result-dialog').open, true);
+    assert.equal(missilesFired, 3, "An's cast and both skills nobody cast all fired on An's page");
+    // The host's tab comes back: it plays the rest of the race and scores the same result.
+    for (let i = 0; i < 30 && !host.$('result-dialog').open; i++) { host.advance(4000, 50); await settle(); }
+    assert.deepEqual(order(viewer), order(host));
+    assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
+  } finally { await host.close(); await viewer?.close(); }
 });
