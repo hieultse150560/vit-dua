@@ -331,9 +331,14 @@
     if (!Array.isArray(luck) || luck.length !== count || luck.some(l => !Number.isInteger(l) || l < 0 || l > 3)) throw new RangeError('Mức may mắn phải là số nguyên 0–3 cho từng vịt.');
     const rule = lineup.rule === undefined ? null : [...dayRules, ...retiredRules].find(r => r.id === lineup.rule);
     if (rule === undefined) throw new RangeError(`Luật của ngày không hợp lệ: ${lineup.rule}`);
-    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule };
+    // Race room: the race time each duck's owner cast its active skill (null = not yet). Absent = skills fire on their own.
+    const casts = lineup.casts === undefined ? null : lineup.casts;
+    if (casts !== null && (!Array.isArray(casts) || casts.length !== count || casts.some(t => t !== null && !(typeof t === 'number' && Number.isFinite(t) && t >= 0))))
+      throw new RangeError('Thời điểm tung skill không hợp lệ.');
+    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule, casts };
   }
-  function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed(), lineup = null) {
+  // scaled = false: a partial race only measures its finish for the display scale of a race with casts.
+  function createRaceFor(version, rules, names, durationSeconds = 25, seed = newSeed(), lineup = null, scaled = true) {
     const cleanNames = cleanInput(names, durationSeconds, seed);
     const count = cleanNames.length, duration = durationSeconds;
     const ids = Array.from({ length: count }, (_, id) => id);
@@ -388,6 +393,15 @@
     });
 
     const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, R, finaleRng).map((slot, index) => ({ ...slot, index }));
+    // Race room (chaos-v3): an active skill fires when its owner cast it; one not cast yet waits. The plan is still drawn
+    // in full first, so every random stream stays the same and a new cast only changes the race from its own time on.
+    const castWindow = rules.midSpread ? { from: duration * .12, to: duration * .55, gap: Math.min(R.gap ?? tuning.minGap, duration * .62 / Math.max(1, schedule.filter(sl => !sl.finale).length)) } : null;
+    if (dealt?.casts) for (let i = schedule.length - 1; i >= 0; i--) {
+      const slot = schedule[i];
+      if (slot.kind !== 'skill' || slot.passive) continue;
+      const time = dealt.casts[slot.actorId];
+      if (time === null) schedule.splice(i, 1); else slot.tick = Math.max(1, tick(time));
+    }
     const runeCount = Math.max(3, Math.ceil(count / 3)) * (R.runeScale || 1);
     for (let i = 0; i < runeCount; i++) {
       // chaos-v3: lucky ducks find runes more often (all weights 1 without luck: the same draw as before).
@@ -1121,15 +1135,30 @@
     const finalRanks = [];
     finalOrder.forEach((r, index) => { finalRanks[r.id] = index + 1; });
     const finishDistance = finalOrder[0].distance;
+    // Race room: the finish moves with every cast. So that a new cast never shifts the ducks already on screen, the
+    // display scale keeps the finish of the race before each cast up to that cast, then drifts to the new one by the end.
+    const scaleAt = dealt?.casts && scaled ? castScale() : () => finishDistance;
+    const courseDistance = dealt?.casts && scaled ? scaleAt(0) : finishDistance; // scenery stays put across casts
+    function castScale() {
+      const timed = dealt.casts.map((time, id) => ({ time, id })).filter(c => c.time !== null && c.time < duration && !PASSIVE.has(racers[c.id].skill.id))
+        .sort((a, b) => a.time - b.time || a.id - b.id);
+      const finishWith = k => k === timed.length ? finishDistance
+        : createRaceFor(version, rules, names, duration, seed, { ...lineup, casts: lineup.casts.map((time, id) => (timed.slice(0, k).some(c => c.id === id) ? time : null)) }, false).results[0].finalDistance;
+      const legs = [];
+      let from = finishWith(0);
+      timed.forEach((c, k) => { const to = finishWith(k + 1), next = timed[k + 1]?.time ?? duration; legs.push({ at: c.time, from, to }); from += (to - from) * (next - c.time) / (duration - c.time); });
+      const start = legs.length ? legs[0].from : finishDistance;
+      return time => { for (let i = legs.length - 1; i >= 0; i--) { const l = legs[i]; if (l.at <= time) return l.from + (l.to - l.from) * (time - l.at) / (duration - l.at); } return start; };
+    }
     events.forEach(event => {
-      if (event.type === 'rune-spawn') event.progress = distances[tick(event.pickupTime) * count + event.actorId] / finishDistance;
+      if (event.type === 'rune-spawn') event.progress = distances[tick(event.pickupTime) * count + event.actorId] / scaleAt(event.pickupTime);
     });
     const publicRacer = racer => ({ id: racer.id, name: racer.name, skill: racer.skill, ...(racer.trait ? { trait: racer.trait } : {}), ...(racer.luck ? { luck: racer.luck } : {}) });
     const publicRacers = freeze(racers.map(publicRacer));
     const results = freeze(finalOrder.map(racer => ({ ...publicRacer(racer), rank: finalRanks[racer.id], baseDistance: racer.baseDistance, finalDistance: racer.distance })));
     return Object.freeze({
-      version, seed, duration, sprintStart, ...(weather ? { weather } : {}), ...(dealt?.rule ? { rule: dealt.rule } : {}),
-      ...(map ? { map: { id: map.id, name: map.name, icon: map.icon, description: map.description, bend: map.bend, zones: zones.map(z => ({ kind: z.kind, from: z.fromD / finishDistance, to: z.toD / finishDistance })) } } : {}),
+      version, seed, duration, sprintStart, ...(weather ? { weather } : {}), ...(dealt?.rule ? { rule: dealt.rule } : {}), ...(castWindow ? { castWindow } : {}),
+      ...(map ? { map: { id: map.id, name: map.name, icon: map.icon, description: map.description, bend: map.bend, zones: zones.map(z => ({ kind: z.kind, from: z.fromD / courseDistance, to: z.toD / courseDistance })) } } : {}),
       racers: publicRacers, results, boosts: freeze(boosts.map(b => ({ ...b }))), events: freeze(events),
       sample(elapsedSeconds) {
         if (!Number.isFinite(elapsedSeconds)) throw new TypeError('Thời gian đã chạy phải hữu hạn.');
@@ -1149,7 +1178,7 @@
         [...positions].sort(compare).forEach((racer, index) => { currentRanks[racer.id] = index + 1; });
         return racers.map(racer => {
           const state = flags[left * count + racer.id];
-          let progress = positions[racer.id].distance / finishDistance;
+          let progress = positions[racer.id].distance / scaleAt(time);
           if (time < duration || finalRanks[racer.id] !== 1) progress = Math.min(progress, 1 - Number.EPSILON * finalRanks[racer.id]);
           const capsized = !!(state & 32), spinning = !!(state & 64), frozen = !!(state & 512), lifted = !!(state & 2048);
           const mark = marks ? marks[left * count + racer.id] : 0, asleep = !!(mark & 1), grabbed = !!(mark & 32);
@@ -1167,7 +1196,7 @@
     });
   }
 
-  const v3 = Object.freeze({ version: 'chaos-v3', skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, maps, dayRules, retiredDayRules: retiredRules,
+  const v3 = Object.freeze({ version: 'chaos-v3', passive: freeze([...PASSIVE]), skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, maps, dayRules, retiredDayRules: retiredRules,
     // lineup: { skills: [id per duck], traits: [id per duck] } as shown before the picks; omitted = dealt from the seed.
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed, lineup),
     deal: (count, seed = newSeed()) => {

@@ -20,7 +20,7 @@
 .tier-S{background:linear-gradient(135deg,#e5582b,#b8285c);box-shadow:0 0 0 1px #ffd1b8 inset}.tier-A{background:#d9822b}.tier-B{background:#4f8a5b}.tier-C{background:#8b919a}
 .rules-open-skills{margin:12px 0 4px}
 /* Race room: a player's page hides the host's controls; their own duck and turn stand out. */
-body.viewer #room-open,body.viewer #saved-games,body.viewer #new-game,body.viewer .season-actions,body.viewer #random-picks,body.viewer #undo-last-pick,body.viewer #start,body.viewer #pause,body.viewer #next,body.viewer #final-summary,body.viewer #export{display:none!important}
+body.viewer #slow-fx,body.viewer #room-open,body.viewer #saved-games,body.viewer #new-game,body.viewer .season-actions,body.viewer #random-picks,body.viewer #undo-last-pick,body.viewer #start,body.viewer #pause,body.viewer #next,body.viewer #final-summary,body.viewer #export{display:none!important}
 .viewer-pill{position:sticky;top:8px;z-index:30;margin:0 0 16px;padding:10px 16px;border-radius:999px;background:#1f3d33;color:#fff;font-weight:700;font-size:13px;text-align:center;box-shadow:0 6px 20px #1f3d3340}
 .viewer-pill.my-turn{background:linear-gradient(90deg,#e5582b,#d9822b);animation:my-turn 1s ease-in-out infinite alternate}
 @keyframes my-turn{to{transform:scale(1.02)}}
@@ -456,3 +456,17 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 #track:has(.race-water.weather-fog:not(.fog-lifted)) #live-leaders{visibility:hidden}
 .race-water.weather-fog .river,.race-water.weather-fog .race-ground{filter:saturate(.7) brightness(1.04)}
 .race-water.weather-night .river,.race-water.weather-night .race-ground{filter:brightness(.82) saturate(.85)}
+
+/* Race room: each player's own skill button, and who is winding up a skill */
+.cast-button{display:block;margin:10px auto 0;padding:12px 28px;border:0;border-radius:999px;background:#e5582b;color:#fff;font:inherit;font-weight:900;font-size:clamp(15px,1.6vw,20px);box-shadow:0 6px 16px rgba(229,88,43,.35);cursor:pointer}
+.cast-button:disabled{opacity:1;background:#efe7d4;color:#4d4a40;box-shadow:none;cursor:default}
+.cast-button.charging{background:linear-gradient(90deg,#ffb300,#ff5a1f);color:#fff;box-shadow:0 0 0 4px rgba(255,140,0,.25),0 6px 18px rgba(255,90,31,.45)}
+.cast-button.ready{animation:cast-pulse .9s ease-in-out infinite alternate}
+.cast-button:focus-visible{outline:3px solid #1f3d33;outline-offset:3px}
+@keyframes cast-pulse{to{transform:scale(1.06);box-shadow:0 8px 22px rgba(229,88,43,.55)}}
+body:not(.viewer) .skill-chip[data-cast="ready"]{cursor:pointer;border-color:#e5582b;box-shadow:0 0 0 2px rgba(229,88,43,.22)}
+body:not(.viewer) .skill-chip[data-cast="ready"]:hover{background:#fff1e8}
+.skill-chip[data-cast="charging"]{background:#fff1d6;border-color:#f0a020}
+.racer.charging .duck-body{animation:charge .45s ease-in-out infinite alternate}
+@keyframes charge{from{filter:drop-shadow(0 0 4px #ff5a1f) drop-shadow(0 0 10px #ff3d00)}to{filter:drop-shadow(0 0 10px #ff5a1f) drop-shadow(0 0 22px #ff3d00)}}
+@media (prefers-reduced-motion:reduce){.cast-button.ready,.racer.charging .duck-body{animation:none}.racer.charging .duck-body{filter:drop-shadow(0 0 10px #ff3d00)}}
