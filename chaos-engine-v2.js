@@ -288,9 +288,9 @@
     return slots;
   }
 
-  // Day rules (chaos-v3): one per race day, carried in the lineup so a replay rebuilds the same race.
+  // Day rules (chaos-v3): the app draws a new one for every round; it rides in the lineup so a replay rebuilds the same race.
   const dayRules = freeze([
-    { id: 'chaos', name: 'Ngày hỗn loạn', icon: '🌀', description: 'Sự kiện sông nước nhiều gấp đôi.' },
+    { id: 'chaos', name: 'Vòng hỗn loạn', icon: '🌀', description: 'Sự kiện sông nước nhiều gấp đôi.' },
     { id: 'runes', name: 'Mưa rune', icon: '💎', description: 'Rune trên sông nhiều gấp đôi.' },
     { id: 'storm', name: 'Trời nổi giông', icon: '⛈️', description: 'Không có nắng đẹp: trận nào cũng mưa, gió, bão, sương mù hoặc đêm.' },
     { id: 'thriller', name: 'Về đích nghẹt thở', icon: '🎬', description: 'Trận nào cũng có cú vấp đá sát đích quật ngã con dẫn đầu.' },

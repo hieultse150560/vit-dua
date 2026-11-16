@@ -93,7 +93,8 @@
   // Day rule: drawn once per new race day, applied to every race of that day (old days have none).
   const dayRuleOf=id=>C3.dayRules.find(r=>r.id===id);
   const knownRule=id=>!!dayRuleOf(id)||C3.retiredDayRules.some(r=>r.id===id); // retired rules still rebuild races already played
-  const drawDayRule=()=>C3.dayRules[crypto.getRandomValues(new Uint32Array(1))[0]%C3.dayRules.length].id;
+  // Each round draws its own rule, never the one just played, so the river always changes between rounds.
+  const drawDayRule=(previous=null)=>{const pool=C3.dayRules.filter(r=>r.id!==previous);return pool[crypto.getRandomValues(new Uint32Array(1))[0]%pool.length].id;};
   // Comeback luck for the players trailing the day's standings (regular rounds only), per duck they picked.
   const luckOf=()=>current&&current.type==='regular'&&!isLegacy()?T.luckLevels(current.session):{};
   // Luck works for the whole trailing half, but only the player(s) dead last get the visible clover.
@@ -110,7 +111,7 @@
     for(const t of ['S','A','B','C']){const list=C3.skills.filter(s=>s.tier===t),h=node('h3');h.append(tierBadge(t),` Hạng ${t} · ${TIER_NOTE[t]} · ${list.length} skill`);f.append(h,ruleList(list));}
     f.append(node('h3','',`${C3.traits.length} đặc tính · Mỗi vịt một cái, tác dụng cả trận`),ruleList(C3.traits));
     f.append(node('h3','',`Bản đồ · Mỗi trận bốc một trong ${C3.maps.length} map`),ruleList(C3.maps));
-    f.append(node('h3','','Luật đặc biệt · Mỗi ngày đua một luật'),ruleList(C3.dayRules.map(r=>r.id===today?{...r,name:`${r.name} · hôm nay`}:r)));
+    f.append(node('h3','','Luật đặc biệt · Mỗi vòng đua bốc một luật mới'),ruleList(C3.dayRules.map(r=>r.id===today?{...r,name:`${r.name} · vòng này`}:r)));
     $('skills-content').replaceChildren(f);open('skills-dialog');
   }
   function ensureLineup(){
@@ -168,7 +169,7 @@
     const round=Math.min(s.rounds.length+(current.stage==='picking'?1:0),s.roundLimit)||1;
     $('session-heading').textContent=`${isLegacy()?'Lịch sử cũ':'Ngày đua'} · ${dateLabel(s.date)}`;
     $('session-meta').textContent=`${s.players.length} người · ${s.duration} giây/vòng · ${s.roundLimit} vòng · ${isLegacy()?'Giữ luật cà phê cũ, không tính quỹ':'Chót 60.000đ · Kế chót 40.000đ'}`;
-    const rule=!isLegacy()&&dayRuleOf(current.rule);$('day-rule').hidden=!rule;if(rule)$('day-rule').textContent=`${rule.icon} Luật hôm nay: ${rule.name} · ${rule.description}`;
+    const rule=!isLegacy()&&dayRuleOf(current.rule);$('day-rule').hidden=!rule;if(rule)$('day-rule').textContent=`${rule.icon} Luật vòng này: ${rule.name} · ${rule.description}`;
     $('round-caption').textContent=current.type==='tie'?'LƯỢT PHÂN ĐỊNH':'LƯỢT ĐUA';
     $('round-number').replaceChildren(node('span','',current.type==='tie'?'⚖':String(round).padStart(2,'0')),node('small','',current.type==='tie'?' không cộng điểm':` / ${s.roundLimit}`));
     $('round-progress').replaceChildren(...Array.from({length:s.roundLimit},(_,i)=>{const b=node('button',i<s.rounds.length?'done':i===s.rounds.length?'current':'',i<s.rounds.length?`✓ ${i+1}`:String(i+1));b.disabled=i>=s.rounds.length||active;b.setAttribute('aria-label',`Lượt ${i+1}${i<s.rounds.length?' — xem kết quả':''}`);b.onclick=()=>showRound(s.rounds[i],'regular',false);return b;}));
@@ -464,7 +465,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function next(){
     if(viewer||!current||current.active)return;close('result-dialog');const status=outcome();
     if(status.status==='resolved'){current.stage='complete';save();render();showFinal();return;}
-    clearRace();current.type=status.status==='tie'?'tie':'regular';current.stage='picking';current.picks={};current.stars=[];delete current.lineup;starArmed=false;selected=participants()[0]?.id;save();render();
+    clearRace();current.type=status.status==='tie'?'tie':'regular';current.stage='picking';current.picks={};current.stars=[];delete current.lineup;if(current.rule)current.rule=drawDayRule(current.rule);starArmed=false;selected=participants()[0]?.id;save();render();
   }
   function table(headers,rows){const wrap=node('div','result-table-wrap'),t=node('table','result-table'),head=node('thead'),tr=node('tr');headers.forEach(h=>tr.append(node('th','',h)));head.append(tr);const body=node('tbody');rows.forEach(row=>{const r=node('tr',row.coffee?'coffee-row':'');row.cells.forEach((cell,i)=>r.append(node('td',i===1?'name':i===row.cells.length-1?'total':'',cell)));body.append(r);});t.append(head,body);wrap.append(t);return wrap;}
   function showRound(record,type,advance){
