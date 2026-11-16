@@ -36,11 +36,14 @@ test('a race room: each player picks on their own turn from their own page and w
     // Phú picks first (on the host); An cannot jump the queue.
     duck(viewer, 2).click(); await sync(host, viewer);
     assert.deepEqual(current(host).picks, {});
+    assert.equal(viewer.$('star-toggle').hidden, true, "nobody can spend another player's star");
     duck(host, 0).click(); await sync(host, viewer);
     assert.match(viewer.$('viewer-pill').textContent, /ĐẾN LƯỢT BẠN/);
     assert.equal(duck(viewer, 1).disabled, false);
-    duck(viewer, 1).click(); await sync(host, viewer);
+    assert.equal(viewer.$('star-toggle').hidden, false, 'on their turn a player can use their own hope star');
+    viewer.click('star-toggle'); duck(viewer, 1).click(); await sync(host, viewer);
     assert.deepEqual(current(host).picks, { p0: 0, p1: 1 }, "An's pick reached the host through the queue");
+    assert.deepEqual(current(host).stars, ['p1'], 'with their star');
     duck(host, 2).click(); await sync(host, viewer);
 
     host.click('start'); await sync(host, viewer, 100);
@@ -48,13 +51,14 @@ test('a race room: each player picks on their own turn from their own page and w
     assert.ok(viewer.window.document.querySelector('.racer.mine'), 'their own duck glows');
     for (let i = 0; i < 30; i++) { host.advance(4000, 50); viewer.advance(4000, 50); await settle(); }
     assert.equal(current(host).session.rounds.length, 1, 'the host scored the round');
+    assert.equal(current(host).session.rounds[0].entries.find(e => e.playerId === 'p1').star, true, "An's points were doubled");
     assert.equal(viewer.$('result-dialog').open, true, 'the player sees the result');
     assert.equal(viewer.storage()[KEY], undefined, "a player's page never writes the tournament");
     assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
   } finally { await host.close(); await viewer?.close(); }
 });
 
-test('with a room open, a player who does not pick within 5 s gets a random duck', async () => {
+test('with a room open, a player who does not pick within 10 s gets a random duck', async () => {
   const host = loadGame({}, withChannel); let viewer;
   try {
     host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
@@ -67,11 +71,11 @@ test('with a room open, a player who does not pick within 5 s gets a random duck
     assert.equal(host.$('pick-clock').hidden, true);
     host.click('room-close'); host.click('skills-close'); await sync(host, viewer);
     assert.equal(host.$('pick-clock').hidden, false);
-    assert.match(viewer.$('pick-clock').textContent, /⏱ [345]s/, 'the player sees the countdown too');
-    host.advance(5200, 100); await settle();
+    assert.match(viewer.$('pick-clock').textContent, /⏱ (10|9|8)s/, 'the player sees the countdown too');
+    host.advance(10200, 100); await settle();
     assert.equal(Object.keys(current(host).picks).length, 1, "Phú's turn ran out: a random duck");
     assert.ok(current(host).picks.p0 !== undefined);
-    host.advance(5200, 100); await settle();
+    host.advance(10200, 100); await settle();
     assert.equal(Object.keys(current(host).picks).length, 2, "then An's");
     assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
   } finally { await host.close(); await viewer?.close(); }

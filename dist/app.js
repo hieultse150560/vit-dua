@@ -30,7 +30,7 @@
   const viewer=!!(viewerName&&window.DuckRoom?.validCode(viewerCode));
   let room=null,roomCode=null,roomStartAt=0,publishTimer=null,meId=null,viewerRaceId=null,latestState=null,skillsAfterRoom=false;
   // With a room open, each turn to pick lasts PICK_SECONDS; then the host picks a random duck for that player.
-  const PICK_SECONDS=5;let pickTurn=null,pickDeadline=0,pickTimer=null;
+  const PICK_SECONDS=10;let pickTurn=null,pickDeadline=0,pickTimer=null;
   let store={version:3,currentId:null,currentSeasonId:null,seasons:[],sessions:[]}, current=null, selected=null, setupMode='season', starArmed=false;
   let race=null, phase='idle', raf=null, lastTime=0, lastSaved=0, nodes=[], runwayWidth=0;
   let audio=null, sound=soundPref(), lastTick=-1, sprintAnnounced=false, leadersKey='', toastTimer;
