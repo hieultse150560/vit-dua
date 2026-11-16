@@ -33,7 +33,7 @@
   // With a room open, each turn to pick lasts PICK_SECONDS; then the host picks a random duck for that player.
   const PICK_SECONDS=10;let pickTurn=null,pickDeadline=0,pickTimer=null;
   // With a room open, each player casts their own skill (race seconds of wind-up let the cast reach every page first).
-  const CAST_WINDUP=1;let castSentAt=0,autoCastRace=null;
+  const CAST_WINDUP=1,CAST_WAIT=3;let castSentAt=0,autoCastRace=null;
   let store={version:3,currentId:null,currentSeasonId:null,seasons:[],sessions:[]}, current=null, selected=null, setupMode='season', starArmed=false;
   let race=null, phase='idle', raf=null, lastTime=0, lastSaved=0, nodes=[], runwayWidth=0;
   let audio=null, sound=soundPref(), lastTick=-1, sprintAnnounced=false, leadersKey='', toastTimer;
@@ -603,18 +603,19 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   // A cast keeps `gap` from every other twist (river events, skills already cast, `extra` being placed) so the race keeps
   // its calm. When the race is too full for that, it takes the free moment farthest from any twist. It always lands
   // before the finale rock, which stays the race's last twist.
-  function castSlot(earliest,gap,extra=[]){
+  // A player's own cast waits at most `wait` seconds for that, so pressing the button always feels responsive.
+  function castSlot(earliest,gap,extra=[],wait=Infinity){
     const busy=race.events.filter(e=>e.scheduled).map(e=>e.time).concat(extra).sort((p,q)=>p-q),finale=race.events.find(e=>e.finale)?.time;
-    const limit=Math.min(race.duration-1.5,finale===undefined?Infinity:finale-gap/2),clear=t=>Math.min(Infinity,...busy.map(x=>Math.abs(t-x)));
+    const limit=Math.min(race.duration-1.5,earliest+wait,finale===undefined?Infinity:finale-gap/2),clear=t=>Math.min(Infinity,...busy.map(x=>Math.abs(t-x)));
     let t=earliest;for(const x of busy)if(Math.abs(t-x)<gap)t=x+gap;
-    if(t>limit)t=[limit,...busy.flatMap(x=>[x-gap,x+gap])].filter(c=>c>=earliest&&c<=limit).reduce((best,c)=>clear(c)>clear(best)+1e-9?c:best,Math.min(earliest,limit));
+    if(t>limit)t=[limit,...busy.flatMap((x,i)=>[x-gap,x+gap,(x+(busy[i+1]??x))/2])].filter(c=>c>=earliest&&c<=limit).reduce((best,c)=>clear(c)>clear(best)+1e-9?c:best,Math.min(earliest,limit));
     return Math.round(t*1000)/1000;
   }
   // Players cast between castWindow.from and .to; after that the host casts for them (auto). One rebuild for any number of casts.
   function castDucks(ducks,auto=false){
     const a=current?.active,w=race?.castWindow;if(viewer||!a?.lineup?.casts||!w||phase!=='running'||a.elapsed<w.from-.5||!auto&&a.elapsed>w.to)return false;
     const casts=[...a.lineup.casts],placed=[];
-    for(const duck of ducks){if(!castable(duck)||casts[duck]!==null)continue;const t=castSlot(Math.max(w.from,a.elapsed+CAST_WINDUP),w.gap,placed);if(t<=a.elapsed+.05)continue;casts[duck]=t;placed.push(t);}
+    for(const duck of ducks){if(!castable(duck)||casts[duck]!==null)continue;const t=castSlot(Math.max(w.from,a.elapsed+CAST_WINDUP),w.gap,placed,auto?Infinity:CAST_WAIT);if(t<=a.elapsed+.05)continue;casts[duck]=t;placed.push(t);}
     if(!placed.length)return false;
     const lineup={...plainLineup(a.lineup),casts};let next;
     try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch(e){toast(e.message);return false;}
