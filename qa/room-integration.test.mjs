@@ -148,7 +148,7 @@ test('in a room each player casts their own skill from their page; the host cast
     assert.match(viewer.$('cast').textContent, /TUNG .* còn \d+s/);
     viewer.click('cast'); await sync(host, viewer);
     const cast = current(host).active.lineup.casts[anDuck], at = current(host).active.elapsed;
-    assert.ok(Number.isFinite(cast) && cast >= at, `An's cast lands ahead of the race clock (${cast} vs ${at})`);
+    assert.ok(Number.isFinite(cast) && cast >= at && cast <= at + 4.3, `An's cast lands ahead of the race clock, within ~4 s of the press (${cast} vs ${at})`);
     await sync(host, viewer); // the host's snapshot hops back to the player
     assert.match(viewer.$('cast').textContent, /Đang gồng|Đã tung/, "the player's page follows");
     assert.equal(viewer.window.document.querySelector(`#skill-reveal [data-duck-id="${anDuck}"]`).dataset.cast, 'charging');
