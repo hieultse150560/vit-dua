@@ -90,11 +90,12 @@
     writeSaved(checkpoint.prefix+JSON.stringify(active)+checkpoint.suffix);
   }
   // chaos-v3 lineup: one skill and one trait per duck, dealt before the picks and shown on the duck cards.
+  const duckNo=(t,count)=>Number.isInteger(t)&&t>=0&&t<count;
   const lineupOk=(l,count)=>!!l&&typeof l==='object'&&['skills','traits'].every(k=>Array.isArray(l[k])&&l[k].length===count)&&l.skills.every(id=>C3.skills.some(s=>s.id===id))&&l.traits.every(id=>C3.traits.some(t=>t.id===id))
     &&(l.luck===undefined||Array.isArray(l.luck)&&l.luck.length===count&&l.luck.every(v=>Number.isInteger(v)&&v>=0&&v<=3))&&(l.rule===undefined||knownRule(l.rule))
     &&(l.casts===undefined||Array.isArray(l.casts)&&l.casts.length===count&&l.casts.every(t=>t===null||Number.isFinite(t)&&t>=0))
-    &&(l.targets===undefined||Array.isArray(l.targets)&&l.targets.length===count&&l.targets.every(t=>t===null||Number.isInteger(t)&&t>=0&&t<count));
-  const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{}),...(l.rule?{rule:l.rule}:{}),...(l.casts?{casts:[...l.casts]}:{}),...(l.targets?{targets:[...l.targets]}:{})});
+    &&(l.targets===undefined||Array.isArray(l.targets)&&l.targets.length===count&&l.targets.every(t=>t===null||duckNo(t,count)||Array.isArray(t)&&t.length>0&&t.every(x=>duckNo(x,count))&&new Set(t).size===t.length));
+  const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{}),...(l.rule?{rule:l.rule}:{}),...(l.casts?{casts:[...l.casts]}:{}),...(l.targets?{targets:l.targets.map(t=>Array.isArray(t)?[...t]:t)}:{})});
   // Special rule: a new one each round (days made before rules existed have none).
   const dayRuleOf=id=>C3.dayRules.find(r=>r.id===id);
   const knownRule=id=>!!dayRuleOf(id)||C3.retiredDayRules.some(r=>r.id===id); // retired rules still rebuild races already played
@@ -589,7 +590,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   }
   function publishRoom(now=false){if(!room||viewer)return;clearTimeout(publishTimer);const send=()=>{Promise.resolve(room?.publish(roomSnapshot())).catch(e=>toast(`Phòng: ${e.message}`));};if(now)send();else publishTimer=setTimeout(send,120);}
   function roomRequest(req){
-    if(req?.kind==='cast'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&(req.race===undefined||req.race===a.id))castFor(duck,typeof req.time==='number'?req.time:a.elapsed,req.target);return;}
+    if(req?.kind==='cast'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&(req.race===undefined||req.race===a.id))castFor(duck,typeof req.time==='number'?req.time:a.elapsed,req.targets??req.target);return;}
     if(!current||current.active||current.stage!=='picking'||!req||typeof req.player!=='string')return;
     if(queue().nextPlayerId!==req.player)return; // not their turn (or a stale request)
     starArmed=req.star===true&&current.type==='regular'&&T.starAvailable(current.session,req.player);pick(Number(req.duck));
@@ -615,13 +616,15 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     const limit=Math.min(race.duration-1.5,earliest+CAST_WAIT,(w.auto?.[duck]??Infinity)-.1,finale===undefined?Infinity:finale-w.gap/2);
     const t=C3.freeSlot(earliest,w.gap,busy,limit);return t>=earliest-1e-9?t:null;
   }
-  // One rebuild per cast. `target` (any rival) counts only for a skill that aims.
+  // How many rivals a duck's skill strikes, so how many its owner may aim at.
+  const aimCount=id=>C3.aims?.[race.racers[id].skill.id]??1;
+  // One rebuild per cast. `target` (any rivals, one or a list) counts only for a skill that aims.
   function castFor(duck,at=current?.active?.elapsed,target=null){
     const a=current?.active,w=race?.castWindow;
     if(viewer||!a?.lineup?.casts||!w||!castable(duck)||a.lineup.casts[duck]!==null||!Number.isFinite(at)||at<w.from-.5||at>castDeadline(duck))return false;
     const t=castSlot(duck,at);if(t===null)return false;
-    const aim=aimable(duck)&&Number.isInteger(target)&&target!==duck&&race.racers[target]?target:null;
-    const lineup={...plainLineup(a.lineup),casts:a.lineup.casts.map((c,i)=>i===duck?t:c),...(aim===null?{}:{targets:(a.lineup.targets||a.lineup.casts.map(()=>null)).map((x,i)=>i===duck?aim:x)})};
+    const aim=aimable(duck)?[...new Set([].concat(target??[]))].filter(id=>Number.isInteger(id)&&id!==duck&&race.racers[id]).slice(0,aimCount(duck)):[];
+    const lineup={...plainLineup(a.lineup),casts:a.lineup.casts.map((c,i)=>i===duck?t:c),...(!aim.length?{}:{targets:(a.lineup.targets||a.lineup.casts.map(()=>null)).map((x,i)=>i===duck?aim:x)})};
     let next;try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch(e){toast(e.message);return false;}
     a.lineup=lineup;swapRace(next);save();publishRoom(true);return true; // at once: the players' pages need it before the wind-up ends
   }
@@ -637,28 +640,36 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     a.lineup=lineup;swapRace(next);
   }
   const myDuck=()=>viewer&&meId?current?.picks[meId]:undefined;
-  // The rivals to aim at, live leaders first; the top one is suggested until the player picks another.
+  // The rivals to aim at, live leaders first. The top ones (as many as the skill strikes) are suggested until the player
+  // picks their own. Oldest first: a new pick drops the oldest, and the suggested leader goes last, so it stays longest.
+  // Always exactly that many (or every rival): what is lit is what gets struck. Clicking a lit one keeps it longest.
   const rivalsOf=duck=>currentSample.filter(r=>r.id!==duck).sort((p,q)=>p.currentRank-q.currentRank);
-  const aimOf=duck=>{const rivals=rivalsOf(duck);return rivals.some(r=>r.id===castAim)?castAim:rivals[0]?.id??null;};
+  const aimsOf=duck=>{const ids=rivalsOf(duck).map(r=>r.id),own=(castAim||[]).filter(id=>ids.includes(id));return own.length?own:ids.slice(0,aimCount(duck)).reverse();};
+  function aimAt(duck,id){
+    const n=aimCount(duck),now=aimsOf(duck);
+    castAim=[...now.filter(x=>x!==id),id].slice(-n);renderCasts();
+  }
   function viewerCast(){
     const duck=myDuck(),a=current?.active;if(!viewer||!room||!a?.lineup?.casts||!Number.isInteger(duck)||!race?.racers[duck]||castState(duck)!=='ready'||performance.now()-castSentAt<2500)return;
-    const target=aimable(duck)?aimOf(duck):null;
-    castSentAt=performance.now();Promise.resolve(room.send({kind:'cast',player:meId,race:a.id,time:Math.round(a.elapsed*1000)/1000,...(target===null?{}:{target})})).catch(e=>toast(e.message));renderCasts();
+    const targets=aimable(duck)?aimsOf(duck):[];
+    castSentAt=performance.now();Promise.resolve(room.send({kind:'cast',player:meId,race:a.id,time:Math.round(a.elapsed*1000)/1000,...(targets.length?{targets}:{})})).catch(e=>toast(e.message));renderCasts();
     setTimeout(()=>{if(current?.active&&race?.racers[duck]&&castState(duck)==='ready')toast('Máy chủ chưa nhận lệnh tung skill, bấm lại nhé.',2500);},2700);
   }
+  // ← → walk the rivals: a one-target skill aims as it goes; for a multi-target one, Enter (or a click) picks.
   function aimStep(step){
-    const duck=myDuck();if(!Number.isInteger(duck)||$('cast-targets').hidden)return;
-    const ids=[...$('cast-targets').querySelectorAll('.cast-target')].map(b=>Number(b.dataset.duckId)),i=ids.indexOf(aimOf(duck));
-    castAim=ids[(i+step+ids.length)%ids.length]??null;renderCasts();
+    const duck=myDuck(),buttons=[...$('cast-targets').querySelectorAll('.cast-target')];if(!Number.isInteger(duck)||$('cast-targets').hidden||!buttons.length)return;
+    const from=buttons.includes(document.activeElement)?buttons.indexOf(document.activeElement):buttons.findIndex(b=>b.classList.contains('on'));
+    const b=buttons[(from+step+buttons.length)%buttons.length];b.focus();if(aimCount(duck)===1)aimAt(duck,Number(b.dataset.duckId));
   }
   // The buttons stay put in lane order, so a press never lands on a reshuffled list: only the rank badges and the aim move.
   function renderTargets(duck,s){
     const box=$('cast-targets'),show=s==='ready'&&aimable(duck);if(box.hidden===show)box.hidden=!show;if(!show)return;
-    if(targetsKey!==String(duck)){targetsKey=String(duck);box.replaceChildren(node('span','cast-aim-label','🎯 Nhắm vào'),...race.racers.filter(r=>r.id!==duck).map(r=>{
-      const b=node('button','cast-target');b.type='button';b.dataset.duckId=String(r.id);b.setAttribute('role','radio');b.onclick=()=>{castAim=r.id;renderCasts();};return b;}),
-      node('span','cast-keys','← → đổi · Space để tung'));}
-    const rank=Object.fromEntries(rivalsOf(duck).map(r=>[r.id,r.currentRank])),aim=aimOf(duck);
-    for(const b of box.querySelectorAll('.cast-target')){const id=Number(b.dataset.duckId),text=`${['🥇','🥈','🥉'][rank[id]-1]||`#${rank[id]}`} ${owners[id]}`,on=id===aim;
+    if(targetsKey!==String(duck)){targetsKey=String(duck);const n=aimCount(duck);box.setAttribute('role',n===1?'radiogroup':'group');
+      box.replaceChildren(node('span','cast-aim-label',n===1?'🎯 Nhắm vào':`🎯 Nhắm ${n} con`),...race.racers.filter(r=>r.id!==duck).map(r=>{
+      const b=node('button','cast-target');b.type='button';b.dataset.duckId=String(r.id);b.setAttribute('role',n===1?'radio':'checkbox');b.onclick=()=>aimAt(duck,r.id);return b;}),
+      node('span','cast-keys',n===1?'← → đổi · Space để tung':'Bấm tên để đổi · ← → Enter · Space để tung'));}
+    const rank=Object.fromEntries(rivalsOf(duck).map(r=>[r.id,r.currentRank])),aims=aimsOf(duck);
+    for(const b of box.querySelectorAll('.cast-target')){const id=Number(b.dataset.duckId),text=`${['🥇','🥈','🥉'][rank[id]-1]||`#${rank[id]}`} ${owners[id]}`,on=aims.includes(id);
       if(b.textContent!==text)b.textContent=text;if(b.classList.contains('on')!==on){b.classList.toggle('on',on);b.setAttribute('aria-checked',String(on));}}
   }
   function renderCasts(){
@@ -667,7 +678,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     for(const r of race.racers){const s=castState(r.id),chip=skillNodes[r.id];if(chip&&chip.dataset.cast!==s)chip.dataset.cast=s;racerViews[r.id]?.element.classList.toggle('charging',s==='charging');}
     const duck=myDuck();button.hidden=!Number.isInteger(duck)||!race.racers[duck];if(button.hidden){$('cast-targets').hidden=true;return;}
     const w=race.castWindow,s=castState(duck),skill=race.racers[duck].skill,sent=s==='ready'&&performance.now()-castSentAt<2500,name=`${skill.icon} ${skill.name}`;
-    const aim=s==='ready'&&!sent&&aimable(duck)?aimOf(duck):null,at=aim===null?'':` → ${owners[aim]}`;
+    const aims=s==='ready'&&!sent&&aimable(duck)?aimsOf(duck):[],at=aims.length?` → ${rivalsOf(duck).filter(r=>aims.includes(r.id)).map(r=>owners[r.id]).join(', ')}`:'';
     const text=s==='passive'?`🛡️ ${name} tự kích hoạt`:s==='wait'?`🔒 ${name} · mở sau ${Math.ceil(w.from-a.elapsed)}s`:s==='charging'?`⏳ Đang gồng ${name}…`:s==='done'?`✓ Đã tung ${name}`:s==='late'?`⌛ Hết giờ · máy tung hộ ${name} sau ${Math.ceil(w.auto[duck]-a.elapsed)}s`:sent?'Đang gửi…':`🔥 TUNG ${name}${at}! · còn ${Math.max(0,Math.ceil(castDeadline(duck)-a.elapsed))}s`;
     if(button.textContent!==text)button.textContent=text;button.disabled=s!=='ready'||sent;button.classList.toggle('ready',s==='ready'&&!sent);button.classList.toggle('charging',s==='charging');
     renderTargets(duck,sent?'sent':s);

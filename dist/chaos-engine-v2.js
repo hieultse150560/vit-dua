@@ -336,9 +336,11 @@
     const casts = lineup.casts === undefined ? null : lineup.casts;
     if (casts !== null && (!Array.isArray(casts) || casts.length !== count || casts.some(t => t !== null && !(typeof t === 'number' && Number.isFinite(t) && t >= 0))))
       throw new RangeError('Thời điểm tung skill không hợp lệ.');
-    // The rival each duck's owner aimed its skill at (null = the skill picks as usual).
-    const targets = lineup.targets === undefined ? null : lineup.targets;
-    if (targets !== null && (!Array.isArray(targets) || targets.length !== count || targets.some(t => t !== null && !(Number.isInteger(t) && t >= 0 && t < count))))
+    // The rivals each duck's owner aimed its skill at, struck in that order (null = the skill picks as usual).
+    // A replay from before multi-target aims holds a single duck number.
+    const targets = lineup.targets === undefined ? null : lineup.targets, duck = t => Number.isInteger(t) && t >= 0 && t < count;
+    if (targets !== null && (!Array.isArray(targets) || targets.length !== count
+      || targets.some(t => t !== null && !duck(t) && !(Array.isArray(t) && t.length > 0 && t.every(duck) && new Set(t).size === t.length))))
       throw new RangeError('Mục tiêu skill không hợp lệ.');
     return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule, casts, targets };
   }
@@ -449,13 +451,15 @@
     // A shell duck shrugs off slowing kinds, so for those it is never an open target either.
     const SHELL_KINDS = new Set(['slow', 'hex', 'asleep', 'reversed']);
     const open = (r, kind) => now >= r.impairUntil && now >= r.immuneUntil && !(kind && r.trait?.id === 'shell' && SHELL_KINDS.has(kind));
-    // Race room: the rival the actor's owner aimed at (any duck but itself), struck first. An aim rides with a cast:
+    // Race room: the rivals the actor's owner aimed at (any ducks but itself), struck first. An aim rides with a cast:
     // a skill that casts itself picks as usual.
-    const aim = actor => { const id = actor && dealt?.casts?.[actor.id] != null ? dealt.targets?.[actor.id] : null; return Number.isInteger(id) && id !== actor.id ? racers[id] : null; };
+    const aims = actor => { const t = actor && dealt?.casts?.[actor.id] != null ? dealt.targets?.[actor.id] : null;
+      return t == null ? [] : [].concat(t).filter(id => id !== actor.id).map(id => racers[id]); };
+    const aim = actor => aims(actor)[0] || null;
     const topRivals = (actor, n, kind) => {
-      const order = ranked().filter(r => r !== actor), aimed = aim(actor);
+      const order = ranked().filter(r => r !== actor), aimed = aims(actor);
       const picked = rules.smartTargets ? [...order.filter(r => open(r, kind)), ...order.filter(r => !open(r, kind))] : order;
-      return (aimed ? [aimed, ...picked.filter(r => r !== aimed)] : picked).slice(0, n);
+      return [...aimed, ...picked.filter(r => !aimed.includes(r))].slice(0, n);
     };
 
     function jump(racer, distance, exact = false) {
@@ -695,7 +699,7 @@
         return { outcome: 'pull', label: rank <= 2 ? 'NAM CHÂM HÚT LÊN DẪN ĐẦU!' : 'NAM CHÂM HÚT LÊN!', before, after: snapshot([actor]) };
       },
       lightning(actor) {
-        const stun = tuning.lightning.stun, top = topRivals(actor, 2), outcomes = {};
+        const stun = tuning.lightning.stun, top = topRivals(actor, AIMS.lightning), outcomes = {};
         for (const target of top) {
           const defense = defend(target, actor, true);
           if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'capsized', stun)); outcomes[target.id] = 'reflected'; }
@@ -723,7 +727,7 @@
         return { affectedIds: [top.id, last.id], ...result, before, after: snapshot([top, last]) };
       },
       reverse(actor) {
-        const R = tuning.reverse, top = topRivals(actor, 2, 'reversed'), outcomes = {};
+        const R = tuning.reverse, top = topRivals(actor, AIMS.reverse, 'reversed'), outcomes = {};
         for (const target of top) {
           const defense = defend(target, actor, true);
           if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'reversed', R.time, R.factor)); outcomes[target.id] = 'reflected'; }
@@ -756,7 +760,7 @@
         return { targetId: target.id, ...result, before, after: snapshot([actor, target]) };
       },
       bees(actor) {
-        const B = tuning.bees, top = topRivals(actor, 2, 'slow'), outcomes = {};
+        const B = tuning.bees, top = topRivals(actor, AIMS.bees, 'slow'), outcomes = {};
         for (const target of top) {
           const defense = defend(target, actor, true);
           if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'slow', B.time, B.slow)); outcomes[target.id] = 'reflected'; }
@@ -841,7 +845,7 @@
       },
       // ---- the ten big-show skills (chaos-v3) ----
       kraken(actor) {
-        const K = tuning.kraken, top = topRivals(actor, K.targets), outcomes = {};
+        const K = tuning.kraken, top = topRivals(actor, AIMS.kraken), outcomes = {};
         for (const target of top) {
           const defense = defend(target, actor, true);
           if (defense?.outcome === 'reflected') { reflect(target, actor, impair(actor, 'grabbed', K.time)); outcomes[target.id] = 'reflected'; }
@@ -1219,9 +1223,10 @@
     });
   }
 
-  // Race room: skills whose owner may aim them at any rival (lineup.targets); multi-target ones strike the aimed duck first.
+  // Race room: skills whose owner may aim them at any rivals (lineup.targets), and how many ducks each strikes (1 if not listed).
   const TARGETED = freeze(['torpedo', 'swap', 'hook', 'lightning', 'reverse', 'missile', 'bees', 'blackhole', 'balloon', 'hex', 'kraken', 'ufo', 'anchor']);
-  const v3 = Object.freeze({ version: 'chaos-v3', passive: freeze([...PASSIVE]), targeted: TARGETED, freeSlot, skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, maps, dayRules, retiredDayRules: retiredRules,
+  const AIMS = freeze({ lightning: 2, reverse: 2, bees: 2, kraken: tuning.kraken.targets });
+  const v3 = Object.freeze({ version: 'chaos-v3', passive: freeze([...PASSIVE]), targeted: TARGETED, aims: AIMS, freeSlot, skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, maps, dayRules, retiredDayRules: retiredRules,
     // lineup: { skills: [id per duck], traits: [id per duck] } as shown before the picks; omitted = dealt from the seed.
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed, lineup),
     deal: (count, seed = newSeed()) => {

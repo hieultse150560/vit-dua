@@ -91,6 +91,21 @@ test('a targeted skill hits the rival its owner aimed at, anywhere in the field'
   }
 });
 
+test('a multi-target skill strikes every rival its owner picked, in order; a short pick is filled as before', () => {
+  assert.deepEqual({ ...V3.aims }, { lightning: 2, reverse: 2, bees: 2, kraken: 3 });
+  for (const [skill, n] of Object.entries(V3.aims)) for (let seed = 1; seed <= 12; seed++) {
+    const base = V3.deal(7, seed), skills = [skill, ...base.skills.slice(1)], list = Array(7).fill(null);
+    list[0] = 10;
+    const struck = targets => V3.createRace(names(7), D, seed, { ...base, skills, casts: list, targets: [targets, ...Array(6).fill(null)] })
+      .events.find(e => e.type === 'skill' && e.actorId === 0 && e.scheduled).affectedIds;
+    const picks = [6, 2, 4].slice(0, n);
+    assert.deepEqual(struck(picks), picks, `${skill} seed ${seed}`);
+    const one = struck([5]);
+    assert.equal(one.length, n); assert.equal(one[0], 5, 'the one picked first, then the usual targets');
+    assert.deepEqual(struck(5), one, 'a replay from before multi-target aims (a single duck number) plays the same');
+  }
+});
+
 test('without an aim, skills read and act exactly as before (the hook still names the leader it pulls)', () => {
   let hooks = 0;
   for (let seed = 1; seed <= 60; seed++) {
@@ -105,7 +120,8 @@ test('casts and targets are validated', () => {
   const base = V3.deal(7, 3);
   for (const bad of [[], Array(6).fill(null), [...Array(6).fill(null), -1], [...Array(6).fill(null), NaN], [...Array(6).fill(null), '5'], 'x'])
     assert.throws(() => V3.createRace(names(7), D, 3, { ...base, casts: bad }), RangeError, JSON.stringify(bad));
-  for (const bad of [[], Array(6).fill(null), [...Array(6).fill(null), 7], [...Array(6).fill(null), -1], [...Array(6).fill(null), 1.5], [...Array(6).fill(null), '2'], 'x'])
+  for (const bad of [[], Array(6).fill(null), [...Array(6).fill(null), 7], [...Array(6).fill(null), -1], [...Array(6).fill(null), 1.5], [...Array(6).fill(null), '2'], 'x',
+    [...Array(6).fill(null), []], [...Array(6).fill(null), [2, 2]], [...Array(6).fill(null), [2, 7]], [...Array(6).fill(null), [[2]]]])
     assert.throws(() => V3.createRace(names(7), D, 3, { ...base, casts: Array(7).fill(null), targets: bad }), RangeError, JSON.stringify(bad));
 });
 

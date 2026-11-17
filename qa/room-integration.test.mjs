@@ -17,7 +17,8 @@ const duck = (game, id) => game.window.document.querySelector(`#duck-grid [data-
 const engine = readFileSync(new URL('../dist/chaos-engine-v2.js', import.meta.url), 'utf8');
 const missileDeal = 'return dealLineup(V3_RULES, count, seed);';
 if (!engine.includes(missileDeal)) throw Error('the engine changed: update missileDeal');
-const missiles = { ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, "return { ...dealLineup(V3_RULES, count, seed), skills: Array(count).fill('missile') };") } };
+const dealing = skill => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V3_RULES, count, seed), skills: Array(count).fill('${skill}') };`) } });
+const missiles = dealing('missile');
 const key = (game, code, name = code) => game.window.document.body.dispatchEvent(new game.window.KeyboardEvent('keydown', { code, key: name, bubbles: true }));
 const order = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.children[1].textContent);
 async function sync(host, viewer, ms = 200) { host.advance(ms, 50); viewer?.advance(ms, 50); await settle(); host.advance(50, 50); viewer?.advance(50, 50); await settle(); }
@@ -166,8 +167,8 @@ test('in a room each player casts their own skill from their page, aimed at any 
     const at = current(host).active.elapsed;
     key(viewer, 'Space', ' '); await sync(host, viewer);
     const cast = current(host).active.lineup.casts[anDuck];
-    assert.ok(Number.isFinite(cast) && cast >= at && cast <= at + 4.3, `An's cast lands ahead of the race clock, within ~4 s of the press (${cast} vs ${at})`);
-    assert.equal(current(host).active.lineup.targets[anDuck], other, 'aimed where An chose');
+    assert.ok(Number.isFinite(cast) && cast >= at && cast <= at + 5, `An's cast lands ahead of the race clock, within a wind-up and 3 s of the press (the host's saved clock lags up to .5 s, An's page may run ahead) (${cast} vs ${at})`);
+    assert.deepEqual(Array.from(current(host).active.lineup.targets[anDuck]), [other], 'aimed where An chose');
     await sync(host, viewer); // the host's snapshot hops back to the player
     assert.match(viewer.$('cast').textContent, /Đang gồng|Đã tung/, "the player's page follows");
     assert.equal(viewer.$('cast-targets').hidden, true);
@@ -247,6 +248,40 @@ test("with the host's tab in the background (its race clock stopped), a player's
     // The host's tab comes back: it plays the rest of the race and scores the same result.
     for (let i = 0; i < 30 && !host.$('result-dialog').open; i++) { host.advance(4000, 50); await settle(); }
     assert.deepEqual(order(viewer), order(host));
+    assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
+  } finally { await host.close(); await viewer?.close(); }
+});
+
+test('a multi-target skill lets its owner pick that many rivals: the top ones are suggested, a click picks or drops one', async () => {
+  const bees = dealing('bees'), host = loadGame({}, bees); let viewer;
+  try {
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình\nChi'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    submit(host, 'setup-form'); await settle();
+    const code = host.storage()['vit-dua-room'];
+    host.click('room-close'); host.click('skills-close');
+    viewer = loadGame({}, { ...bees, url: `http://localhost/?phong=${code}&ten=An` });
+    await sync(host, viewer);
+    duck(host, 0).click(); await sync(host, viewer);
+    duck(viewer, 1).click(); await sync(host, viewer);
+    host.click('random-picks'); await sync(host, viewer); host.click('random-picks'); await sync(host, viewer);
+    host.click('start'); await sync(host, viewer);
+    for (let i = 0; i < 40 && viewer.$('cast').disabled; i++) await sync(host, viewer, 500);
+    const targets = () => [...viewer.window.document.querySelectorAll('#cast-targets .cast-target')];
+    const aimed = () => targets().filter(b => b.getAttribute('aria-checked') === 'true').map(b => Number(b.dataset.duckId));
+    const at = id => targets().find(b => Number(b.dataset.duckId) === id);
+    assert.equal(targets().length, 3);
+    assert.match(viewer.$('cast-targets').textContent, /Nhắm 2 con/);
+    const rankOf = id => { const t = at(id).textContent; return ['🥇', '🥈', '🥉'].indexOf([...t][0]) + 1 || Number(t.match(/#(\d+)/)[1]); };
+    const top = aimed().sort((p, q) => rankOf(p) - rankOf(q)); // the buttons sit in lane order; the pick goes by rank
+    assert.equal(top.length, 2, 'the bees strike two: the top two rivals are suggested');
+    const other = targets().map(b => Number(b.dataset.duckId)).find(id => !top.includes(id));
+    at(other).click(); assert.deepEqual(aimed().sort(), [top[0], other].sort(), 'a third pick keeps the leader and drops the other suggestion');
+    at(top[0]).click(); assert.deepEqual(aimed().sort(), [top[0], other].sort(), 'always two lit: what is lit is what gets struck');
+    at(top[1]).click(); assert.deepEqual(aimed().sort(), [top[0], top[1]].sort(), 'the leader was clicked last, so the older pick drops');
+    const name = id => at(id).textContent.replace(/^\S+ /, '');
+    assert.ok(viewer.$('cast').textContent.includes(`→ ${name(top[0])}, ${name(top[1])}!`), 'the button names both, leaders first');
+    key(viewer, 'Space', ' '); await sync(host, viewer);
+    assert.deepEqual(Array.from(current(host).active.lineup.targets[1]), [top[0], top[1]], 'both rivals reach the host, in the order picked');
     assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
   } finally { await host.close(); await viewer?.close(); }
 });

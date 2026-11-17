@@ -472,6 +472,13 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .cast-target:hover{border-color:#e5582b;transform:translateY(-1px)}
 .cast-target.on{background:#e5582b;border-color:#e5582b;color:#fff;box-shadow:0 4px 12px rgba(229,88,43,.35)}
 .cast-target:focus-visible{outline:3px solid #1f3d33;outline-offset:2px}
+/* A player's skill controls sit left of the commentary, so neither pushes the other down; stacked on phones. */
+.race-talk{display:flex;justify-content:center;align-items:flex-start;gap:14px;margin-top:10px;padding:0 16px}
+.race-talk .cast-button,.race-talk .commentary{margin-top:0}
+.cast-panel{flex:1 1 0;min-width:0}
+.cast-panel:not(:has(>:not([hidden]))){display:none}
+.cast-panel:has(>:not([hidden]))+.commentary{flex:1 1 0;max-width:none;margin:0;border-radius:16px;padding:10px 16px;text-align:left}
+@media(max-width:650px){.race-talk{flex-direction:column;align-items:stretch}.cast-panel:has(>:not([hidden]))+.commentary{flex:none;text-align:center}}
 @keyframes cast-pulse{to{transform:scale(1.06);box-shadow:0 8px 22px rgba(229,88,43,.55)}}
 body:not(.viewer) .skill-chip[data-cast="ready"]{cursor:pointer;border-color:#e5582b;box-shadow:0 0 0 2px rgba(229,88,43,.22)}
 body:not(.viewer) .skill-chip[data-cast="ready"]:hover{background:#fff1e8}
