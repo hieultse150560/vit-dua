@@ -456,10 +456,11 @@
     const aims = actor => { const t = actor && dealt?.casts?.[actor.id] != null ? dealt.targets?.[actor.id] : null;
       return t == null ? [] : [].concat(t).filter(id => id !== actor.id).map(id => racers[id]); };
     const aim = actor => aims(actor)[0] || null;
+    // The aimed rivals first, then the usual picks (no aim: exactly the usual picks).
+    const aimedFirst = (actor, usual, n) => { const aimed = aims(actor); return [...aimed, ...usual.filter(r => !aimed.includes(r))].slice(0, n); };
     const topRivals = (actor, n, kind) => {
-      const order = ranked().filter(r => r !== actor), aimed = aims(actor);
-      const picked = rules.smartTargets ? [...order.filter(r => open(r, kind)), ...order.filter(r => !open(r, kind))] : order;
-      return [...aimed, ...picked.filter(r => !aimed.includes(r))].slice(0, n);
+      const order = ranked().filter(r => r !== actor);
+      return aimedFirst(actor, rules.smartTargets ? [...order.filter(r => open(r, kind)), ...order.filter(r => !open(r, kind))] : order, n);
     };
 
     function jump(racer, distance, exact = false) {
@@ -577,7 +578,7 @@
           () => impair(actor, 'capsized', stun)) };
       },
       wave(actor, ranks) {
-        const V = tuning.wave, top = ranked().filter(r => r !== actor).slice(0, 3);
+        const V = tuning.wave, top = aimedFirst(actor, ranked().filter(r => r !== actor), AIMS.wave);
         const before = snapshot([actor, ...top]), outcomes = {};
         top.forEach((target, i) => {
           const defense = defend(target, actor, true);
@@ -668,7 +669,7 @@
         if (rules.epic) {
           // chaos-v3: the twister sweeps up the top 3 (never the caster) and flings each one into the
           // back part of the pack, spinning. Guarded and ghosted ducks are left out.
-          const T = tuning.tornado, order = ranked(), victims = order.filter(r => r !== actor).slice(0, 3);
+          const T = tuning.tornado, order = ranked(), victims = aimedFirst(actor, order.filter(r => r !== actor), AIMS.tornado);
           const tail = order[count - 1].distance - pct(T.behind), before = snapshot([actor, ...victims]), hit = victims.filter(r => !shielded(r));
           for (const r of hit) { jump(r, tail + (r.distance - tail) * T.keep * effectRng.unit()); impair(r, 'spinning', T.spin); }
           return { affectedIds: victims.map(r => r.id), protectedIds: victims.filter(shielded).map(r => r.id),
@@ -710,7 +711,9 @@
           outcome: results.includes('hit') ? 'hit' : results.includes('reflected') ? 'reflected' : results[0] ?? 'none' };
       },
       flip(actor) {
-        const order = ranked(), top = order[0] === actor ? order[1] : order[0], last = order[count - 1], before = snapshot([top, last]);
+        // Race room: the aimed rival trades places with the last duck (aiming at the last duck is the usual flip).
+        const order = ranked(), last = order[count - 1], aimed = aim(actor);
+        const top = aimed && aimed !== last ? aimed : order[0] === actor ? order[1] : order[0], before = snapshot([top, last]);
         let result;
         if (top === last) result = { outcome: 'none', label: 'LỘN ĐẦU ĐUÔI!' };
         else {
@@ -984,7 +987,12 @@
           ranksBefore: ranksNow(), before: snapshot([r]), after: snapshot([r]) });
       }
       if (actor.trait?.id === 'charger') actor.chargeUntil = tick(now + tuning.trait.chargeTime) / HZ;
-      emit({ type: 'skill', actorId: actor.id, skill: actor.skill.id, icon: actor.skill.icon, ranksBefore: ranks, activation: true, scheduled: true, ...effect });
+      // Race room: an aim that reached past the leading rivals marks the event, and the label stops naming the leaders.
+      const struck = effect.affectedIds ?? (Number.isInteger(effect.targetId) ? [effect.targetId] : []);
+      const behind = id => ranks[id] - (ranks[actor.id] < ranks[id] ? 1 : 0) > struck.length;
+      const aimed = aims(actor).length > 0 && struck.some(id => id !== actor.id && behind(id))
+        ? { aimed: true, label: effect.label.replace(/ (TỐP ĐẦU|HAI CON DẪN ĐẦU|CON DẪN ĐẦU)!$/, '!') } : {};
+      emit({ type: 'skill', actorId: actor.id, skill: actor.skill.id, icon: actor.skill.icon, ranksBefore: ranks, activation: true, scheduled: true, ...effect, ...aimed });
       flush();
     }
     // Each hazard picks its victim; harmful ones return `harm`, helpful ones `surge`.
@@ -1224,8 +1232,8 @@
   }
 
   // Race room: skills whose owner may aim them at any rivals (lineup.targets), and how many ducks each strikes (1 if not listed).
-  const TARGETED = freeze(['torpedo', 'swap', 'hook', 'lightning', 'reverse', 'missile', 'bees', 'blackhole', 'balloon', 'hex', 'kraken', 'ufo', 'anchor']);
-  const AIMS = freeze({ lightning: 2, reverse: 2, bees: 2, kraken: tuning.kraken.targets });
+  const TARGETED = freeze(['torpedo', 'swap', 'hook', 'lightning', 'reverse', 'missile', 'bees', 'blackhole', 'balloon', 'hex', 'kraken', 'ufo', 'anchor', 'wave', 'tornado', 'flip']);
+  const AIMS = freeze({ lightning: 2, reverse: 2, bees: 2, kraken: tuning.kraken.targets, wave: 3, tornado: 3 });
   const v3 = Object.freeze({ version: 'chaos-v3', passive: freeze([...PASSIVE]), targeted: TARGETED, aims: AIMS, freeSlot, skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, maps, dayRules, retiredDayRules: retiredRules,
     // lineup: { skills: [id per duck], traits: [id per duck] } as shown before the picks; omitted = dealt from the seed.
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed, lineup),

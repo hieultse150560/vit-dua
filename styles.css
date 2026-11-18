@@ -423,6 +423,9 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 /* Photo finish: high-contrast slow finish and a result card */
 .race-water.photo-finish .river,.race-water.photo-finish .race-ground{filter:grayscale(.3) contrast(1.15) brightness(1.05)}
 .race-water.photo-finish .finish-line{box-shadow:0 0 0 4px rgba(255,255,255,.8),0 0 30px #fff}
+.cheer-card{margin:14px 0 0;padding:12px 16px;border-radius:14px;background:linear-gradient(120deg,#fff3c4,#ffe0ec);color:#3b2a12;box-shadow:0 6px 18px rgba(0,0,0,.12)}
+.cheer-card strong{display:block;font-size:15px;margin-bottom:4px}
+.cheer-card p{margin:0;white-space:pre-line;font-style:italic;line-height:1.5}
 .photo-finish-card{margin:0 0 14px;padding:12px 16px;border-radius:12px;background:linear-gradient(110deg,#1d2433,#3b4a66);color:#fff;font-weight:800;font-size:16px;letter-spacing:.02em;box-shadow:0 8px 22px rgba(0,0,0,.25)}
 
 /* Duck faces */
