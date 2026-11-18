@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV4, C3old=DuckChaosEngineV3, SOUND_KEY='vit-dua-sound';
+  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV5, C3old=DuckChaosEngineV3, C3v4=DuckChaosEngineV4, SOUND_KEY='vit-dua-sound';
   // Saved races replay with the engine version they were started on. New races run chaos-v4 (C3: it keeps every chaos-v3 skill).
-  const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
+  const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3v4.version]:C3v4,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
@@ -300,7 +300,7 @@
     banner.replaceChildren(node('span','twist-icon',icon),letters);banner.className=`twist-banner ${gold?'gold':kind}${high?' low':''}${intro?' after-intro':''}`;void banner.offsetWidth;banner.hidden=false;bannerUntil=event.time+1.2;
     startSlowmo(list,kind,tier);
     if(!playSfx(list,[...(intro?[['drop',event.time]]:[]),...(gold?[['sparkle',event.time+.3*SLOWMO_WINDOW]]:[])]))tone(TONE_HZ[kind],.12);
-    say(window.DuckCommentary?.line(event,id=>owners[id]||A.name(id)));
+    const talk=list.findLast(e=>e.type==='skill');if(talk)say(window.DuckCommentary?.line(talk,id=>owners[id]||A.name(id))); // only skills get commentary
   }
   // S-tier intro: the river dims for a beat under a big skill-name card (CSS, real time, inside the slow motion it already has).
   function sIntro(event){
@@ -447,7 +447,7 @@
     // Last round: any star still unused is spent now (covers random picks and older saves).
     if(current.type==='regular'){const forced=participants().map(p=>p.id).filter(id=>T.starForced(current.session,id)&&!starsOf().includes(id));if(forced.length)current.stars=[...starsOf(),...forced];}
     try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);ensureLineup();if(!isLegacy()){const luck=luckByDuck();current.lineup={...plainLineup(current.lineup),...(luck.some(Boolean)?{luck}:{}),...(current.rule?{rule:current.rule}:{}),casts:room?Array(participants().length).fill(null):undefined,...(room?obstacleCrew():{})};}race=isLegacy()?DuckRaceEngine.createRace(participants().map((_,i)=>A.name(i)),current.session.duration):C3.createRace(participants().map((_,i)=>A.name(i)),current.session.duration,undefined,current.lineup);}catch(e){toast(e.message);return;}
-    roomStartAt=room?room.now()+3000:0;stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C3.version,lineup:plainLineup(current.lineup)})};save();beginRace();
+    roomStartAt=room?room.now()+3000:0;stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C3.version,lineup:plainLineup(current.lineup),...(room?{startAt:roomStartAt,pausedMs:0}:{})})};save();beginRace();
   }
   // Kicks off current.active (its countdownLeft seconds of countdown, then the race): the host's start and a player's page.
   function beginRace(){
@@ -500,7 +500,8 @@
     if(phase==='running'){
       startAmbience();
       const frozen=hitStop>0;if(frozen)hitStop=Math.max(0,hitStop-delta*1000); // hit-stop: the race holds still a beat on impact
-      a.elapsed=Math.min(race.duration,a.elapsed+(frozen?0:delta*playbackRate(a.elapsed)));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();showGains(a.elapsed);const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
+      if(roomClocked()){a.elapsed=Math.min(race.duration,Math.max(a.elapsed,raceTimeAt(roomReal())));if(photoFinish&&a.elapsed>=race.duration-PHOTO_WINDOW&&!photoActive)startPhoto();}
+      else a.elapsed=Math.min(race.duration,a.elapsed+(frozen?0:delta*playbackRate(a.elapsed)));if(slowmoUntil&&a.elapsed>=slowmoUntil)endSlowmo();showGains(a.elapsed);const remaining=race.duration-a.elapsed;draw(race.sample(a.elapsed));const timerText=clock(remaining),inSprint=remaining<=5;if(timerText!==lastTimerText){$('timer').textContent=timerText;lastTimerText=timerText;}if(inSprint!==lastSprintState){$('timer').classList.toggle('sprint',inSprint);lastSprintState=inSprint;}
       if(a.elapsed>=race.sprintStart){if(!sprintAnnounced){sprintAnnounced=true;document.querySelector('.race-water')?.classList.add('fog-lifted');$('arena-title').textContent='NƯỚC RÚT! Cơ hội lật ngược!';$('race-status').textContent='⚡ Tăng tốc ngẫu nhiên — vịt cuối vẫn có cơ hội!';tone(950,.2);}$('sprint-label').textContent='⚡ 5 GIÂY CUỐI · BỨT PHÁ!';const second=Math.ceil(remaining);if(second!==lastTick&&second>0){lastTick=second;tone(650,.06);}}
       if(a.elapsed>=race.duration){finish();return;}
     }
@@ -509,8 +510,8 @@
   }
   function pause(){
     if(!current?.active)return;
-    if(phase==='running'){stop();phase='paused';window.speechSynthesis?.cancel?.();endAmbience();cancelSfx(true);$('river').classList.remove('is-running');if(currentSample.length)draw(currentSample);$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Nghỉ quẩy một chút';$('resume-overlay').hidden=false;$('pause').textContent='▶ Tiếp tục';save();}
-    else if(phase==='paused'){activateAudio();phase=current.active.countdownLeft>0?'countdown':'running';requeueSfx();lastTime=performance.now();lastSaved=lastTime;$('resume-overlay').hidden=true;$('pause').textContent='Ⅱ Tạm dừng';$('pause').disabled=phase==='countdown';$('race-overlay').hidden=phase==='running';$('overlay-number').textContent=String(Math.ceil(current.active.countdownLeft));$('overlay-text').textContent='Chuẩn bị nào!';$('river').classList.toggle('is-running',phase==='running');$('restore-notice').hidden=true;publishRoom();if(phase==='running'){const sprint=current.active.elapsed>=race.sprintStart;$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('arena-title').textContent=sprint?'NƯỚC RÚT! Cơ hội lật ngược!':'Quạc quạc… tăng tốc nào!';$('sprint-label').textContent=sprint?'⚡ 5 GIÂY CUỐI · BỨT PHÁ!':'CỔ VŨ CHO CHÚ VỊT CỦA BẠN';$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';}schedule();}
+    if(phase==='running'){if(roomClocked())current.active.elapsed=Math.min(race.duration,Math.max(current.active.elapsed,raceTimeAt(roomReal())));stop();phase='paused';window.speechSynthesis?.cancel?.();endAmbience();cancelSfx(true);$('river').classList.remove('is-running');if(currentSample.length)draw(currentSample);$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Nghỉ quẩy một chút';$('resume-overlay').hidden=false;$('pause').textContent='▶ Tiếp tục';save();}
+    else if(phase==='paused'){activateAudio();phase=current.active.countdownLeft>0?'countdown':'running';if(!viewer&&roomClocked()){const a=current.active;a.pausedMs=room.now()-a.startAt-(realTimeOf(a.elapsed)-(a.countdownLeft||0))*1000;}requeueSfx();lastTime=performance.now();lastSaved=lastTime;$('resume-overlay').hidden=true;$('pause').textContent='Ⅱ Tạm dừng';$('pause').disabled=phase==='countdown';$('race-overlay').hidden=phase==='running';$('overlay-number').textContent=String(Math.ceil(current.active.countdownLeft));$('overlay-text').textContent='Chuẩn bị nào!';$('river').classList.toggle('is-running',phase==='running');$('restore-notice').hidden=true;publishRoom();if(phase==='running'){const sprint=current.active.elapsed>=race.sprintStart;$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('arena-title').textContent=sprint?'NƯỚC RÚT! Cơ hội lật ngược!':'Quạc quạc… tăng tốc nào!';$('sprint-label').textContent=sprint?'⚡ 5 GIÂY CUỐI · BỨT PHÁ!':'CỔ VŨ CHO CHÚ VỊT CỦA BẠN';$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';}schedule();}
   }
   function finish(){
     if(!current.active)return;if(viewer){viewerFinish();return;}stop();const type=current.type,a=current.active;
@@ -518,17 +519,12 @@
     try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);}catch(e){phase='paused';toast(`Chưa ghi được điểm: ${e.message}`);return;}
     if(engineFor(a.engine)){current.raceReplays??=[];if(!current.raceReplays.some(r=>r.id===a.id))current.raceReplays.push({id:a.id,seed:a.seed,engine:a.engine,...(a.lineup?{lineup:plainLineup(a.lineup)}:{})});}
     endAmbience();
-    const photo=photoFinish,cheer=finishTalk(race.results,a.seed);
+    const photo=photoFinish;finishTalk(race.results);
     current.active=null;current.stage='result';current.stars=[];clearRace();sfx('cheer');save();render();tone(523,.2);tone(659,.2,.17);tone(784,.3,.34);
     const record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);showRound(record,type,true);
     if(photo)$('result-content').prepend(node('div','photo-finish-card',`📸 PHOTO FINISH · ${playerName(record.entries[0].playerId)} thắng ${playerName(record.entries[1].playerId)} trong gang tấc!`));
-    cheerCard(cheer);
   }
-  // The finish call, then a poem or a song for the last duck's owner (the same on every screen); the result card keeps it.
-  function finishTalk(results,seed){
-    const name=id=>owners[id]||A.name(id),last=results.at(-1),c=window.DuckCommentary?.cheer?.(name(last.id),seed);
-    say([window.DuckCommentary?.finish(name(results[0].id),results[1]&&name(results[1].id),photoFinish),c?.intro,...(c?.lines||[])].filter(Boolean).join(' '));return c;
-  }
+  function finishTalk(results){const name=id=>owners[id]||A.name(id);say(window.DuckCommentary?.finish(name(results[0].id),results[1]&&name(results[1].id),photoFinish));}
   function cheerCard(c){if(!c)return;const card=node('div','cheer-card');card.append(node('strong','',`${c.icon} ${c.title}`),node('p','',c.lines.join('\n')));$('result-content').append(card);}
   function nextLabel(){if(!current)return '';const s=current.session;if(s.rounds.length<s.roundLimit)return `Chọn vịt vòng ${s.rounds.length+1} →`;return outcome().status==='tie'?'Chọn vịt đua phụ →':'Xem tổng kết ngày ↗';}
   function next(){
@@ -537,7 +533,7 @@
     clearRace();current.type=status.status==='tie'?'tie':'regular';current.stage='picking';current.picks={};current.pilots=[];current.stars=[];delete current.lineup;if(current.rule)current.rule=drawDayRule(current.rule);starArmed=false;selected=participants()[0]?.id;save();render();
   }
   function table(headers,rows){const wrap=node('div','result-table-wrap'),t=node('table','result-table'),head=node('thead'),tr=node('tr');headers.forEach(h=>tr.append(node('th','',h)));head.append(tr);const body=node('tbody');rows.forEach(row=>{const r=node('tr',row.coffee?'coffee-row':'');row.cells.forEach((cell,i)=>r.append(node('td',i===1?'name':i===row.cells.length-1?'total':'',cell)));body.append(r);});t.append(head,body);wrap.append(t);return wrap;}
-  const obstacleTally=(race,id)=>{const met=race.events.filter(e=>e.type==='obstacle'&&e.actorId===id);return met.length?` · né ${met.filter(e=>e.outcome!=='hit').length}/${met.length} chướng ngại`:'';};
+  const obstacleTally=(race,id)=>{const met=race.events.filter(e=>e.type==='obstacle'&&!e.rune&&e.actorId===id);return met.length?` · né ${met.filter(e=>e.outcome!=='hit').length}/${met.length} chướng ngại`:'';};
   function showRound(record,type,advance){
     if(!record||current.active)return;
     $('result-emoji').textContent=type==='tie'?'⚖':'🏆';$('result-label').textContent=type==='tie'?'KẾT QUẢ LƯỢT PHÂN ĐỊNH':`KẾT QUẢ LƯỢT ${record.number}/${current.session.roundLimit}`;
@@ -564,6 +560,9 @@
     const people=node('div','final-coffee');status.coffeeIds.forEach(id=>people.append(node('strong','',`${playerName(id)}${isLegacy()?'':` · ${money(amountFor(id))}`}`)));
     const rows=T.standings(current.session).map(r=>({coffee:status.coffeeIds.includes(r.playerId),cells:[`#${r.rank}`,r.name,...r.pointsByRound,r.total,contributionLabel(r.playerId)]}));
     $('result-content').replaceChildren(people,table(['Hạng điểm','Người chơi',...current.session.rounds.map(r=>`V${r.number}`),'Tổng',isLegacy()?'Cà phê':'Phải đóng'],rows));
+    // A poem, a song or a rap for whoever pays today (the same on every screen), read out by the commentator.
+    const cheer=status.coffeeIds.length?window.DuckCommentary?.cheer?.(status.coffeeIds.map(playerName).join(' và '),current.session.id):null;
+    if(cheer){cheerCard(cheer);say([cheer.intro,...cheer.lines].join(' '));}
     const awards=dayAwards();
     if(awards.length){const box=node('div','day-awards');box.append(node('h3','','🏅 Danh hiệu trong ngày'));for(const a of awards){const card=node('div','award-card');card.append(node('span','award-icon',a.icon),node('strong','award-title',a.title),node('span','award-who',a.playerIds.map(playerName).join(', ')),node('small','award-detail',a.detail));box.append(card);}$('result-content').append(box);}
     $('result-next').textContent='Về bảng điểm';dialogAction=()=>close('result-dialog');open('result-dialog');
@@ -648,7 +647,7 @@
   function roomSnapshot(){
     if(!current||isLegacy())return null;const a=current.active;
     return {v:1,fx:slowFx,day:`${currentSeason()?.name||'Vịt Đua'} · Ngày ${dateLabel(current.session.date)}`,session:current.session,type:current.type,stage:current.stage,picks:current.picks,stars:starsOf(),
-      lineup:current.lineup||null,rule:current.rule||null,pickDeadline,raceReplays:current.raceReplays||[],active:a&&a.engine?{id:a.id,seed:a.seed,engine:a.engine,lineup:a.lineup,startAt:roomStartAt,paused:phase==='paused'}:null};
+      lineup:current.lineup||null,rule:current.rule||null,pickDeadline,raceReplays:current.raceReplays||[],active:a&&a.engine?{id:a.id,seed:a.seed,engine:a.engine,lineup:a.lineup,startAt:a.startAt||0,pausedMs:a.pausedMs||0,paused:phase==='paused'}:null};
   }
   function publishRoom(now=false){if(!room||viewer)return;clearTimeout(publishTimer);const send=()=>{Promise.resolve(room?.publish(roomSnapshot())).catch(e=>toast(`Phòng: ${e.message}`));};if(now)send();else publishTimer=setTimeout(send,120);}
   function roomRequest(req){
@@ -693,6 +692,22 @@
   }
   // ---- Obstacles (race room, chaos-v4): ↑ jumps, ↓ dives; a key counts for the obstacle a duck meets 1–3 s later ----
   const OBSTACLE_REVEAL=3,OBSTACLE_LEAD=1;
+  // ---- Race room clock: every page (host and players) reads its race time off the room's clock, so all of them show
+  // the same moment, a tab that sat in the background catches up exactly, and every page finishes together. Race time
+  // runs 1:1 except in the slow motion after each twist and in a photo finish, both worked out from the race itself.
+  let slowCache={};
+  const roomClocked=()=>!!(room&&current?.active?.startAt);
+  const roomReal=()=>{const a=current.active;return (room.now()-a.startAt-(a.pausedMs||0))/1000;};
+  function slowParts(){ // [from, to, rate] race-time spans that play slower, in order, not overlapping
+    if(slowCache.race===race&&slowCache.fx===slowFx&&slowCache.photo===photoFinish)return slowCache.parts;
+    const spans=[];
+    for(const e of race.events||[])if(e.type==='skill'||e.type==='hazard'){const last=spans.at(-1),to=e.time+SLOWMO_WINDOW;if(last&&e.time<=last[1]+1e-9)last[1]=Math.max(last[1],to);else spans.push([e.time,to]);}
+    let parts=spans.map(([from,to])=>[from,to,slowmoRate()]);
+    if(photoFinish){let from=race.duration-PHOTO_WINDOW;const photo=[];for(const [a,b] of spans){if(b<=from)continue;if(a>from)photo.push([from,a,PHOTO_RATE]);from=Math.max(from,b);}if(from<race.duration)photo.push([from,race.duration,PHOTO_RATE]);parts=[...parts,...photo].sort((p,q)=>p[0]-q[0]);}
+    slowCache={race,fx:slowFx,photo:photoFinish,parts};return parts;
+  }
+  function raceTimeAt(real){let at=0,left=Math.max(0,real);for(const [from,to,rate] of slowParts()){if(left<=from-at)return at+left;left-=from-at;const span=(to-from)/rate;if(left<=span)return from+left*rate;left-=span;at=to;}return at+left;}
+  function realTimeOf(t){let real=0,at=0;for(const [from,to,rate] of slowParts()){if(t<=from)break;real+=from-at+(Math.min(t,to)-from)/rate;at=Math.min(t,to);if(t<=to)return real;}return real+t-at;}
   // Who steers (players who picked on their own device; the rest get past on luck), and no key pressed yet.
   function obstacleCrew(){
     const n=participants().length,owner=duck=>Object.keys(current.picks).find(p=>current.picks[p]===duck);
@@ -724,51 +739,54 @@
     pendingDodges=[...pendingDodges,{race:a.id,duck,press:[t,key],at:performance.now()}];applyLineup(withPending(hostLineup?.id===a.id?hostLineup.lineup:a.lineup,false));renderDodge();
     Promise.resolve(room.send({kind:'dodge',player:meId,race:a.id,time:t,key})).catch(e=>toast(e.message));
   }
-  // The player's pad: what comes next, then the result for a moment.
+  // The player's pad: the next thing in their lane and its key, then how it went for a moment.
+  const laneKind=id=>C3.obstacles.find(o=>o.id===id),keyWord=k=>k==='up'?'nhảy ⬆️':'lặn ⬇️';
   function renderDodge(){
     const pad=$('dodge-pad'),a=current?.active,duck=myDuck();if(!pad)return;
     const shown=!!(viewer&&a?.lineup?.dodges&&race?.obstacles&&Number.isInteger(duck)&&race.racers[duck]);
     if(pad.hidden===shown)pad.hidden=!shown;if(!shown)return;
-    const now=a.elapsed,meets=race.events.filter(e=>e.type==='obstacle'&&e.actorId===duck),kindOf=e=>C3.obstacles.find(o=>o.id===e.obstacle);
+    const now=a.elapsed,meets=race.events.filter(e=>e.type==='obstacle'&&e.actorId===duck);
     const done=meets.findLast(e=>e.time<=now&&now-e.time<1.2),next=meets.find(e=>e.time>now);
     let state,text,chosen='';
-    if(done){state=done.outcome==='hit'?'hit':'pass';text=state==='hit'?`💥 Vấp ${kindOf(done).name.toLowerCase()}!`:`✨ ${done.label}`;}
+    if(done){const k=laneKind(done.obstacle),bad=done.outcome==='hit'||done.outcome==='missed';state=bad?'hit':'pass';
+      text=done.rune?(bad?`💨 Hụt ${k.name.toLowerCase()}`:`${k.icon} Ăn ${k.name.toLowerCase()}!`):done.outcome==='hit'?`💥 Vấp ${k.name.toLowerCase()}!`:`✨ ${done.label}`;}
     else if(!next){state='idle';text='🏁 Hết chướng ngại, về đích thôi!';}
-    else if(next.time-now>OBSTACLE_REVEAL){state='idle';text=`❓ Chướng ngại tiếp theo · còn ${Math.ceil(next.time-now)}s`;}
     else{
-      const k=kindOf(next),press=(a.lineup.dodges[duck]||[]).filter(p=>p[0]>=next.time-OBSTACLE_REVEAL-1e-6&&p[0]<=next.time-OBSTACLE_LEAD+1e-6).at(-1);
-      if(press){state='pressed';chosen=press[1];text=`${k.icon} ${k.name} · đã chọn ${press[1]==='up'?'⬆️ nhảy':'⬇️ lặn'}`;}
-      else if(next.time-now>OBSTACLE_LEAD){state='reveal';text=`${k.icon} ${k.name}! Nhảy ⬆️ hay lặn ⬇️? · ${(next.time-now-OBSTACLE_LEAD).toFixed(1)}s`;}
+      const k=laneKind(next.obstacle),what=`${k.icon} ${k.name} · ${keyWord(k.key)}${k.rune?' để ăn':''}`;
+      const press=(a.lineup.dodges[duck]||[]).filter(p=>p[0]>=next.time-OBSTACLE_REVEAL-1e-6&&p[0]<=next.time-OBSTACLE_LEAD+1e-6).at(-1);
+      if(next.time-now>OBSTACLE_REVEAL){state='idle';text=`${what} · còn ${Math.ceil(next.time-now)}s`;}
+      else if(press){state='pressed';chosen=press[1];text=`${k.icon} ${k.name} · đã chọn ${keyWord(press[1])}`;}
+      else if(next.time-now>OBSTACLE_LEAD){state='reveal';text=`${what} · bấm ngay! ${(next.time-now-OBSTACLE_LEAD).toFixed(1)}s`;}
       else{state='late';text=`${k.icon} ${k.name} · trễ rồi!`;}
     }
     if(pad.dataset.state!==state)pad.dataset.state=state;const status=$('dodge-status');if(status.textContent!==text)status.textContent=text;
     $('dodge-up').classList.toggle('on',chosen==='up');$('dodge-down').classList.toggle('on',chosen==='down');
   }
-  // Each lane's obstacles on the river. One stays ❓ until its duck is 3 s away, then shows what it is; once the duck
-  // gets there it drifts off (passed) or breaks (crashed), and is gone 1.5 s later.
+  // Each lane's obstacles and runes, in sight from the start. When its duck gets there an obstacle drifts off (passed)
+  // or breaks (crashed), a rune is eaten (grabbed) or floats by (missed); each is gone 1.2 s later.
   function renderObstacles(elapsed){
-    if(!race?.obstacles){if(obstacleKey){obstacleKey='';document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());}return;}
-    if(obstacleMeets?.race!==race)obstacleMeets={race,at:new Map(race.events.filter(e=>e.type==='obstacle').map(e=>[`${e.line}|${e.actorId}`,e]))};
-    const mine=myDuck(),list=race.obstacles.flatMap((line,k)=>race.racers.map(r=>{
-      const e=obstacleMeets.at.get(`${k}|${r.id}`),state=!e||elapsed<e.time-OBSTACLE_REVEAL?'hidden':elapsed<e.time?'shown':elapsed>e.time+1.5?'gone':e.outcome==='hit'?'crashed':'passed';
-      return {id:r.id,state,progress:e?e.progress:line.at,kind:C3.obstacles.find(o=>o.id===line.kinds[r.id])};}));
-    const key=list.map(o=>o.state[0]).join('');if(key===obstacleKey)return;obstacleKey=key;
+    if(!race?.obstacles?.length||!('duck' in race.obstacles[0])){if(obstacleKey){obstacleKey='';document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());}return;}
+    if(obstacleMeets?.race!==race)obstacleMeets={race,at:new Map(race.events.filter(e=>e.type==='obstacle').map(e=>[e.line,e]))};
+    const mine=myDuck(),list=race.obstacles.map((o,k)=>{
+      const e=obstacleMeets.at.get(k),kind=laneKind(o.kind);
+      const state=!e?(elapsed>=race.calmFrom?'gone':'shown'):elapsed<e.time?'shown':elapsed>e.time+1.2?'gone':kind.rune?(e.outcome==='missed'?'missed':'grabbed'):e.outcome==='hit'?'crashed':'passed';
+      return {id:o.duck,state,progress:e?e.progress:o.at,kind};});
+    const key=list.map(o=>o.state.slice(0,2)).join('');if(key===obstacleKey)return;obstacleKey=key;
     document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());
     for(const o of list){
       const runway=nodes[o.id]?.parentElement;if(o.state==='gone'||!runway)continue;
-      const m=node('span',`obstacle-marker${o.id===mine?' mine':''}`,o.state==='hidden'?'❓':o.kind.icon);m.dataset.state=o.state;m.dataset.key=o.kind.key;
-      m.title=o.state==='hidden'?'Chướng ngại chưa lộ diện':`${o.kind.name}: ${o.kind.key==='up'?'nhảy ↑':'lặn ↓'}`;
+      const m=node('span',`obstacle-marker${o.kind.rune?' rune-item':''}${o.id===mine?' mine':''}`,o.kind.icon);m.dataset.state=o.state;m.dataset.key=o.kind.key;
+      m.title=`${o.kind.name}: ${keyWord(o.kind.key)}`;
       m.style.left=`${Math.max(0,Math.min(1,o.progress))*100}%`;m.style.translate=`0 ${bendAt(o.progress).toFixed(1)}px`;runway.append(m);
     }
   }
-  // An obstacle moment stays quiet: a flash on a trip, a soft sound for your own duck (the host: trips only), and the
-  // commentator only talks about your own duck.
+  // Lane moments stay quiet (no banner, no commentary): a spray, bubbles or sparkles, a flash on a trip, and a soft
+  // sound for your own duck (the host: trips only).
   function obstacleFx(e,elapsed){
     const mine=e.actorId===myDuck(),hit=e.outcome==='hit';
-    visuals?.event(e,currentSample,elapsed,race.sample(Math.max(0,e.time-.051))); // a small spray, bubbles or splinters
+    visuals?.event(e,currentSample,elapsed,race.sample(Math.max(0,e.time-.051)));
     if(hit)flashHits({type:'hazard',outcome:'hit',actorId:e.actorId});
-    if((mine||!viewer&&hit)&&performance.now()-obstacleSfxAt>250){obstacleSfxAt=performance.now();sfx(window.DuckSfx?.kindOf(e));}
-    if(mine)say(window.DuckCommentary?.line(e,id=>owners[id]||A.name(id)));
+    const kind=window.DuckSfx?.kindOf(e);if(kind&&(mine||!viewer&&hit)&&performance.now()-obstacleSfxAt>250){obstacleSfxAt=performance.now();sfx(kind);}
   }
   // A new cast only changes the race from its own time on, so the race swaps in place. A page already past it (its clock
   // ran ahead) just catches up: positions jump, nothing already shown is replayed.
@@ -882,7 +900,7 @@
   function viewerState(state){
     if(state&&typeof state.fx==='boolean'&&state.fx!==slowFx){slowFx=state.fx;setSlowFx();} // the host's effect speed keeps every race clock together
     if(!state){if(!current?.active){$('viewer-pill').hidden=false;$('viewer-pill').textContent=`📡 Phòng ${viewerCode} chưa mở hoặc đã đóng.`;}return;}
-    if(current?.active){latestState=state;const a=state.active;if(a&&a.id===current.active.id&&a.lineup?.casts&&lineupSig(a.lineup)!==lineupSig(current.active.lineup))viewerCasts(a.lineup);if(a&&a.id===current.active.id&&a.paused!==(phase==='paused')&&['running','paused'].includes(phase))pause();return;}
+    if(current?.active){latestState=state;const a=state.active;if(a&&a.id===current.active.id)current.active.pausedMs=Number(a.pausedMs)||0;if(a&&a.id===current.active.id&&a.lineup?.casts&&lineupSig(a.lineup)!==lineupSig(current.active.lineup))viewerCasts(a.lineup);if(a&&a.id===current.active.id&&a.paused!==(phase==='paused')&&['running','paused'].includes(phase))pause();return;}
     let session;try{session=T.validateSession(state.session);}catch{return;}
     meId=session.players.find(p=>DuckRoom.sameName(p.name,viewerName))?.id||null;pickDeadline=Number(state.pickDeadline)||0;const was=current?.stage;
     const replays=Array.isArray(state.raceReplays)?state.raceReplays.filter(r=>r&&engineFor(r.engine)):[];
@@ -896,23 +914,27 @@
     // Follow the host: their next pick round closes this page's result; their day summary opens here too.
     if(state.stage==='picking')close('result-dialog');
     render();
+    // This page recorded the round from its own race; the host's record decides (a key that reached the host late).
+    const hostRound=shownRound&&[...session.rounds,...session.tiebreaks].find(r=>r.id===shownRound.id);
+    if(hostRound&&$('result-dialog').open&&orderOf(hostRound)!==shownRound.order){shownRound={...shownRound,order:orderOf(hostRound)};showRound(hostRound,shownRound.type,false);}
     if(state.stage==='complete'&&was!=='complete')showFinal();
   }
   function startViewerRace(a,lead){
     try{race=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,a.lineup);}catch(e){toast(e.message);render();return;}
-    stop();current.active={id:a.id,seed:a.seed,elapsed:0,countdownLeft:Math.max(.05,Math.min(3,lead)),engine:a.engine,lineup:a.lineup};beginRace();
+    stop();current.active={id:a.id,seed:a.seed,elapsed:0,countdownLeft:Math.max(.05,Math.min(3,lead)),engine:a.engine,lineup:a.lineup,startAt:a.startAt,pausedMs:Number(a.pausedMs)||0};beginRace();
   }
+  let shownRound=null;const orderOf=record=>record.entries.map(e=>e.duckId).join();
   function viewerFinish(){
     stop();const type=current.type,a=current.active;
     const input={id:a.id,picks:{...current.picks},order:race.results.map(r=>r.id),completedAt:new Date().toISOString(),...(type==='regular'?{stars:starsOf()}:{})};
     let record=null;try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);}catch{}
     current.raceReplays=[...(current.raceReplays||[]).filter(r=>r.id!==a.id),{id:a.id,seed:a.seed,engine:a.engine,...(a.lineup?{lineup:a.lineup}:{})}];
     endAmbience();
-    const cheer=finishTalk(race.results,a.seed);
+    finishTalk(race.results);
     current.active=null;current.stage='result';clearRace();sfx('cheer');
     // A snapshot from during this race (a pause) is older than the result just recorded: wait for the host's next one.
     const s=latestState;latestState=null;if(s&&s.active?.id!==a.id)viewerState(s);else render();
-    if(record){showRound(record,type,false);cheerCard(cheer);}
+    if(record){shownRound={id:record.id,type,order:orderOf(record)};showRound(record,type,false);}
   }
   function restoreCurrent(){
     clearRace();if(!current)return;selected=participants()[0]?.id;

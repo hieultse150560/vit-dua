@@ -35,7 +35,7 @@
   const OBSTACLE = { hit: 'bonk', smashed: 'bonk', immune: 'pop' };
   function cues(event) {
     if (event.type === 'hazard') return BY_HAZARD[event.hazard] ? [BY_HAZARD[event.hazard]] : [];
-    if (event.type === 'obstacle') return [[OBSTACLE[event.outcome] || (event.key === 'down' ? 'dive' : 'hop'), 0]];
+    if (event.type === 'obstacle') return event.rune ? (event.outcome === 'missed' ? [] : [['sparkle', 0]]) : [[OBSTACLE[event.outcome] || (event.key === 'down' ? 'dive' : 'hop'), 0]];
     if (event.skill === 'cloud' && event.outcome === 'struck') return [['thunder', 0], ['splash', .2]]; // the rain cloud's closing bolt
     if (event.type !== 'skill' || !V2_SKILLS.has(event.skill)) return [];
     const skill = event.skill === 'copycat' ? event.copied : event.skill, o = event.outcome; // a copycat sounds like what it copied

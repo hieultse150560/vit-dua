@@ -261,7 +261,7 @@ test('each duck shows its dealt skill and trait before the picks; the race, a re
     setup(game, 2);
     const lineup = current(game).lineup;
     assert.equal(lineup.skills.length, 3); assert.equal(lineup.traits.length, 3);
-    const V3 = game.window.DuckChaosEngineV4;
+    const V3 = game.window.DuckChaosEngineV5;
     for (let id = 0; id < 3; id++) {
       const card = duck(game, id), sk = V3.skills.find(s => s.id === lineup.skills[id]), tr = V3.traits.find(t => t.id === lineup.traits[id]);
       assert.ok(card.querySelector('.skill-tag').textContent.includes(sk.name), 'skill on the card');
@@ -308,7 +308,7 @@ test('each round draws its own rule: shown above the picks, carried into the rac
   const game = loadGame(); let restored;
   try {
     setup(game, 2);
-    const rules = game.window.DuckChaosEngineV4.dayRules, rule = current(game).rule;
+    const rules = game.window.DuckChaosEngineV5.dayRules, rule = current(game).rule;
     assert.ok(rules.some(r => r.id === rule), `rule ${rule}`);
     assert.equal(game.$('day-rule').hidden, false);
     assert.ok(game.$('day-rule').textContent.includes(rules.find(r => r.id === rule).name), game.$('day-rule').textContent);
@@ -359,7 +359,7 @@ test('the skill table lists every skill by tier, every trait and the day rules; 
   const game = loadGame();
   try {
     setup(game, 2);
-    const V3 = game.window.DuckChaosEngineV4, lineup = current(game).lineup;
+    const V3 = game.window.DuckChaosEngineV5, lineup = current(game).lineup;
     for (let id = 0; id < 3; id++) assert.equal(duck(game, id).querySelector('.skill-tag .tier')?.textContent, V3.skills.find(s => s.id === lineup.skills[id]).tier);
     game.click('open-skills');
     assert.equal(game.$('skills-dialog').open, true);

@@ -143,7 +143,10 @@
   // chaos-v4 race rooms: what lies across the river; `key` is how a duck gets past (up = jump over, down = dive under).
   const OBSTACLES = freeze([{ id: 'log', name: 'Khúc gỗ', icon: '🪵', key: 'up' }, { id: 'rock', name: 'Đá ngầm', icon: '🪨', key: 'up' },
     { id: 'branch', name: 'Cành cây thấp', icon: '🌿', key: 'down' }, { id: 'bird', name: 'Chim sà', icon: '🦅', key: 'down' }]);
-  const OBSTACLE_LABEL = { dodged: 'NÉ ĐẸP!', lucky: 'MAY MẮN NÉ ĐƯỢC!', over: 'BAY QUA CHƯỚNG NGẠI!', smashed: 'GIẪM NÁT CHƯỚNG NGẠI!', hit: 'VẤP CHƯỚNG NGẠI!', immune: 'KHÔNG HỀ HẤN!' };
+  // chaos-v5 lanes: runes lying in a lane too, jump (up) for one floating above the water, dive (down) for one down below.
+  const LANE_RUNES = freeze([{ id: 'spark', name: 'Rune tốc độ', icon: '⚡', key: 'up', rune: 'speed' }, { id: 'pearl', name: 'Rune bong bóng', icon: '🫧', key: 'down', rune: 'bubble' }]);
+  const OBSTACLE_LABEL = { dodged: 'NÉ ĐẸP!', lucky: 'MAY MẮN NÉ ĐƯỢC!', over: 'BAY QUA CHƯỚNG NGẠI!', smashed: 'GIẪM NÁT CHƯỚNG NGẠI!', hit: 'VẤP CHƯỚNG NGẠI!', immune: 'KHÔNG HỀ HẤN!',
+    grabbed: 'ĂN RUNE!', luckyRune: 'MAY MẮN ĂN RUNE!', missed: 'HỤT RUNE!' };
   const MAX_DODGES = 60;
   // Finish distance of a partial race (the display scale of a race room), keyed by its exact input: a new key press
   // only adds the newest prefix, so rebuilding stays cheap however many keys were pressed.
@@ -282,7 +285,7 @@
       // Passive slots (mirror, buoy) take the last strata, so they have most of the race to react
       // before their fallback fires (a used one just leaves a short calm before the last quarter).
       spread([...shuffled(ordinary.filter(sl => !sl.passive), scheduleRng), ...ordinary.filter(sl => sl.passive)], from, to);
-      spread(slots.filter(sl => sl.plot), duration * .8, duration - 1);
+      spread(slots.filter(sl => sl.plot), rules.calmEnd ? duration * (rules.calmEnd - .15) : duration * .8, rules.calmEnd ? duration * rules.calmEnd : duration - 1);
     }
     // chaos-v3 finale: a rock in the last 2 s that always trips the leader out of the win.
     if (finaleRng && finaleRng.unit() < rules.finaleChance) slots.push({ kind: 'hazard', hazard: hazards[0], finale: true, time: duration - 0.6 - finaleRng.unit() * 1.4 });
@@ -380,6 +383,21 @@
   const TUNING_V4 = freeze(merged(tuning, V4_TUNE));
   const V4_RULES = freeze({ ...V3_RULES, skills: freeze([...V3_RULES.skills.map(s => (V4_TEXT[s.id] ? { ...s, description: V4_TEXT[s.id] } : s)),
     ...v4Skills.map(s => ({ ...s, tier: V4_TIER[s.id] }))]), obstacles: true, tuning: TUNING_V4 });
+  // chaos-v5: chaos-v4 with lanes (race rooms: each lane its own obstacles and runes at random spots, all in sight from
+  // the start, instead of lines across the river) and a calm finish: no finale rock, twists `gap` s apart, casts by
+  // `castBy` of the race, nothing after `calmEnd` of it. Its own tuning, so chaos-v4 races replay exactly.
+  const V5_TUNE = {
+    // per lane: `count` obstacles (one fewer below `longRace` s) and `runes` runes at random spots between `from` and `to`
+    // of the course, at least `gap` of it apart (time to press for each); a key counts when pressed `window` to `lead` s
+    // before the duck gets there; `luck` = share a duck nobody steers gets past (or grabs); a jump/dive lasts `hop` s.
+    lane: { count: 4, runes: 2, longRace: 50, from: 0.15, to: 0.78, gap: 0.05, window: 3, lead: 1, luck: 0.6, stun: 0.8, hop: 0.6 },
+    kite: { boost: 0.45 }, whale: { leaderHop: 2, knock: 1 } };
+  const TUNING_V5 = freeze(merged(TUNING_V4, V5_TUNE));
+  const V5_TEXT = { kite: 'Thả diều bay lơ lửng 2,5 giây, nhanh hơn 45% và bay qua mọi chướng ngại.' };
+  const V5_RULES = freeze({ ...V4_RULES, skills: freeze(V4_RULES.skills.map(s => (V5_TEXT[s.id] ? { ...s, description: V5_TEXT[s.id] } : s))), lanes: true, tuning: TUNING_V5,
+    finaleChance: 0, gap: 3, castBy: 0.45, calmEnd: 0.85 });
+  // No finale rock in chaos-v5, so its day rule is no longer drawn (it stays known for the races played with it).
+  const V5_DAY_RULES = freeze(dayRules.filter(r => r.id !== 'thriller')), V5_RETIRED_RULES = freeze([...retiredRules, ...dayRules.filter(r => r.id === 'thriller')]);
   // Skills and traits for each duck, dealt before the picks (chaos-v3); the same seed always deals the same lineup.
   function dealLineup(rules, count, seed) {
     const deckOf = (list, salt) => shuffled(Array.from({ length: Math.ceil(count / list.length) }, () => list).flat(), randomFor(seed, salt)).slice(0, count);
@@ -483,28 +501,41 @@
       if (racer.skill.id === 'buoy') racer.guard = 'buoy';
     });
 
-    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, R, finaleRng).map((slot, index) => ({ ...slot, index }));
+    // chaos-v5 race room: the lanes have their own rocks and runes, so the river throws in half as many hazards.
+    const lanes = !!(rules.lanes && dealt?.casts);
+    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, lanes ? { ...R, hazardScale: (R.hazardScale || 1) / 2 } : R, finaleRng).map((slot, index) => ({ ...slot, index }));
     // Race room (chaos-v3): an active skill fires when its owner cast it. One nobody cast casts itself after the deadline
     // (castWindow.to), at a moment every page works out alone: fixed by the plan, never by the casts, so a new cast
     // only changes the race from its own time on. The plan is still drawn in full first, so every random stream stays the same.
-    const castWindow = rules.midSpread ? { from: duration * .12, to: duration * .55, gap: Math.min(R.gap ?? tuning.minGap, duration * .62 / Math.max(1, schedule.filter(sl => !sl.finale).length)) } : null;
+    const castWindow = rules.midSpread ? { from: duration * .12, to: duration * (R.castBy ?? .55), gap: Math.min(R.gap ?? tuning.minGap, duration * .62 / Math.max(1, schedule.filter(sl => !sl.finale).length)) } : null;
     if (dealt?.casts) {
       const own = sl => sl.kind === 'skill' && !sl.passive, finale = schedule.find(sl => sl.finale);
       const busy = schedule.filter(sl => !own(sl)).map(sl => sl.tick / HZ);
-      const limit = Math.min(duration - 1.5, finale ? finale.tick / HZ - castWindow.gap / 2 : Infinity);
+      const limit = Math.min(R.calmEnd ? duration * R.calmEnd : duration - 1.5, finale ? finale.tick / HZ - castWindow.gap / 2 : Infinity);
       castWindow.auto = Array(count).fill(null);
       for (const slot of schedule.filter(own)) { const t = freeSlot(castWindow.to + AUTO_WINDUP, castWindow.gap, busy, limit); castWindow.auto[slot.actorId] ??= t; busy.push(t); }
       for (const slot of schedule.filter(own)) slot.tick = Math.max(1, tick(dealt.casts[slot.actorId] ?? castWindow.auto[slot.actorId]));
     }
     // Race room (chaos-v4): lines of obstacles across the river, each lane its own kind. Each duck meets a line at its own
     // time and gets past by its owner's key (or on luck). Drawn from their own stream, so nothing else in the race shifts.
-    const O = tuning.obstacle, obstacleRng = rules.obstacles && dealt?.casts ? randomFor(seed, 0x4f425354) : null;
-    const lineCount = obstacleRng ? (duration >= O.longRace ? O.lines : O.lines - 1) : 0;
+    const O = rules.lanes ? tuning.lane : tuning.obstacle, obstacleRng = rules.obstacles && dealt?.casts ? randomFor(seed, 0x4f425354) : null;
+    const lineCount = obstacleRng && !rules.lanes ? (duration >= O.longRace ? O.lines : O.lines - 1) : 0;
     const lines = Array.from({ length: lineCount }, (_, k) => ({
       at: (O.from + (O.to - O.from) * (k + .5 + (obstacleRng.unit() - .5) * O.jitter) / lineCount) * duration * MAP_COURSE,
       kinds: ids.map(() => OBSTACLES[obstacleRng.integer(OBSTACLES.length)]), luck: ids.map(() => obstacleRng.unit() < O.luck), met: ids.map(() => false)
     }));
-    const runeCount = Math.max(3, Math.ceil(count / 3)) * (R.runeScale || 1);
+    // Race room (chaos-v5): instead, each lane has its own obstacles and runes at random spots, all in sight from the start.
+    // Each duck meets its own at its own time; its owner's key (or luck) gets it past or grabs the rune. They replace the
+    // runes that pick themselves up. Same stream as the lines, so nothing else in the race shifts.
+    const items = [], calmFrom = R.calmEnd ? duration * R.calmEnd : duration;
+    if (obstacleRng && rules.lanes) for (const id of ids) {
+      const kinds = shuffled([...Array.from({ length: duration >= O.longRace ? O.count : O.count - 1 }, () => OBSTACLES[obstacleRng.integer(OBSTACLES.length)]),
+        ...Array.from({ length: O.runes * (R.runeScale || 1) }, () => LANE_RUNES[obstacleRng.integer(LANE_RUNES.length)])], obstacleRng);
+      // Uniformly random spots `gap` apart: random points in what is left once the gaps are taken out, sorted, gaps put back.
+      const free = O.to - O.from - (kinds.length - 1) * O.gap, spots = kinds.map(() => obstacleRng.unit() * free).sort((a, b) => a - b);
+      kinds.forEach((kind, k) => items.push({ duck: id, kind, luck: obstacleRng.unit() < O.luck, met: false, at: (O.from + spots[k] + k * O.gap) * duration * MAP_COURSE }));
+    }
+    const runeCount = lanes ? 0 : Math.max(3, Math.ceil(count / 3)) * (R.runeScale || 1);
     for (let i = 0; i < runeCount; i++) {
       // chaos-v3: lucky ducks find runes more often (all weights 1 without luck: the same draw as before).
       const actorId = rules.traits ? weighted(racers, r => 1 + r.luck + (r.trait?.id === 'runner' ? tuning.trait.runeWeight : 0), runeRng).id : runeRng.integer(count), rune = runeTypes[runeRng.integer(runeTypes.length)];
@@ -1283,6 +1314,21 @@
       emit({ type: 'obstacle', actorId: racer.id, obstacle: kind.id, icon: kind.icon, key: kind.key, line: index, outcome, pressed: press ? press[1] : null,
         label: OBSTACLE_LABEL[outcome], ranksBefore: ranks });
     }
+    // chaos-v5: a duck meets the next thing in its own lane; a rune is grabbed with the right key (or luck), else it floats by.
+    function crossLane(racer, index) {
+      const item = items[index], kind = item.kind, press = pressFor(racer.id), ranks = ranksNow(), lucky = !press && !dealt.pilots?.[racer.id] && item.luck;
+      let outcome;
+      if (kind.rune) {
+        outcome = press?.[1] === kind.key ? 'grabbed' : lucky ? 'lucky' : 'missed';
+        if (outcome !== 'missed') { racer.dodgeUntil = tick(now + O.hop) / HZ; racer.dodgeKey = kind.key; runeEffect(racer, { rune: { id: kind.rune }, good: true }); }
+      } else {
+        outcome = now < racer.flyUntil || now < racer.ghostUntil ? 'over' : now < racer.giantUntil ? 'smashed' : press?.[1] === kind.key ? 'dodged' : lucky ? 'lucky' : null;
+        if (outcome) { if (outcome === 'dodged' || outcome === 'lucky') { racer.dodgeUntil = tick(now + O.hop) / HZ; racer.dodgeKey = kind.key; } }
+        else outcome = impair(racer, kind.key === 'up' ? 'capsized' : 'spinning', O.stun) === 'hit' ? 'hit' : 'immune';
+      }
+      emit({ type: 'obstacle', ...(kind.rune ? { rune: kind.rune } : {}), actorId: racer.id, obstacle: kind.id, icon: kind.icon, key: kind.key, line: index, outcome,
+        pressed: press ? press[1] : null, label: OBSTACLE_LABEL[kind.rune && outcome === 'lucky' ? 'luckyRune' : outcome], ranksBefore: ranks });
+    }
     function apply(item) {
       if (item.kind === 'skill') applySkill(racers[item.actorId]);
       else if (item.kind === 'hazard') (item.finale ? applyFinale : applyHazard)(item.hazard);
@@ -1355,6 +1401,8 @@
       if (bombs.length) tickBombs();
       for (const timer of [...timers]) if (now >= timer.at - 1e-9) { timers.splice(timers.indexOf(timer), 1); timer.run(); }
       for (const r of racers) lines.forEach((line, i) => { if (!line.met[r.id] && r.distance >= line.at) { line.met[r.id] = true; crossObstacle(r, i); } });
+      // A duck that only gets to its next one in the calm finish just swims past it (nothing happens then).
+      items.forEach((item, i) => { if (!item.met && racers[item.duck].distance >= item.at) { item.met = true; if (now <= calmFrom + 1e-9) crossLane(racers[item.duck], i); } });
       while (cursor < schedule.length && schedule[cursor].tick === step) apply(schedule[cursor++]);
       record(step);
     }
@@ -1389,7 +1437,7 @@
     }
     events.forEach(event => {
       if (event.type === 'rune-spawn') event.progress = distances[tick(event.pickupTime) * count + event.actorId] / scaleAt(event.pickupTime);
-      if (event.type === 'obstacle') event.progress = lines[event.line].at / scaleAt(event.time);
+      if (event.type === 'obstacle') event.progress = (rules.lanes ? items : lines)[event.line].at / scaleAt(event.time);
     });
     const publicRacer = racer => ({ id: racer.id, name: racer.name, skill: racer.skill, ...(racer.trait ? { trait: racer.trait } : {}), ...(racer.luck ? { luck: racer.luck } : {}) });
     const publicRacers = freeze(racers.map(publicRacer));
@@ -1400,6 +1448,9 @@
       racers: publicRacers, results, boosts: freeze(boosts.map(b => ({ ...b }))), events: freeze(events),
       // chaos-v4 race rooms: where each obstacle line lies (share of the course) and what each lane meets there.
       ...(lines.length ? { obstacles: freeze(lines.map(l => ({ at: l.at / courseDistance, kinds: l.kinds.map(k => k.id) }))) } : {}),
+      // chaos-v5 race rooms: what lies in each lane (obstacles and runes) and where; an obstacle event's `line` is its index
+      // here. From `calmFrom` s on nothing happens any more.
+      ...(items.length ? { obstacles: freeze(items.map(it => freeze({ duck: it.duck, at: it.at / courseDistance, kind: it.kind.id }))), calmFrom } : {}),
       sample(elapsedSeconds) {
         if (!Number.isFinite(elapsedSeconds)) throw new TypeError('Thời gian đã chạy phải hữu hạn.');
         const time = Math.max(0, Math.min(duration, elapsedSeconds));
@@ -1459,10 +1510,19 @@
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V4_RULES, count, seed);
     } });
-  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4,
+  // chaos-v5: what new races use. Race rooms get lanes (lineup.pilots and dodges as in chaos-v4) and a calm finish.
+  const v5 = Object.freeze({ version: 'chaos-v5', passive: v3.passive, targeted: TARGETED_V4, aims: AIMS_V4, obstacles: freeze([...OBSTACLES, ...LANE_RUNES]), freeSlot, skills: V5_RULES.skills,
+    hazards: V5_RULES.hazards, traits, runeTypes, tuning: TUNING_V5, weathers, maps, dayRules: V5_DAY_RULES, retiredDayRules: V5_RETIRED_RULES,
+    createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v5', V5_RULES, names, duration, seed, lineup),
+    deal: (count, seed = newSeed()) => {
+      if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
+      return dealLineup(V5_RULES, count, seed);
+    } });
+  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5,
     createRace: (names, duration, seed) => createRaceFor(VERSION, V2_RULES, names, duration, seed) });
   root.DuckChaosEngineV2 = api;
   root.DuckChaosEngineV3 = v3;
   root.DuckChaosEngineV4 = v4;
+  root.DuckChaosEngineV5 = v5;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

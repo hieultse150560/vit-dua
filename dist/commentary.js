@@ -79,15 +79,6 @@
     'loudspeaker:startled': ['Loa phường của {a} vang lên, cả đám giật bắn mình!', 'A lô a lô! {a} bật loa, mấy con xung quanh khựng lại!'],
     'portal:teleport': ['{a} chui vào cổng không gian… trồi ra hạng {n}!', 'Vèo! Cổng không gian đưa {a} tới hạng {n}!'],
     'xeom:ride': ['{a} vẫy xe ôm, chở vượt một mạch!', 'Bác xe ôm chạy hết ga, {a} vượt lên ầm ầm!'],
-    // chaos-v4 river obstacles ({o} = what lies there)
-    'obstacle:up:dodged': ['{a} nhảy phốc qua {o}!', 'Hây! {a} bật qua {o} gọn gàng!'],
-    'obstacle:down:dodged': ['{a} lặn qua {o} ngon lành!', '{a} ngụp đầu né {o} trong gang tấc!'],
-    'obstacle:up:hit': ['{a} đâm sầm vào {o}, lật nhào!', 'Ối! {a} quên nhảy, vấp {o}!'],
-    'obstacle:down:hit': ['{a} va đầu vào {o}, choáng váng!', 'Cộp! {a} không kịp lặn, dính {o}!'],
-    'obstacle:lucky': ['{a} may mắn lách qua {o}!'],
-    'obstacle:over': ['{a} bay vèo qua {o}!'],
-    'obstacle:smashed': ['{a} khổng lồ giẫm nát {o}!'],
-    'obstacle:immune': ['{a} va phải {o} mà chẳng hề hấn gì!'],
     'dolphin:boost': ['Cá heo xuất hiện, cõng {a} lên phía trước!', '{a} được cá heo cho đi nhờ! Vui quá!'],
     'ghost-pass': ['Đòn của {a} xuyên qua bóng ma {b}!'],
     blocked: ['{b} có lá chắn, đòn của {a} tan biến!', 'Đỡ được rồi! {a} vô vọng trước {b}!', 'Phao cứu {a} một bàn thua trông thấy!'],
@@ -109,14 +100,9 @@
     for (const ch of String(text)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
     return h;
   }
-  const OBSTACLE_NAMES = { log: 'khúc gỗ', rock: 'tảng đá ngầm', branch: 'cành cây thấp', bird: 'con chim sà' };
-  function obstacleLine(event, a) {
-    const pool = LINES[`obstacle:${event.key}:${event.outcome}`] || LINES[`obstacle:${event.outcome}`] || [`${a} ${event.label || ''}`.trim()];
-    return pool[hash(`${event.id}|${event.time}`) % pool.length].replaceAll('{a}', a).replaceAll('{o}', OBSTACLE_NAMES[event.obstacle] || 'chướng ngại');
-  }
   function line(event, nameOf) {
     const id = event.skill || event.hazard, a = nameOf(event.actorId);
-    if (event.type === 'obstacle') return obstacleLine(event, a);
+    if (event.type === 'obstacle') return null; // the lanes play out without commentary: only skills get it
     const hasTarget = Number.isInteger(event.targetId) && event.targetId !== event.actorId;
     const fits = list => (list || []).filter(text => text.includes('{b}') === hasTarget);
     // Copycat: credit the thief, then call the move it copied.

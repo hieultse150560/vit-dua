@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const F = require('../dist/sound-fx.js');
-const { v3: V3, v4: V4 } = require('../dist/chaos-engine-v2.js');
+const { v3: V3, v4: V4, v5: V5 } = require('../dist/chaos-engine-v2.js');
 const names = Array.from({ length: 7 }, (_, i) => `V${i}`);
 
 // Minimal Web Audio stand-in that records which nodes a sound builds, when they start and what they connect to.
@@ -20,14 +20,15 @@ function fakeContext({ compressor = false } = {}) {
   return ctx;
 }
 const twists = race => race.events.filter(e => e.type === 'skill' || e.type === 'hazard' || e.type === 'obstacle');
-// A chaos-v4 race room (casts on): it has river obstacles.
-const roomRace = seed => V4.createRace(names, 40, seed, { ...V4.deal(names.length, seed), casts: Array(names.length).fill(null) });
+// A chaos-v5 race room (casts on): its lanes have obstacles and runes.
+const roomRace = seed => V5.createRace(names, 40, seed, { ...V5.deal(names.length, seed), casts: Array(names.length).fill(null), pilots: Array(names.length).fill(false), dodges: Array(names.length).fill(null) });
 
 test('every chaos-v3 and chaos-v4 twist and obstacle maps to known sounds; old v1 events do not', () => {
   const seen = new Set();
   for (let seed = 0; seed < 200; seed++) {
     for (const e of [V3.createRace(names, 25, seed), V4.createRace(names, 40, seed), ...(seed < 40 ? [roomRace(seed)] : [])].flatMap(twists)) {
       const kind = F.kindOf(e), cues = F.cues(e);
+      if (e.rune && e.outcome === 'missed') { assert.deepEqual(cues, [], 'a rune that floats by makes no sound'); continue; }
       assert.ok(F.kinds.includes(kind), `${e.skill || e.hazard || e.obstacle}/${e.outcome} → ${kind}`);
       assert.equal(cues[0][0], kind, 'the first cue is the event\'s own sound');
       for (const [k, m] of cues) { assert.ok(F.kinds.includes(k), k); assert.ok(m >= 0 && m <= 2.5, `${k} at ${m}`); } // past 1: after the slow motion
@@ -35,7 +36,7 @@ test('every chaos-v3 and chaos-v4 twist and obstacle maps to known sounds; old v
     }
   }
   assert.ok(seen.size >= 40, `only ${seen.size} distinct sounds used`);
-  for (const k of ['hop', 'dive', 'bonk']) assert.ok(seen.has(k), `obstacles use ${k}`);
+  for (const k of ['hop', 'dive', 'bonk', 'sparkle']) assert.ok(seen.has(k), `obstacles and runes use ${k}`);
   assert.equal(F.kindOf({ type: 'skill', skill: 'turbo', outcome: 'boost' }), null);
   assert.equal(F.kindOf({ type: 'rune-pickup', rune: 'speed' }), null);
 });

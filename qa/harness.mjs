@@ -18,7 +18,7 @@ export function loadGame(saved = {}, options = {}) {
   window.document.write(html);
   window.document.close();
 
-  let now = 0, nextId = 1;
+  let now = options.now ?? 0, nextId = 1; // options.now: start on another page's clock (tabs share the wall clock)
   const raf = new Map(), timers = new Map(), observers = [];
   // happy-dom windows share Node's Performance object. Shadow it per window;
   // mutating its now() would reset another restored window's race clock.
@@ -49,7 +49,8 @@ export function loadGame(saved = {}, options = {}) {
   observers.forEach(fn => fn());
 
   const $ = id => window.document.getElementById(id);
-  const advance = (milliseconds, step = 100) => {
+  // frames = false: a background tab (time passes and timers run, but no animation frames).
+  const advance = (milliseconds, step = 100, frames = true) => {
     const end = now + milliseconds;
     while (now < end) {
       now = Math.min(end, now + step);
@@ -62,6 +63,7 @@ export function loadGame(saved = {}, options = {}) {
         if (typeof timer.fn === 'function') timer.fn(...timer.args); else window.eval(String(timer.fn));
       }
       if (guard < 0) throw Error('Timer loop did not settle.');
+      if (!frames) continue;
       const callbacks = [...raf.values()]; raf.clear();
       callbacks.forEach(fn => fn(now));
     }

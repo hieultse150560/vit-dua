@@ -547,17 +547,26 @@ body:not(.viewer) .skill-chip[data-cast="ready"]:hover{background:#fff1e8}
    real thing with a ⬆ jump (warm) or ⬇ dive (cool) hint, pulsing gently; it drifts away once passed and shakes
    with a 💥 when hit. The viewer's own obstacle (.mine) wears a gold ring. */
 /* At the duck's beak (a duck meets an obstacle when its position reaches it), so the duck never hides its own next one. */
-.obstacle-marker{position:absolute;top:14px;margin-left:calc(var(--racer-size,94px) * .9);transform:translateX(-50%);z-index:1;width:44px;height:44px;display:grid;place-items:center;border:2px solid #fff;border-radius:13px;background:radial-gradient(circle at 35% 25%,#fff,#d6ecef);box-shadow:0 4px 0 rgba(30,80,90,.35),0 0 0 4px rgba(255,255,255,.25);font-size:28px;line-height:1;pointer-events:none;transition:opacity .45s,transform .45s}
-.obstacle-marker[data-state="hidden"]{border-style:dashed;background:rgba(255,255,255,.55);font-size:21px;opacity:.8}
-.obstacle-marker[data-state="shown"][data-key="up"]{border-color:#ffb347;background:radial-gradient(circle at 35% 25%,#fff,#ffe2bf)}
-.obstacle-marker[data-state="shown"][data-key="down"]{border-color:#6fb8ff;background:radial-gradient(circle at 35% 25%,#fff,#cfe6ff)}
-.obstacle-marker[data-state="shown"]::after{position:absolute;right:-10px;top:-10px;width:20px;height:20px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;color:#fff;font-size:11px;font-weight:900;box-shadow:0 2px 4px rgba(0,0,0,.25)}
-.obstacle-marker[data-state="shown"][data-key="up"]::after{content:'⬆';background:#e8732c}
-.obstacle-marker[data-state="shown"][data-key="down"]::after{content:'⬇';background:#2f7fd1}
-.is-running .obstacle-marker[data-state="shown"]{animation:obstacle-pulse .8s ease-in-out infinite alternate}
-@keyframes obstacle-pulse{to{transform:translateX(-50%) scale(1.12)}}
-.obstacle-marker.mine{box-shadow:0 4px 0 rgba(30,80,90,.35),0 0 0 4px #ffd84d,0 0 18px rgba(255,216,77,.9)}
-.obstacle-marker[data-state="passed"]{opacity:0;transform:translateX(-120%) scale(.7)}
+/* Every lane's things are in sight from the start: obstacles on a small tile (orange edge: jump, blue edge: dive), runes
+   as glowing orbs, one floating high (jump for it) or one deep under the water (dive for it). */
+.obstacle-marker{position:absolute;top:16px;margin-left:calc(var(--racer-size,94px) * .9);transform:translateX(-50%);z-index:1;width:40px;height:40px;display:grid;place-items:center;border:2px solid #fff;border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 3px 0 rgba(30,80,90,.3);font-size:27px;line-height:1;pointer-events:none;transition:opacity .45s,transform .45s}
+.obstacle-marker[data-key="up"]{border-color:#ffb347}
+.obstacle-marker[data-key="down"]{border-color:#6fb8ff}
+.obstacle-marker.rune-item{border:0;border-radius:50%;box-shadow:none;font-size:24px}
+.obstacle-marker.rune-item[data-key="up"]{top:0;background:radial-gradient(circle,#fff8c8 0 45%,rgba(255,216,77,.55) 60%,rgba(255,216,77,0) 72%);filter:drop-shadow(0 0 6px #ffe27a)}
+.obstacle-marker.rune-item[data-key="down"]{top:30px;background:radial-gradient(circle,rgba(207,236,255,.9) 0 45%,rgba(111,184,255,.45) 62%,rgba(111,184,255,0) 72%);opacity:.85}
+.is-running .obstacle-marker.rune-item[data-state="shown"]{animation:rune-bob 1.1s ease-in-out infinite alternate}
+@keyframes rune-bob{to{transform:translateX(-50%) translateY(-4px)}}
+/* Your own lane: a gold ring, the key to press, and a gentle pulse. */
+.obstacle-marker.mine{box-shadow:0 3px 0 rgba(30,80,90,.3),0 0 0 4px #ffd84d,0 0 16px rgba(255,216,77,.85)}
+.obstacle-marker.mine[data-state="shown"]::after{position:absolute;right:-10px;top:-10px;width:20px;height:20px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;color:#fff;font-size:11px;font-weight:900;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+.obstacle-marker.mine[data-state="shown"][data-key="up"]::after{content:'⬆';background:#e8732c}
+.obstacle-marker.mine[data-state="shown"][data-key="down"]::after{content:'⬇';background:#2f7fd1}
+.is-running .obstacle-marker.mine:not(.rune-item)[data-state="shown"]{animation:obstacle-pulse .8s ease-in-out infinite alternate}
+@keyframes obstacle-pulse{to{transform:translateX(-50%) scale(1.1)}}
+.obstacle-marker[data-state="passed"],.obstacle-marker[data-state="missed"]{opacity:0;transform:translateX(-120%) scale(.7)}
+.obstacle-marker[data-state="grabbed"]{animation:rune-eat .5s ease-out forwards}
+@keyframes rune-eat{40%{transform:translateX(-50%) scale(1.5);opacity:1}100%{transform:translateX(-80%) scale(.2);opacity:0}}
 .obstacle-marker[data-state="crashed"]{animation:obstacle-crash .7s ease-out forwards}
 .obstacle-marker[data-state="crashed"]::before{content:'💥';position:absolute;left:50%;top:50%;font-size:30px;transform:translate(-50%,-50%);animation:obstacle-boom .5s ease-out forwards}
 @keyframes obstacle-crash{10%,30%{transform:translateX(calc(-50% - 5px)) rotate(-9deg)}20%,40%{transform:translateX(calc(-50% + 5px)) rotate(9deg)}55%{transform:translateX(-50%) rotate(0);opacity:1}100%{transform:translateX(-50%) scale(.6);opacity:0}}
