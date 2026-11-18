@@ -144,7 +144,7 @@
       bursts.push({ time: elapsed, kind, origin, target, blocked: ['shielded', 'immune', 'resisted'].includes(event.outcome), id: event.id.length + event.actorId * 7,
         affected: (event.affectedIds || []).map(id => point(id, sample)), shielded: (event.affectedIds || []).map(id => (event.protectedIds || []).includes(id)), atActor: AT_ACTOR.has(kind) || event.outcome === 'dropped', life: TWIST[kind] ? TWIST_LIFE : BURST_LIFE,
         outcome: event.outcome, reflected: event.outcome === 'reflected', roll: event.roll, actorId: event.actorId, targetId: event.targetId,
-        segment: event.segment, outcomes: event.outcomes, affectedIds: event.affectedIds, cast: !!event.activation, key: event.key,
+        segment: event.segment, outcomes: event.outcomes, affectedIds: event.affectedIds, cast: !!event.activation, key: event.key, rune: event.rune,
         // Positions just before the jump, so painters move with the ducks' on-screen glide.
         pre: { origin: point(event.actorId, pre), target: point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, pre), affected: (event.affectedIds || []).map(id => point(id, pre)) } });
       // Impact layer for every chaos-v2/v3 twist: focus lines, shockwave and sparks where it lands.
@@ -440,6 +440,8 @@
     // River obstacles (chaos-v4 race rooms) stay small and quiet: spray for a jump, bubbles for a dive, splinters for a hit.
     function drawObstacle(b, p) {
       const s = live(b.actorId) || b.origin, a = 1 - p, o = b.outcome;
+      if (o === 'missed') return; // a rune that floated by
+      if (b.rune) { particles({ x: s.x + 10, y: s.y - (b.key === 'up' ? 40 : 4) }, p, b.rune === 'speed' ? '#ffe27a' : '#bfeaff', 12, 44, b.id); return; }
       if (o === 'hit') { particles({ x: s.x + 24, y: s.y - 10 }, p, '#a0703a', 10, 46, b.id); ring(s.x, s.y + 6, 16 + p * 36, 5 + p * 10, '#ffffff', a * .8, 2); return; }
       if (o === 'immune') { ring(s.x, s.y - 20, 30, 30, '#c2fbff', a, 3); return; }
       if (o === 'smashed') { particles({ x: s.x + 30, y: s.y - 6 }, p, '#8a6a4a', 14, 60, b.id); return; }
