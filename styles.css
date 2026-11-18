@@ -330,6 +330,42 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 /* Buoy: three springy hops, squashing on each landing, while the duck glides forward. */
 #river .racer.bouncy .duck-body{animation:duck-bouncy var(--fx-time,1.8s) ease-out both}
 @keyframes duck-bouncy{0%{translate:0 0;scale:1}10%{translate:0 -52px;scale:.92 1.1}22%{translate:0 0;scale:1.18 .82}34%{translate:0 -34px;scale:.95 1.06}46%{translate:0 0;scale:1.12 .88}58%{translate:0 -18px;scale:1}70%{translate:0 0;scale:1.06 .94}100%{translate:0 0;scale:1}}
+/* Victims pushed by a twist (as long as its slow motion): wave tumbles them backwards on the crest, a hook yanks,
+   a flip somersaults both ducks, a dragon tosses them spinning, a kraken drags them under and lets go. */
+#river .racer.tumbled .duck-body{animation:duck-tumbled var(--fx-time,1.8s) cubic-bezier(.3,.1,.3,1) both}
+@keyframes duck-tumbled{0%{translate:0 0;rotate:0deg;scale:1}20%{translate:0 -40px;rotate:-30deg}60%{translate:0 -30px;rotate:-330deg;scale:.9}84%{translate:0 5px;rotate:-360deg;scale:1.08 .88}100%{translate:0 0;rotate:-360deg;scale:1}}
+#river .racer.hooked .duck-body{animation:duck-hooked var(--fx-time,1.8s) ease-out both}
+@keyframes duck-hooked{0%{translate:0 0;rotate:0deg}10%{translate:8px -8px;rotate:12deg}28%{translate:-12px -16px;rotate:-32deg}55%{translate:-4px -4px;rotate:-14deg}78%{translate:0 0;rotate:6deg}100%{translate:0 0;rotate:0deg}}
+#river .racer.flipped .duck-body{animation:duck-flipped var(--fx-time,1.8s) cubic-bezier(.3,.1,.3,1) both}
+@keyframes duck-flipped{0%{translate:0 0;rotate:0deg;scale:1}40%{translate:0 -70px;rotate:180deg;scale:.85}76%{translate:0 -18px;rotate:340deg;scale:1}90%{translate:0 4px;rotate:360deg;scale:1.1 .9}100%{translate:0 0;rotate:360deg;scale:1}}
+#river .racer.tossed .duck-body{animation:duck-tossed var(--fx-time,1.8s) cubic-bezier(.25,.1,.3,1) both}
+@keyframes duck-tossed{0%{translate:0 0;rotate:0deg;scale:1}16%{translate:0 -58px;rotate:-200deg;scale:.85}55%{translate:0 -40px;rotate:-560deg}86%{translate:0 5px;rotate:-720deg;scale:1.08 .9}100%{translate:0 0;rotate:-720deg;scale:1}}
+#river .racer.dunked .duck-body{animation:duck-dunked var(--fx-time,1.8s) ease-in-out both}
+@keyframes duck-dunked{0%{translate:0 0;scale:1;opacity:1}18%{translate:0 10px;scale:1.12 .72}40%,68%{translate:0 24px;scale:.8;opacity:.5}84%{translate:0 -12px;scale:1.1;opacity:1}100%{translate:0 0;scale:1;opacity:1}}
+/* A portal swallows the duck and spits it out of its twin; a xe ôm bumps it along the river. */
+#river .racer.warped .duck-body{animation:duck-warped var(--fx-time,1.8s) ease-in-out both}
+@keyframes duck-warped{0%{scale:1;rotate:0deg;opacity:1}28%{scale:.05;rotate:540deg;opacity:.3}32%,44%{scale:0;rotate:540deg;opacity:0}58%{scale:1.3;rotate:720deg;opacity:1}70%,100%{scale:1;rotate:720deg;opacity:1}}
+#river .racer.riding .duck-body{animation:duck-riding var(--fx-time,1.8s) linear both}
+@keyframes duck-riding{0%,100%{translate:0 0;rotate:0deg}8%,24%,40%,56%,72%{translate:0 -6px;rotate:-10deg}16%,32%,48%,64%,80%{translate:0 -2px;rotate:-6deg}}
+/* chaos-v4 states: slurping phở, pecking at money (greedy), under a net (struggling), startled (a jolt, then a tremble),
+   gloomy under a rain cloud (the effects canvas draws the cloud), wide awake on coffee (warm glow), and a jump over
+   (dodge-up) or a dive under (dodge-down) a river obstacle. */
+#river .racer.eating .duck-body{animation:duck-eat .32s ease-in-out infinite alternate}
+@keyframes duck-eat{from{rotate:10deg;translate:4px 3px}to{rotate:-2deg;translate:0 -1px}}
+#river .racer.greedy .duck-body{animation:duck-greedy .26s ease-in-out infinite alternate}
+@keyframes duck-greedy{from{rotate:24deg;translate:6px 6px}to{rotate:8deg;translate:2px 1px}}
+.racer.netted::after{content:'';position:absolute;left:10%;right:10%;top:2%;bottom:16%;z-index:3;border-radius:46% 46% 30% 30%;border:2px solid rgba(235,225,195,.95);background:repeating-linear-gradient(45deg,rgba(255,255,255,.85) 0 1.5px,transparent 1.5px 9px),repeating-linear-gradient(-45deg,rgba(255,255,255,.85) 0 1.5px,transparent 1.5px 9px);box-shadow:0 2px 6px rgba(0,0,0,.25);pointer-events:none}
+#river .racer.netted .duck-body{animation:duck-struggle .14s linear infinite alternate}
+@keyframes duck-struggle{from{rotate:-6deg}to{rotate:6deg}}
+#river .racer.startled .duck-body{animation:duck-jolt .4s cubic-bezier(.2,1.8,.4,1),duck-tremble .09s .4s linear infinite alternate}
+@keyframes duck-jolt{0%{translate:0 0;scale:1}35%{translate:0 -26px;scale:.9 1.15}70%{translate:0 2px;scale:1.1 .9}100%{translate:0 0;scale:1}}
+@keyframes duck-tremble{from{translate:-2px 0}to{translate:2px 0}}
+.racer.clouded .duck-body{filter:saturate(.55) brightness(.82)}
+.racer.awake .duck-body{filter:saturate(1.25) drop-shadow(0 0 8px rgba(255,170,60,.95)) drop-shadow(0 0 18px rgba(255,120,30,.45))}
+#river .racer.dodge-up .duck-body{animation:duck-hop .6s cubic-bezier(.25,.9,.35,1) both}
+@keyframes duck-hop{0%{translate:0 0;rotate:0deg;scale:1.08 .9}38%{translate:0 -50px;rotate:-14deg;scale:.95 1.06}70%{translate:0 -18px;rotate:6deg;scale:1}88%{translate:0 3px;rotate:0deg;scale:1.1 .9}100%{translate:0 0;rotate:0deg;scale:1}}
+#river .racer.dodge-down .duck-body{animation:duck-dive .6s ease-in-out both}
+@keyframes duck-dive{0%{translate:0 0;rotate:0deg;opacity:1;scale:1}30%{translate:4px 22px;rotate:24deg;opacity:.35;scale:.9}62%{translate:0 24px;rotate:10deg;opacity:.25;scale:.88}84%{translate:0 -8px;rotate:-6deg;opacity:1;scale:1.06}100%{translate:0 0;rotate:0deg;opacity:1;scale:1}}
 /* chaos-v3 poses: asleep (tilted, Z's), hexed into a frog (green, shrunk), giant (swollen); bomb holder; mirror ready. */
 #river .racer.asleep .duck-body{rotate:-14deg;translate:0 3px;filter:saturate(.6) brightness(.95)}
 #river .racer.hex .duck-body{scale:.62;filter:hue-rotate(85deg) saturate(1.8);translate:0 10px}
@@ -347,7 +383,12 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .racer-gain{position:absolute;left:50%;top:-44px;z-index:4;translate:-50% 0;padding:3px 10px;border-radius:999px;background:linear-gradient(180deg,#ffd84d,#ff8a1e);color:#fff;font-weight:900;font-size:15px;letter-spacing:.02em;white-space:nowrap;text-shadow:0 1px 0 #b34d00,0 0 6px rgba(140,50,0,.45);box-shadow:0 3px 10px rgba(255,120,20,.45),inset 0 1px 0 rgba(255,255,255,.6);pointer-events:none;animation:gain-pop calc(var(--fx-time,1.8s) * .9) cubic-bezier(.2,1.6,.4,1) both}
 @keyframes gain-pop{0%{opacity:0;transform:translateY(12px) scale(.4)}14%{opacity:1;transform:translateY(0) scale(1.25)}28%{transform:translateY(-2px) scale(1)}80%{opacity:1;transform:translateY(-14px) scale(1)}100%{opacity:0;transform:translateY(-26px) scale(.9)}}
 @media(prefers-reduced-motion:reduce){.racer-gain{animation:none}#river .racer.bouncy .duck-body{animation:none!important}}
-@media(prefers-reduced-motion:reduce){#river .racer.spinning .duck-body,#river .racer.swept .duck-body,#river .racer.swallowed .duck-body{animation:none!important}.racer .duck-body{transition:none!important}}
+@media(prefers-reduced-motion:reduce){#river .racer.spinning .duck-body,#river .racer.swept .duck-body,#river .racer.swallowed .duck-body,#river .racer.tumbled .duck-body,#river .racer.hooked .duck-body,#river .racer.flipped .duck-body,#river .racer.tossed .duck-body,#river .racer.dunked .duck-body{animation:none!important}.racer .duck-body{transition:none!important}}
+/* The bomb hops to a new leader: it drops in big over a flash of orange light. */
+.racer.bomb-hop .racer-bomb::before{content:'';position:absolute;left:50%;top:50%;z-index:-1;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;background:radial-gradient(circle,rgba(255,236,170,.95),rgba(255,140,40,.55) 40%,rgba(255,120,30,0) 70%);pointer-events:none;animation:bomb-hop-flash .5s ease-out both}
+@keyframes bomb-hop-flash{from{opacity:1;transform:scale(.4)}to{opacity:0;transform:scale(1.3)}}
+.racer.bomb-hop .racer-bomb{animation:bomb-hop .45s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes bomb-hop{from{transform:translateY(-34px) scale(1.9) rotate(-30deg)}to{transform:none}}
 
 /* Hope star */
 .star-toggle{margin-left:auto;padding:6px 12px;font-size:12px;border-color:#e2c25a;color:#8a6510;background:#fff8df}
@@ -364,6 +405,17 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .twist-banner.boost{background:#1f7a4de6}
 .twist-banner.swap{background:#6b3fb3e6}
 .twist-banner.guard{background:#1f5f8be6}
+/* ✨ SIÊU CẤP: the rare golden version of a skill */
+.twist-banner.gold{background:linear-gradient(115deg,#8a5a00f0,#d99a00f0 42%,#ffe27a 50%,#d99a00f0 58%,#8a5a00f0);border-color:#fff4c2;text-shadow:0 2px 0 rgba(110,60,0,.65),0 0 14px rgba(255,240,170,.8);box-shadow:0 0 0 6px rgba(255,200,60,.3),0 18px 50px rgba(0,0,0,.45),0 0 80px rgba(255,214,90,.9)}
+/* S-tier intro: the river dims under a big skill-name card for a beat, then the banner slams in. */
+.s-intro{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;gap:18px;pointer-events:none;color:#fff;background:radial-gradient(ellipse at center,rgba(10,14,34,.55),rgba(4,6,18,.86));animation:s-intro .75s ease-out both}
+@keyframes s-intro{0%{opacity:0}14%,52%{opacity:1}100%{opacity:0}}
+.s-intro-icon{font-size:clamp(48px,7vw,92px);line-height:1;filter:drop-shadow(0 0 18px rgba(255,214,90,.9));animation:s-intro-card .75s cubic-bezier(.2,1.5,.4,1) both}
+.s-intro-name{font-size:clamp(30px,5.4vw,70px);font-weight:900;letter-spacing:.06em;line-height:1.1;text-shadow:0 4px 0 rgba(0,0,0,.45),0 0 26px rgba(255,214,90,.85);animation:s-intro-card .75s cubic-bezier(.2,1.5,.4,1) both}
+@keyframes s-intro-card{0%{transform:scale(1.8);letter-spacing:.4em;opacity:0}30%{transform:scale(1);letter-spacing:.06em;opacity:1}100%{transform:scale(.94)}}
+.twist-banner.after-intro{animation-delay:.3s;animation-fill-mode:both}
+.twist-banner.after-intro::after{animation-delay:.55s}
+.twist-banner.after-intro .twist-letter{animation-delay:calc(var(--i) * 22ms + .42s)}
 @keyframes twist-pop{0%{opacity:0;transform:translate(-50%,-50%) scale(2.8) rotate(-7deg);filter:blur(12px)}45%{opacity:1;transform:translate(-50%,-50%) scale(.9) rotate(1deg);filter:blur(0)}70%{transform:translate(-50%,-50%) scale(1.07)}100%{transform:translate(-50%,-50%) scale(1)}}
 @media(prefers-reduced-motion:reduce){.twist-banner{animation:none!important}}
 
@@ -373,12 +425,13 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .race-water.slowmo::after{content:'';position:absolute;inset:0;z-index:3;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(8,18,38,.6) 100%);animation:slowmo-in .25s ease-out}
 .race-water.slowmo .river,.race-water.slowmo .race-ground{filter:saturate(.7) brightness(.9);transition:filter .25s}
 @keyframes slowmo-in{from{opacity:0}to{opacity:1}}
+/* --shake: 1 in fast effects, under .5 for the soft shake of S/A-tier skills in slow effects. */
 .race-water.shake{animation:twist-shake .34s cubic-bezier(.36,.07,.19,.97)}
-@keyframes twist-shake{10%,90%{transform:translate(-3px,2px)}20%,80%{transform:translate(9px,-4px)}30%,50%,70%{transform:translate(-13px,5px)}40%,60%{transform:translate(12px,-3px)}}
-/* A duck an attack lands on flashes white twice. */
-.racer.hit-flash{animation:racer-hit .36s steps(1,end) both}
+@keyframes twist-shake{10%,90%{transform:translate(calc(var(--shake,1) * -3px),calc(var(--shake,1) * 2px))}20%,80%{transform:translate(calc(var(--shake,1) * 9px),calc(var(--shake,1) * -4px))}30%,50%,70%{transform:translate(calc(var(--shake,1) * -13px),calc(var(--shake,1) * 5px))}40%,60%{transform:translate(calc(var(--shake,1) * 12px),calc(var(--shake,1) * -3px))}}
+/* A duck an attack lands on flashes white twice (on the sprite: the racer itself never animates). */
+.racer.hit-flash .duck-sprite{animation:racer-hit .36s steps(1,end) both!important}
 @keyframes racer-hit{0%,50%{filter:brightness(3.2) saturate(0)}25%,75%{filter:none}100%{filter:none}}
-@media(prefers-reduced-motion:reduce){.racer.hit-flash{animation:none}}
+@media(prefers-reduced-motion:reduce){.racer.hit-flash .duck-sprite{animation:none!important}}
 .racer.twist-focus{z-index:5}
 .racer.twist-focus .duck-body{scale:1.5;filter:drop-shadow(0 0 10px #fff6b0) drop-shadow(0 0 24px rgba(255,214,90,.9));transition:scale .25s cubic-bezier(.2,1.6,.4,1)}
 @media(prefers-reduced-motion:reduce){.race-water.shake,.twist-banner .twist-icon,.race-water.slowmo::after{animation:none!important}.racer.twist-focus .duck-body{transition:none!important}}
@@ -417,7 +470,7 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 
 /* Camera zoom during slow motion: river and effects canvas scale around the twist. */
 .race-water .river,.race-water .race-effects,.race-water .race-ground{transform-origin:var(--zx,50%) var(--zy,50%);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
-.race-water.zoom .river,.race-water.zoom .race-effects,.race-water.zoom .race-ground{transform:scale(1.45);transition-duration:.16s;transition-timing-function:cubic-bezier(.1,.9,.2,1)}
+.race-water.zoom .river,.race-water.zoom .race-effects,.race-water.zoom .race-ground{transform:scale(var(--zoom,1.45));transition-duration:var(--zoom-in,.16s);transition-timing-function:cubic-bezier(.1,.9,.2,1)}
 @media(prefers-reduced-motion:reduce){.race-water.zoom .river,.race-water.zoom .race-effects,.race-water.zoom .race-ground{transform:none}}
 
 /* Photo finish: high-contrast slow finish and a result card */
@@ -489,3 +542,48 @@ body:not(.viewer) .skill-chip[data-cast="ready"]:hover{background:#fff1e8}
 .racer.charging .duck-body{animation:charge .45s ease-in-out infinite alternate}
 @keyframes charge{from{filter:drop-shadow(0 0 4px #ff5a1f) drop-shadow(0 0 10px #ff3d00)}to{filter:drop-shadow(0 0 10px #ff5a1f) drop-shadow(0 0 22px #ff3d00)}}
 @media (prefers-reduced-motion:reduce){.cast-button.ready,.racer.charging .duck-body{animation:none}.racer.charging .duck-body{filter:drop-shadow(0 0 10px #ff3d00)}}
+
+/* River obstacles (chaos-v4 race rooms), placed like rune markers at the duck's centre: ❓ until revealed, then the
+   real thing with a ⬆ jump (warm) or ⬇ dive (cool) hint, pulsing gently; it drifts away once passed and shakes
+   with a 💥 when hit. The viewer's own obstacle (.mine) wears a gold ring. */
+/* At the duck's beak (a duck meets an obstacle when its position reaches it), so the duck never hides its own next one. */
+.obstacle-marker{position:absolute;top:14px;margin-left:calc(var(--racer-size,94px) * .9);transform:translateX(-50%);z-index:1;width:44px;height:44px;display:grid;place-items:center;border:2px solid #fff;border-radius:13px;background:radial-gradient(circle at 35% 25%,#fff,#d6ecef);box-shadow:0 4px 0 rgba(30,80,90,.35),0 0 0 4px rgba(255,255,255,.25);font-size:28px;line-height:1;pointer-events:none;transition:opacity .45s,transform .45s}
+.obstacle-marker[data-state="hidden"]{border-style:dashed;background:rgba(255,255,255,.55);font-size:21px;opacity:.8}
+.obstacle-marker[data-state="shown"][data-key="up"]{border-color:#ffb347;background:radial-gradient(circle at 35% 25%,#fff,#ffe2bf)}
+.obstacle-marker[data-state="shown"][data-key="down"]{border-color:#6fb8ff;background:radial-gradient(circle at 35% 25%,#fff,#cfe6ff)}
+.obstacle-marker[data-state="shown"]::after{position:absolute;right:-10px;top:-10px;width:20px;height:20px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;color:#fff;font-size:11px;font-weight:900;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+.obstacle-marker[data-state="shown"][data-key="up"]::after{content:'⬆';background:#e8732c}
+.obstacle-marker[data-state="shown"][data-key="down"]::after{content:'⬇';background:#2f7fd1}
+.is-running .obstacle-marker[data-state="shown"]{animation:obstacle-pulse .8s ease-in-out infinite alternate}
+@keyframes obstacle-pulse{to{transform:translateX(-50%) scale(1.12)}}
+.obstacle-marker.mine{box-shadow:0 4px 0 rgba(30,80,90,.35),0 0 0 4px #ffd84d,0 0 18px rgba(255,216,77,.9)}
+.obstacle-marker[data-state="passed"]{opacity:0;transform:translateX(-120%) scale(.7)}
+.obstacle-marker[data-state="crashed"]{animation:obstacle-crash .7s ease-out forwards}
+.obstacle-marker[data-state="crashed"]::before{content:'💥';position:absolute;left:50%;top:50%;font-size:30px;transform:translate(-50%,-50%);animation:obstacle-boom .5s ease-out forwards}
+@keyframes obstacle-crash{10%,30%{transform:translateX(calc(-50% - 5px)) rotate(-9deg)}20%,40%{transform:translateX(calc(-50% + 5px)) rotate(9deg)}55%{transform:translateX(-50%) rotate(0);opacity:1}100%{transform:translateX(-50%) scale(.6);opacity:0}}
+@keyframes obstacle-boom{from{transform:translate(-50%,-50%) scale(.4);opacity:1}to{transform:translate(-50%,-50%) scale(1.6);opacity:0}}
+
+/* Dodge pad (race rooms): the viewer's own jump/dive keys under the cast button. idle: calm and dim; reveal: an
+   obstacle is coming, keys bright and pulsing; pressed: the chosen key lit; late, pass, hit: the result for a beat. */
+.dodge-pad{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:440px;margin:10px auto 0;padding:10px;border:2px solid #d5e9e2;border-radius:18px;background:#f3faf7;transition:background .2s,border-color .2s}
+.dodge-pad[hidden]{display:none}
+.dodge-status{grid-column:1/-1;min-height:1.35em;text-align:center;font-weight:800;font-size:14px;line-height:1.35;color:#4b6b60}
+.dodge-key{min-height:60px;padding:8px 10px;border:0;border-radius:16px;background:#e3ece8;color:#5d6d66;font:inherit;font-weight:900;font-size:clamp(17px,2vw,22px);box-shadow:0 4px 0 #c5d3cd;cursor:pointer;touch-action:manipulation;transition:background .15s,color .15s,box-shadow .1s,opacity .15s,translate .08s}
+.dodge-key:active{translate:0 3px;box-shadow:0 1px 0 #c5d3cd}
+.dodge-key:focus-visible{outline:3px solid #1f3d33;outline-offset:2px}
+.dodge-pad[data-state="idle"] .dodge-key{opacity:.55}
+.dodge-pad[data-state="reveal"]{border-color:#ffb347;background:#fff6e0}
+.dodge-pad[data-state="reveal"] .dodge-status{font-size:clamp(17px,2vw,22px);color:#b3541e}
+.dodge-pad[data-state="reveal"] #dodge-up{background:#ff9a3c;color:#fff;box-shadow:0 4px 0 #c9661c}
+.dodge-pad[data-state="reveal"] #dodge-down{background:#3a8ee6;color:#fff;box-shadow:0 4px 0 #2763a6}
+.dodge-pad[data-state="reveal"] .dodge-key{animation:dodge-pulse .7s ease-in-out infinite alternate}
+@keyframes dodge-pulse{to{scale:1.04}}
+.dodge-pad[data-state="pressed"] .dodge-key{opacity:.5}
+.dodge-pad[data-state="pressed"] .dodge-key.on{opacity:1;background:#1f7a4d;color:#fff;box-shadow:0 0 0 4px rgba(31,122,77,.25),0 4px 0 #145236}
+.dodge-pad[data-state="late"]{border-color:#e3b4b4;background:#fbeeee}
+.dodge-pad[data-state="late"] .dodge-status{color:#a23b3b}
+.dodge-pad[data-state="late"] .dodge-key{opacity:.45}
+.dodge-pad[data-state="pass"]{border-color:#5cc08a;background:#e6f7ec}
+.dodge-pad[data-state="pass"] .dodge-status{font-size:18px;color:#1f7a4d}
+.dodge-pad[data-state="hit"]{border-color:#e46a6a;background:#fdeaea}
+.dodge-pad[data-state="hit"] .dodge-status{font-size:18px;color:#b3261e}

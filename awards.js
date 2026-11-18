@@ -1,6 +1,6 @@
 (function (root) {
   'use strict';
-  // End-of-day titles from replayed chaos-v2/v3 races. Pure: rounds in, titles out.
+  // End-of-day titles from replayed chaos-v2/v3/v4 races. Pure: rounds in, titles out.
   // rounds: [{ race, ownerOf: { duckId: playerId } }]
   const TITLES = [
     { id: 'comeback', icon: '👑', title: 'Vua lật kèo', detail: v => `vượt ${v} bậc trong 3 giây cuối` },
@@ -8,7 +8,7 @@
     { id: 'dodger', icon: '🛡️', title: 'Thánh né đòn', detail: v => `né ${v} đòn` },
     { id: 'unlucky', icon: '😭', title: 'Kẻ xui nhất', detail: v => `dính ${v} đòn` }
   ];
-  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana', 'missile', 'balloon', 'blackhole', 'bomb', 'hex', 'anchor', 'ufo']);
+  const SINGLE_HITS = new Set(['torpedo', 'hook', 'banana', 'missile', 'balloon', 'blackhole', 'bomb', 'hex', 'anchor', 'ufo', 'net', 'cloud']);
   const DODGES = ['bubble', 'ghost', 'dodge', 'lucky'];
   const HAZARD_HITS = new Set(['rock', 'croc', 'whirlpool', 'hippo', 'log']);
   const movedBack = e => Object.keys(e.before || {}).map(Number).filter(id => e.after?.[id] < e.before[id]);
@@ -19,6 +19,12 @@
     if (e.type === 'hazard') {
       if (e.outcome === 'hit' && HAZARD_HITS.has(e.hazard)) out.victims.push(e.actorId);
       if (e.outcome === 'blocked' && DODGES.includes(e.guard)) out.dodgers.push(e.actorId);
+      return out;
+    }
+    // chaos-v4 river obstacles: a dodge made by the owner's key counts, a trip is a hit taken.
+    if (e.type === 'obstacle') {
+      if (e.outcome === 'dodged') out.dodgers.push(e.actorId);
+      if (e.outcome === 'hit') out.victims.push(e.actorId);
       return out;
     }
     if (e.type !== 'skill') return out;

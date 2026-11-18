@@ -65,6 +65,29 @@
     'fireworks:hit': ['Pháo hoa rực trời! {a} bắn pháo, rơi trúng ai người đó lật!', 'Đẹp quá mà cũng nguy hiểm quá! Pháo hoa của {a} rơi lả tả xuống đường đua!'],
     'dodge-pass': ['{b} lắt léo né gọn đòn của {a}!', 'Né đẹp! Đòn của {a} trượt khỏi {b} trong gang tấc!'],
     'lucky-pass': ['{a} tốt số thật, thoát nạn trong gang tấc!', 'Trời thương {a}! Tai họa đi lướt qua!'],
+    // chaos-v4 skills
+    'pho:eat': ['{a} tấp vào ven sông húp vội tô phở, no bụng rồi bơi như bay!', 'Phở tái lăn! {a} ăn xong là phóng vèo vèo!'],
+    'coffee:awake': ['{a} làm ly cà phê sữa đá, tỉnh như sáo, đánh gì cũng không ngã!', 'Cà phê vào, {a} mắt sáng rỡ, bơi băng băng!'],
+    'cash:hit': ['{a} rải tiền khắp mặt sông, tốp đầu dừng lại nhặt lấy nhặt để!', 'Tiền rơi tiền rơi! Mấy con dẫn đầu quên cả đua vì tiền của {a}!'],
+    'net:hit': ['{a} quăng lưới chụp gọn {b}, giãy mãi không ra!', 'Một mẻ lưới! {b} bị {a} tóm sống!'],
+    'kite:fly': ['{a} thả diều bay vút lên trời, vượt qua mọi chướng ngại!', 'Diều no gió! {a} lơ lửng lướt đi như chim!'],
+    'cloud:hit': ['Mây đen kéo tới trên đầu {b}! {a} gọi mưa đổ xuống!', '{a} triệu hồi mây đen, {b} đội mưa bơi lóp ngóp!'],
+    'cloud:struck': ['Đùng! Mây đen của {a} giáng sét trúng {b}!', 'Sét từ mây đen! {b} lật nhào, đúng như {a} tính!'],
+    'hourglass:frozen': ['{a} lật ngược đồng hồ cát, mọi con phía trước đứng hình!', 'Thời gian ngừng trôi! Chỉ mình {a} còn bơi!'],
+    'hourglass:none': ['{a} lật đồng hồ cát nhưng ai cũng có phao, thời gian vẫn trôi!'],
+    'loudspeaker:none': ['{a} bật loa phường nhưng ai cũng có phao, chẳng ai thèm giật mình!'],
+    'loudspeaker:startled': ['Loa phường của {a} vang lên, cả đám giật bắn mình!', 'A lô a lô! {a} bật loa, mấy con xung quanh khựng lại!'],
+    'portal:teleport': ['{a} chui vào cổng không gian… trồi ra hạng {n}!', 'Vèo! Cổng không gian đưa {a} tới hạng {n}!'],
+    'xeom:ride': ['{a} vẫy xe ôm, chở vượt một mạch!', 'Bác xe ôm chạy hết ga, {a} vượt lên ầm ầm!'],
+    // chaos-v4 river obstacles ({o} = what lies there)
+    'obstacle:up:dodged': ['{a} nhảy phốc qua {o}!', 'Hây! {a} bật qua {o} gọn gàng!'],
+    'obstacle:down:dodged': ['{a} lặn qua {o} ngon lành!', '{a} ngụp đầu né {o} trong gang tấc!'],
+    'obstacle:up:hit': ['{a} đâm sầm vào {o}, lật nhào!', 'Ối! {a} quên nhảy, vấp {o}!'],
+    'obstacle:down:hit': ['{a} va đầu vào {o}, choáng váng!', 'Cộp! {a} không kịp lặn, dính {o}!'],
+    'obstacle:lucky': ['{a} may mắn lách qua {o}!'],
+    'obstacle:over': ['{a} bay vèo qua {o}!'],
+    'obstacle:smashed': ['{a} khổng lồ giẫm nát {o}!'],
+    'obstacle:immune': ['{a} va phải {o} mà chẳng hề hấn gì!'],
     'dolphin:boost': ['Cá heo xuất hiện, cõng {a} lên phía trước!', '{a} được cá heo cho đi nhờ! Vui quá!'],
     'ghost-pass': ['Đòn của {a} xuyên qua bóng ma {b}!'],
     blocked: ['{b} có lá chắn, đòn của {a} tan biến!', 'Đỡ được rồi! {a} vô vọng trước {b}!', 'Phao cứu {a} một bàn thua trông thấy!'],
@@ -86,8 +109,14 @@
     for (const ch of String(text)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
     return h;
   }
+  const OBSTACLE_NAMES = { log: 'khúc gỗ', rock: 'tảng đá ngầm', branch: 'cành cây thấp', bird: 'con chim sà' };
+  function obstacleLine(event, a) {
+    const pool = LINES[`obstacle:${event.key}:${event.outcome}`] || LINES[`obstacle:${event.outcome}`] || [`${a} ${event.label || ''}`.trim()];
+    return pool[hash(`${event.id}|${event.time}`) % pool.length].replaceAll('{a}', a).replaceAll('{o}', OBSTACLE_NAMES[event.obstacle] || 'chướng ngại');
+  }
   function line(event, nameOf) {
     const id = event.skill || event.hazard, a = nameOf(event.actorId);
+    if (event.type === 'obstacle') return obstacleLine(event, a);
     const hasTarget = Number.isInteger(event.targetId) && event.targetId !== event.actorId;
     const fits = list => (list || []).filter(text => text.includes('{b}') === hasTarget);
     // Copycat: credit the thief, then call the move it copied.
@@ -99,7 +128,7 @@
     const c = struck.length > 1 ? `${struck.slice(0, -1).join(', ')} và ${struck.at(-1)}` : struck[0] || '';
     const said = (at === 2 && event.label ? `${event.label[0]}${event.label.slice(1).toLowerCase()} ` : '')
       + pool[hash(`${event.id}|${event.time}`) % pool.length];
-    return said.replaceAll('{a}', a).replaceAll('{b}', hasTarget ? nameOf(event.targetId) : '').replaceAll('{c}', c).replaceAll('{n}', String(event.roll ?? ''));
+    return said.replaceAll('{a}', a).replaceAll('{b}', hasTarget ? nameOf(event.targetId) : '').replaceAll('{c}', c).replaceAll('{n}', String(event.roll ?? event.rank ?? ''));
   }
   function start(race) {
     const opener = OPENERS[hash(race?.seed ?? 0) % OPENERS.length];

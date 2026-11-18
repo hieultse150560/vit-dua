@@ -5,9 +5,9 @@
   const noise = n => { const value = Math.sin(n * 127.1 + 311.7) * 43758.5453; return value - Math.floor(value); };
   const noop = () => {};
   const empty = () => ({ resize: noop, draw: noop, event: noop, destroy: noop });
-  // chaos-v2 event kinds → [icon, colour]. chaos-v1 kinds (swap, bomb, shield, rune, boost) keep their own drawing.
+  // chaos-v2 event kinds → [icon, colour]. chaos-v1 kinds (bomb, shield, rune, boost) keep their own drawing.
   const TWIST = {
-    fly: ['🪽', '#fff1a8'], torpedo: ['💣', '#d7b0ff'], wave: ['🌊', '#9fe7ff'], rocket: ['🚀', '#ffd27f'], boom: ['💥', '#ff9b73'],
+    swap: ['🔄', '#d1b2ff'], fly: ['🪽', '#fff1a8'], torpedo: ['💣', '#d7b0ff'], wave: ['🌊', '#9fe7ff'], rocket: ['🚀', '#ffd27f'], boom: ['💥', '#ff9b73'],
     mirror: ['🪞', '#e9f7ff'], hook: ['🎣', '#c9f0c1'], tornado: ['🌪️', '#d9e4ff'], banana: ['🍌', '#fff07a'], guard: ['🛟', '#c2fbff'],
     rock: ['🪨', '#d9c6a5'], croc: ['🐊', '#b5e3a1'], wind: ['💨', '#e8fbff'], whirlpool: ['🌀', '#a9dcff'], dolphin: ['🐬', '#a6e4ff'],
     missile: ['🎯', '#ff7b29'], bees: ['🐝', '#ffd34d'], blackhole: ['🕳️', '#8a5cff'], ghost: ['👻', '#eaf1ff'], balloon: ['🎈', '#ff6b8b'],
@@ -15,14 +15,17 @@
     magnet: ['🧲', '#ff7a7a'], lightning: ['⚡', '#fff6a0'], flip: ['🔃', '#ffd166'], rewind: ['⏪', '#ffe2a8'], reverse: ['↩️', '#ff6fd8'], freeze: ['🧊', '#c9f3ff'],
     timebomb: ['💣', '#ff9b4a'], dice: ['🎲', '#ffffff'], lullaby: ['💤', '#c7b8ff'], hex: ['🪄', '#9cff8a'], giant: ['🍄', '#ff7070'],
     kraken: ['🐙', '#c08cff'], dragon: ['🐉', '#5ff0d8'], meteor: ['☄️', '#ff9d3c'], whale: ['🐋', '#8fd3ff'], ufo: ['🛸', '#b6ff9e'],
-    pirate: ['🏴‍☠️', '#ffcf6b'], wheel: ['🎡', '#ffd84d'], anchor: ['⚓', '#c3ccd6'], volcano: ['🌋', '#ff5a2a'], fireworks: ['🎆', '#ff7ad9']
+    pirate: ['🏴‍☠️', '#ffcf6b'], wheel: ['🎡', '#ffd84d'], anchor: ['⚓', '#c3ccd6'], volcano: ['🌋', '#ff5a2a'], fireworks: ['🎆', '#ff7ad9'],
+    pho: ['🍜', '#ffd59a'], coffee: ['☕', '#d39a63'], cash: ['💸', '#7fd88a'], net: ['🕸️', '#eef4ff'], kite: ['🪁', '#7fd3ff'],
+    cloud: ['⛈️', '#9aa6bd'], hourglass: ['⏳', '#ffd27a'], loudspeaker: ['📣', '#ff9a5c'], portal: ['🌀', '#b98bff'], xeom: ['🛵', '#ff6f91']
   };
-  const V2_KIND = { wings: 'fly', torpedo: 'torpedo', wave: 'wave', rocket: 'rocket', mirror: 'mirror', hook: 'hook', tornado: 'tornado', banana: 'banana', buoy: 'guard',
+  const V2_KIND = { swap: 'swap', wings: 'fly', torpedo: 'torpedo', wave: 'wave', rocket: 'rocket', mirror: 'mirror', hook: 'hook', tornado: 'tornado', banana: 'banana', buoy: 'guard',
     rock: 'rock', croc: 'croc', wind: 'wind', whirlpool: 'whirlpool', dolphin: 'dolphin',
     missile: 'missile', bees: 'bees', blackhole: 'blackhole', ghost: 'ghost', balloon: 'balloon', hippo: 'hippo', log: 'log', frog: 'frog',
     magnet: 'magnet', lightning: 'lightning', flip: 'flip', rewind: 'rewind', reverse: 'reverse', freeze: 'freeze',
     bomb: 'timebomb', dice: 'dice', lullaby: 'lullaby', hex: 'hex', giant: 'giant',
-    kraken: 'kraken', dragon: 'dragon', meteor: 'meteor', whale: 'whale', ufo: 'ufo', pirate: 'pirate', wheel: 'wheel', anchor: 'anchor', volcano: 'volcano', fireworks: 'fireworks' }; // 'bomb' is the chaos-v1 burst kind
+    kraken: 'kraken', dragon: 'dragon', meteor: 'meteor', whale: 'whale', ufo: 'ufo', pirate: 'pirate', wheel: 'wheel', anchor: 'anchor', volcano: 'volcano', fireworks: 'fireworks',
+    pho: 'pho', coffee: 'coffee', cash: 'cash', net: 'net', kite: 'kite', cloud: 'cloud', hourglass: 'hourglass', loudspeaker: 'loudspeaker', portal: 'portal', xeom: 'xeom' }; // 'bomb' is the chaos-v1 burst kind
   // Race seconds. TWIST_MAIN matches the app's slow-motion window (0.27 race-s, played over 1.8 s or 3 s),
   // so each twist's main action plays in slow motion; the rest is a slow fade.
   const BURST_LIFE = .85, TWIST_LIFE = 1.7, TWIST_MAIN = .27;
@@ -33,8 +36,16 @@
     if (event.skill === 'copycat' && event.copied) return kindOf({ ...event, skill: event.copied }); // draws what it copied
     const v2 = V2_KIND[event.skill || event.hazard];
     if (v2) return event.skill === 'rocket' && event.outcome === 'exploded' ? 'boom' : v2;
-    return event.skill === 'swap' ? (event.outcome === 'swapped' ? 'swap' : 'shield')
-      : event.skill === 'bomb' ? 'bomb' : event.type === 'rune-pickup' ? 'rune' : event.outcome === 'shield' ? 'shield' : 'boost';
+    return event.type === 'obstacle' ? 'obstacle' : event.skill === 'bomb' ? 'bomb' : event.type === 'rune-pickup' ? 'rune' : event.outcome === 'shield' ? 'shield' : 'boost';
+  }
+  // ✨ SIÊU CẤP: about 1 skill in 12 draws a golden, bigger version. Decoration only; picked from the race seed and
+  // the event (never Math.random) so every screen of a room race shows the same ones.
+  function golden(seed, event) {
+    if (event?.type !== 'skill') return false;
+    let h = 2166136261;
+    for (const ch of `${seed}|${event.id}|${event.skill}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); // FNV-1a
+    h = Math.imul(h ^ h >>> 16, 0x85ebca6b); h = Math.imul(h ^ h >>> 13, 0xc2b2ae35); h ^= h >>> 16; // spread the low bits
+    return (h >>> 0) / 4294967296 < .08;
   }
   function context(canvas) { try { return canvas.getContext('2d', { alpha: true }); } catch { return null; } }
 
@@ -129,11 +140,11 @@
     function event(event, sample, elapsed, pre = sample) {
       if (destroyed || reduced() || elapsed - event.time > .3 || event.type === 'rune-spawn') return;
       const origin = point(event.actorId, sample), target = point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, sample);
-      const kind = kindOf(event);
+      const kind = kindOf(event), gold = golden(seed, event);
       bursts.push({ time: elapsed, kind, origin, target, blocked: ['shielded', 'immune', 'resisted'].includes(event.outcome), id: event.id.length + event.actorId * 7,
         affected: (event.affectedIds || []).map(id => point(id, sample)), shielded: (event.affectedIds || []).map(id => (event.protectedIds || []).includes(id)), atActor: AT_ACTOR.has(kind) || event.outcome === 'dropped', life: TWIST[kind] ? TWIST_LIFE : BURST_LIFE,
         outcome: event.outcome, reflected: event.outcome === 'reflected', roll: event.roll, actorId: event.actorId, targetId: event.targetId,
-        segment: event.segment, outcomes: event.outcomes, affectedIds: event.affectedIds,
+        segment: event.segment, outcomes: event.outcomes, affectedIds: event.affectedIds, cast: !!event.activation, key: event.key,
         // Positions just before the jump, so painters move with the ducks' on-screen glide.
         pre: { origin: point(event.actorId, pre), target: point(Number.isInteger(event.targetId) ? event.targetId : event.actorId, pre), affected: (event.affectedIds || []).map(id => point(id, pre)) } });
       // Impact layer for every chaos-v2/v3 twist: focus lines, shockwave and sparks where it lands.
@@ -142,7 +153,9 @@
           : event.type === 'hazard' ? event.actorId : null;
         const spots = victim !== null ? [point(victim, sample)] : (event.affectedIds || []).length ? event.affectedIds.map(id => point(id, sample)) : [origin];
         const focus = { x: spots.reduce((s, p) => s + p.x, 0) / spots.length, y: spots.reduce((s, p) => s + p.y, 0) / spots.length };
-        bursts.push({ kind: 'impact', time: elapsed, origin: focus, color: TWIST[kind][1], life: .22, id: event.id.length * 13 + event.actorId });
+        const id = event.id.length * 13 + event.actorId;
+        bursts.push({ kind: 'impact', time: elapsed, origin: focus, color: gold ? '#ffd84d' : TWIST[kind][1], life: gold ? .36 : .22, gold, id });
+        if (gold) bursts.push({ kind: 'gold', time: elapsed, origin: focus, life: TWIST_LIFE, id });
       }
       if (bursts.length > 28) bursts = bursts.slice(-28);
     }
@@ -159,13 +172,7 @@
     function drawBurst(burst, time) {
       const age = Math.max(0, time - burst.time), p = age / burst.life;
       if (p >= 1) return;
-      if (burst.kind === 'swap') {
-        for (const spot of [burst.origin, burst.target]) {
-          ring(spot.x, spot.y - 12, 16 + p * 28, 28 + p * 24, '#d1b2ff', (1 - p) * .95, 4 * (1 - p) + 1);
-          ring(spot.x, spot.y - 12, 10 + p * 36, 20 + p * 27, '#fff3ff', (1 - p) * .8, 2);
-          particles(spot, p, '#e5b7ff', 12, 49, burst.id);
-        }
-      } else if (burst.kind === 'bomb') {
+      if (burst.kind === 'bomb') {
         const travel = Math.min(1, age / .32);
         const x = burst.origin.x + (burst.target.x - burst.origin.x) * travel;
         const y = burst.origin.y + (burst.target.y - burst.origin.y) * travel - Math.sin(travel * Math.PI) * 48;
@@ -179,9 +186,10 @@
           particles(burst.target, hit, burst.blocked ? '#e6ffff' : '#dbb5ff', 14, 45, burst.id);
           ring(burst.target.x, burst.target.y, 6 + hit * 38, 5 + hit * 23, burst.blocked ? '#eaffff' : '#d7b0ff', 1 - hit, 3);
         }
-      } else if (burst.kind === 'impact') { drawImpact(burst, p);
-
-      } else if (burst.kind === 'shield') {
+      } else if (burst.kind === 'impact') drawImpact(burst, p);
+      else if (burst.kind === 'gold') drawGold(burst, p);
+      else if (burst.kind === 'obstacle') drawObstacle(burst, p);
+      else if (burst.kind === 'shield') {
         ring(burst.target.x, burst.target.y - 8, 19 + p * 18, 22 + p * 15, '#f0ffff', (1 - p) * .85, 3);
         particles(burst.target, p, '#c2fbff', 9, 32, burst.id);
       } else if (TWIST[burst.kind]) drawTwist(burst, age);
@@ -381,22 +389,77 @@
       splash(spot, t, alpha, tag, '#effcff', 32); ripples(spot, t, alpha);
     }
     // Anime focus lines, a double shockwave and flying sparks; drawn under every twist's own painter.
+    // A golden (✨ SIÊU CẤP) impact is 1.4x wider with more sparks.
     function drawImpact(b, p) {
-      const c = { x: b.origin.x, y: b.origin.y - 24 }, e = ease(p), fade = (1 - p) ** 1.4;
+      const c = { x: b.origin.x, y: b.origin.y - 24 }, e = ease(p), fade = (1 - p) ** 1.4, s = b.gold ? 1.4 : 1, sparks = b.gold ? 26 : 16;
       ctx.lineCap = 'round';
       for (let i = 0; i < 28; i++) {
-        const a = i / 28 * TAU + noise(b.id + i) * .22, r0 = 48 + e * 46 + noise(i + 3) * 18, len = (70 + noise(i + b.id + 7) * 150) * (1 - p * .6);
+        const a = i / 28 * TAU + noise(b.id + i) * .22, r0 = (48 + e * 46 + noise(i + 3) * 18) * s, len = (70 + noise(i + b.id + 7) * 150) * (1 - p * .6) * s;
         ctx.globalAlpha = fade * .85; ctx.strokeStyle = i % 3 ? '#ffffff' : b.color; ctx.lineWidth = 1.6 + noise(i + 9) * 3.6;
         ctx.beginPath(); ctx.moveTo(c.x + Math.cos(a) * r0, c.y + Math.sin(a) * r0 * .62); ctx.lineTo(c.x + Math.cos(a) * (r0 + len), c.y + Math.sin(a) * (r0 + len) * .62); ctx.stroke();
       }
-      ring(c.x, c.y, 18 + e * 170, (18 + e * 170) * .5, '#ffffff', fade, 6 * (1 - p) + 1);
-      ring(c.x, c.y, 10 + e * 120, (10 + e * 120) * .5, b.color, fade * .9, 4 * (1 - p) + 1);
-      for (let i = 0; i < 16; i++) {
-        const a = i / 16 * TAU + noise(i + b.id * 3) * .6, d = 24 + e * (90 + noise(i + 5) * 110), dx = Math.cos(a), dy = Math.sin(a) * .62;
+      ring(c.x, c.y, (18 + e * 170) * s, (18 + e * 170) * .5 * s, '#ffffff', fade, 6 * (1 - p) + 1);
+      ring(c.x, c.y, (10 + e * 120) * s, (10 + e * 120) * .5 * s, b.color, fade * .9, 4 * (1 - p) + 1);
+      for (let i = 0; i < sparks; i++) {
+        const a = i / sparks * TAU + noise(i + b.id * 3) * .6, d = (24 + e * (90 + noise(i + 5) * 110)) * s, dx = Math.cos(a), dy = Math.sin(a) * .62;
         ctx.globalAlpha = fade; ctx.strokeStyle = i % 2 ? '#fff4b8' : b.color; ctx.lineWidth = 3 * (1 - p) + .8;
         ctx.beginPath(); ctx.moveTo(c.x + dx * d * .72, c.y + dy * d * .72); ctx.lineTo(c.x + dx * d, c.y + dy * d); ctx.stroke();
       }
       ctx.lineCap = 'butt';
+    }
+    // ✨ SIÊU CẤP: golden four-point stars twinkle and drift up around the hit for the whole twist.
+    function drawGold(b, p) {
+      glow(b.origin, 140 * (1 - p) + 40, 'rgba(255,214,90,.85)', (1 - p) * .55);
+      for (let i = 0; i < 18; i++) {
+        const a = noise(b.id + i) * TAU, r = 40 + noise(i + 7) * 130 * (.4 + p), tw = (Math.sin(p * 32 + i * 2) + 1) / 2, k = (3 + noise(i + 3) * 6) * (1 - p * .5);
+        const x = b.origin.x + Math.cos(a) * r, y = b.origin.y - 30 + Math.sin(a) * r * .55 - p * 70;
+        ctx.globalAlpha = (1 - p) * (.35 + .65 * tw); ctx.fillStyle = i % 3 ? '#ffd84d' : '#ffffff';
+        ctx.beginPath(); ctx.moveTo(x, y - k * 2); ctx.lineTo(x + k * .45, y - k * .45); ctx.lineTo(x + k * 2, y); ctx.lineTo(x + k * .45, y + k * .45);
+        ctx.lineTo(x, y + k * 2); ctx.lineTo(x - k * .45, y + k * .45); ctx.lineTo(x - k * 2, y); ctx.lineTo(x - k * .45, y - k * .45); ctx.closePath(); ctx.fill();
+      }
+      emoji('✨', b.origin.x, b.origin.y - 120 - p * 30, 40, 1 - p);
+    }
+    // Shouted words (A LÔ!, BÍP BÍP!) in heavy type with a dark outline, readable on any water.
+    function shout(text, x, y, size, color, alpha) {
+      ctx.globalAlpha = Math.max(0, alpha); ctx.font = `900 ${size}px "Be Vietnam Pro", sans-serif`; ctx.textAlign = 'center'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(20,20,40,.75)'; ctx.lineWidth = 5; ctx.strokeText(text, x, y); ctx.fillStyle = color; ctx.fillText(text, x, y); ctx.lineJoin = 'miter';
+    }
+    // A dark rain cloud: slanted rain to the water under a cluster of puffs, with lightning flickering inside now and then.
+    function stormCloud(x, y, scale, alpha, time, tag) {
+      if (scale <= .02 || alpha <= 0) return;
+      const flash = noise(Math.floor(time * 7) + tag) > .88;
+      ctx.strokeStyle = '#b9d4ff'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+      for (let i = 0; i < 9; i++) { const u = (time * 2.2 + noise(i + tag)) % 1, rx = x + (noise(i + tag + 5) - .5) * 52 * scale, ry = y + 8 + u * 54 * scale; ctx.globalAlpha = alpha * (1 - u) * .85; line({ x: rx, y: ry }, { x: rx - 3, y: ry + 9 }); }
+      ctx.lineCap = 'butt';
+      for (const [dx, dy, r, col] of [[-20, 2, 13, '#4d5563'], [20, 3, 12, '#4d5563'], [-8, -8, 16, '#5c6575'], [10, -6, 15, '#5c6575'], [0, 4, 15, '#434a57']]) {
+        ctx.globalAlpha = alpha; ctx.fillStyle = flash ? '#8f97a8' : col; ctx.beginPath(); ctx.arc(x + dx * scale, y + dy * scale, r * scale, 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = alpha * .5; ctx.fillStyle = '#8b94a6'; ctx.beginPath(); ctx.arc(x - 6 * scale, y - 12 * scale, 8 * scale, 0, TAU); ctx.fill();
+      if (flash) glow({ x, y: y + 12 }, 34 * scale, 'rgba(255,250,200,.9)', alpha * .8);
+    }
+    // River obstacles (chaos-v4 race rooms) stay small and quiet: spray for a jump, bubbles for a dive, splinters for a hit.
+    function drawObstacle(b, p) {
+      const s = live(b.actorId) || b.origin, a = 1 - p, o = b.outcome;
+      if (o === 'hit') { particles({ x: s.x + 24, y: s.y - 10 }, p, '#a0703a', 10, 46, b.id); ring(s.x, s.y + 6, 16 + p * 36, 5 + p * 10, '#ffffff', a * .8, 2); return; }
+      if (o === 'immune') { ring(s.x, s.y - 20, 30, 30, '#c2fbff', a, 3); return; }
+      if (o === 'smashed') { particles({ x: s.x + 30, y: s.y - 6 }, p, '#8a6a4a', 14, 60, b.id); return; }
+      if (o === 'over') { particles({ x: s.x, y: s.y - 40 }, p, '#fff6c8', 10, 40, b.id); return; }
+      if (b.key === 'down') {
+        ctx.strokeStyle = '#eafcff'; ctx.lineWidth = 1.5;
+        for (let i = 0; i < 7; i++) { const u = (p * 1.4 + noise(b.id + i) * .5) % 1; ctx.globalAlpha = a * (1 - u) * .9; ctx.beginPath(); ctx.arc(s.x - 10 + noise(i + 2) * 30, s.y + 4 - u * 34, 2 + noise(i) * 3, 0, TAU); ctx.stroke(); }
+      } else splash({ x: s.x - 6, y: s.y + 2 }, p * 1.1, a * .8, b.id, '#effcff', 10);
+      ripples(s, p, a * .7);
+      if (o === 'dodged') particles({ x: s.x, y: s.y - 46 }, p, '#ffe27a', 8, 34, b.id + 3);
+    }
+    // chaos-v4 states drawn on the ducks while they last: a rain cloud rides a clouded duck (growing in when it arrives).
+    const cloudSince = {};
+    function drawStates(sample, time) {
+      for (const r of sample) {
+        if (!r.clouded) { delete cloudSince[r.id]; continue; }
+        cloudSince[r.id] ??= time;
+        const p = point(r.id, sample);
+        if (p.y > -90 && p.y < height + 40) stormCloud(p.x + 4, p.y - 82, ease((time - cloudSince[r.id]) / .15), 1, time, r.id * 17);
+      }
     }
     // A duck's current spot (painters that follow a moving duck, e.g. a rocket or a gust).
     const live = id => (Number.isInteger(id) && lastSample[id] ? point(id, lastSample) : null);
@@ -480,6 +543,247 @@
     const outcomeAt = (b, i) => b.outcomes?.[b.affectedIds?.[i]];
     const blockedAt = (b, i) => ['blocked', 'immune', 'protected', 'reflected'].includes(outcomeAt(b, i)) || !!b.shielded?.[i];
     const PAINT = {
+      // Two ducks trade places: a gold and a purple comet cross between them on opposite bows (in step with their
+      // glide, delay .02 + .2 race-s → m .07 to .8), both ducks glow and rings land where they end up.
+      swap(b, f) {
+        const A = b.pre.origin, B = b.pre.target, k = ease((f.m - .07) / .73);
+        if (b.outcome !== 'swapped') { ring(B.x, B.y - 20, 34, 34, '#c2fbff', f.alpha, 4); pop(f.icon, A, f.m, f.alpha, 44); return; } // blocked or reflected
+        const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1, bow = Math.min(90, 30 + len * .35);
+        const ducks = [live(b.actorId) || b.origin, live(b.targetId) || b.target];
+        [[A, B, '#ffd166', 1, b.origin], [B, A, '#c9a2ff', -1, b.target]].forEach(([from, to, col, side, land], i) => {
+          const arc = u => { const s = Math.sin(u * Math.PI) * bow * side; return { x: from.x + (to.x - from.x) * u - dy / len * s, y: from.y - 30 + (to.y - from.y) * u + dx / len * s }; };
+          ctx.globalAlpha = f.alpha * .85; ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath();
+          for (let j = 0; j <= 20; j++) { const p = arc(k * j / 20); if (j) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }
+          ctx.stroke(); ctx.lineCap = 'butt';
+          const tip = arc(k); glow(tip, 36, col, f.alpha); ctx.globalAlpha = f.alpha; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(tip.x, tip.y, 7, 0, TAU); ctx.fill();
+          glow(ducks[i], 62, col, f.alpha * .75);
+          if (k >= 1) ripples(land, (f.m - .8) * 3 + f.fade, f.alpha, col);
+        });
+        const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 - 30 };
+        for (let i = 0; i < 10; i++) { const a = (f.m + f.fade) * 7 + i * TAU / 10, r = 24 + 10 * Math.sin(f.m * 9 + i); ctx.globalAlpha = f.alpha * .9; ctx.fillStyle = i % 2 ? '#ffd166' : '#e5b7ff'; ctx.beginPath(); ctx.arc(mid.x + Math.cos(a) * r, mid.y + Math.sin(a) * r * .5, 2.8, 0, TAU); ctx.fill(); }
+        pop(f.icon, { x: mid.x, y: mid.y + 30 }, f.m, f.alpha, 58);
+      },
+      // ---- chaos-v4 skills (f.age: race-s since the cast) ----
+      // Phở: a steaming bowl floats up in front of the duck and chopsticks lift noodles to its beak; once it has eaten
+      // (0.6 race-s) it shoots off with speed lines and "NO BỤNG!".
+      pho(b, f) {
+        const s = live(b.actorId) || b.origin, w = { x: s.x + 54, y: s.y - 2 - 12 * ease(f.m / .35) };
+        const bowlA = f.alpha * clamp01(f.m * 4) * (1 - clamp01((f.age - .6) / .25));
+        if (bowlA > 0) {
+          ctx.lineCap = 'round'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+          for (let k = 0; k < 3; k++) {
+            const ph = (f.age * 2.4 + k / 3) % 1; ctx.globalAlpha = bowlA * (1 - ph) * .85; ctx.beginPath();
+            for (let j = 0; j <= 8; j++) { const u = j / 8, x = w.x - 14 + k * 14 + Math.sin(u * 6 + f.age * 9 + k) * 5, y = w.y - 20 - u * 44 - ph * 18; if (j) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+            ctx.stroke();
+          }
+          ctx.globalAlpha = bowlA; ctx.fillStyle = '#fdfaf3';
+          ctx.beginPath(); ctx.moveTo(w.x - 36, w.y - 12); ctx.quadraticCurveTo(w.x - 32, w.y + 20, w.x, w.y + 20); ctx.quadraticCurveTo(w.x + 32, w.y + 20, w.x + 36, w.y - 12); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = '#2f6db5'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(w.x - 33, w.y - 2); ctx.quadraticCurveTo(w.x, w.y + 8, w.x + 33, w.y - 2); ctx.stroke();
+          ctx.fillStyle = '#e9b866'; ctx.beginPath(); ctx.ellipse(w.x, w.y - 12, 36, 8, 0, 0, TAU); ctx.fill();
+          ctx.strokeStyle = '#fff6cf'; ctx.lineWidth = 2; for (let k = 0; k < 5; k++) { ctx.beginPath(); ctx.arc(w.x - 18 + k * 9, w.y - 10, 6, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+          ctx.fillStyle = '#4caf50'; for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.ellipse(w.x - 22 + noise(k + 4) * 44, w.y - 12 + (noise(k + 9) - .5) * 7, 3.2, 1.6, k, 0, TAU); ctx.fill(); }
+          const tip = { x: w.x - 2, y: w.y - 16 - Math.abs(Math.sin(f.age * 7)) * 26 };
+          ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 3; line({ x: w.x + 30, y: w.y - 66 }, tip); line({ x: w.x + 36, y: w.y - 62 }, { x: tip.x + 5, y: tip.y + 3 });
+          ctx.strokeStyle = '#fff3c4'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.quadraticCurveTo(tip.x - 20, tip.y - 6, s.x + 26, s.y - 44); ctx.stroke();
+          ctx.lineCap = 'butt';
+        }
+        if (f.age >= .6) {
+          const t = clamp01((f.age - .6) / .6);
+          ctx.lineCap = 'round';
+          for (let i = 0; i < 7; i++) { const u = (t * 3 + i / 7) % 1; ctx.globalAlpha = f.alpha * (1 - u); ctx.strokeStyle = i % 2 ? '#ffd166' : '#ffffff'; ctx.lineWidth = 3; line({ x: s.x - 30 - u * 70, y: s.y - 50 + i * 8 }, { x: s.x - 60 - u * 90, y: s.y - 50 + i * 8 }); }
+          ctx.lineCap = 'butt';
+          shout('NO BỤNG!', s.x, s.y - 92 - t * 10, 22, '#ffb347', f.alpha * (1 - t * .5));
+        }
+        pop(f.icon, { x: s.x - 6, y: s.y + 4 }, f.m, f.alpha, 44);
+      },
+      // Cà phê sữa đá: a tall glass of iced milk coffee (cream on top, dark below, ice cubes, a red straw); the duck jolts
+      // wide awake with zigzag sparks and a warm glow.
+      coffee(b, f) {
+        const s = live(b.actorId) || b.origin, g = { x: s.x + 54, y: s.y + 8 - 14 * ease(f.m / .3) }, top = g.y - 62, gA = f.alpha * clamp01(f.m * 4);
+        const glass = () => { ctx.beginPath(); ctx.moveTo(g.x - 16, top); ctx.lineTo(g.x + 16, top); ctx.lineTo(g.x + 11, g.y); ctx.lineTo(g.x - 11, g.y); ctx.closePath(); };
+        const brew = ctx.createLinearGradient(0, top, 0, g.y); brew.addColorStop(0, '#f6e2c2'); brew.addColorStop(.3, '#d09a66'); brew.addColorStop(1, '#4e2a14');
+        ctx.globalAlpha = gA; ctx.fillStyle = brew; glass(); ctx.fill();
+        for (let i = 0; i < 3; i++) { const y = top + 6 + i * 11 + Math.sin(f.age * 8 + i * 2) * 2; ctx.globalAlpha = gA * .8; ctx.fillStyle = '#f2fcff'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.rect(g.x - 11 + (i % 2) * 9, y, 10, 9); ctx.fill(); ctx.stroke(); }
+        ctx.globalAlpha = gA; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.4; glass(); ctx.stroke();
+        ctx.globalAlpha = gA * .55; ctx.lineWidth = 3; line({ x: g.x - 11, y: top + 6 }, { x: g.x - 8, y: g.y - 6 });
+        ctx.globalAlpha = gA; ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 4; ctx.lineCap = 'round'; line({ x: g.x + 3, y: top + 16 }, { x: g.x + 12, y: top - 18 }); line({ x: g.x + 12, y: top - 18 }, { x: g.x + 2, y: top - 26 }); ctx.lineCap = 'butt';
+        ctx.fillStyle = '#e8fbff'; for (let i = 0; i < 4; i++) { ctx.globalAlpha = gA * .7; ctx.beginPath(); ctx.arc(g.x - 15 + (i % 2) * 30, top + 14 + i * 12, 1.7, 0, TAU); ctx.fill(); }
+        const zap = clamp01((f.m - .3) / .3), c = { x: s.x, y: s.y - 30 };
+        glow(s, 64, 'rgba(255,186,90,.85)', f.alpha * .55 * zap);
+        ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 3;
+        for (let i = 0; i < 6 && zap > 0; i++) {
+          const a = i / 6 * TAU + f.age * 1.5, r0 = 36, r1 = 52 + 8 * Math.sin(f.age * 18 + i), rm = (r0 + r1) / 2;
+          ctx.globalAlpha = f.alpha * zap; ctx.beginPath(); ctx.moveTo(c.x + Math.cos(a) * r0, c.y + Math.sin(a) * r0 * .7);
+          ctx.lineTo(c.x + Math.cos(a + .2) * rm, c.y + Math.sin(a + .2) * rm * .7); ctx.lineTo(c.x + Math.cos(a) * r1, c.y + Math.sin(a) * r1 * .7); ctx.stroke();
+        }
+        if (zap > 0) shout('TỈNH!', s.x, s.y - 92, 22, '#ffd34d', f.alpha * zap);
+        pop(f.icon, { x: s.x - 8, y: s.y + 4 }, f.m, f.alpha, 44);
+      },
+      // Rải tiền: a wad of đồng notes flies from the caster and rains down in front of each leader, who stops to grab it.
+      cash(b, f) {
+        const NOTES = ['#4fb3a5', '#e58a5a', '#7cc576', '#5b8fd6'], from = { x: b.pre.origin.x + 20, y: b.pre.origin.y - 40 };
+        (b.affected.length ? b.affected : [b.target]).forEach((p, i) => {
+          const t = clamp01((f.m - i * .08) / .35);
+          if (t <= 0) return;
+          if (t < 1) { const q = flight(from, { x: p.x + 40, y: p.y - 70 }, t, 60); ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(t * TAU); emoji('💵', 0, 8, 26, f.alpha); ctx.restore(); return; }
+          if (blockedAt(b, i)) { ring(p.x, p.y - 20, 34, 34, '#c2fbff', f.alpha, 4); return; }
+          const fall = f.m - i * .08 - .35 + f.fade * 1.2;
+          for (let k = 0; k < 12; k++) {
+            const drop = clamp01(fall * (1.3 + noise(k + i) * .8)), x = p.x + 30 + (noise(b.id + k + i * 13) - .5) * 110 + Math.sin(fall * 8 + k) * 12 * (1 - drop * .6);
+            ctx.save(); ctx.translate(x, p.y - 110 + drop * 104 + noise(k + 3) * 10); ctx.rotate(Math.sin(fall * 6 + k) * .9); ctx.scale(1, .45 + .55 * Math.abs(Math.cos(fall * 7 + k)));
+            ctx.globalAlpha = f.alpha; ctx.fillStyle = NOTES[k % 4]; ctx.fillRect(-12, -6, 24, 12);
+            ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1; ctx.strokeRect(-9, -3.5, 18, 7); ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, TAU); ctx.fill();
+            ctx.restore();
+          }
+          ripples({ x: p.x + 30, y: p.y }, fall, f.alpha * .7, '#c8ffd2');
+          emoji('🤑', p.x + 4, p.y - 64, 26, f.alpha * clamp01(fall * 3));
+        });
+        pop(f.icon, b.pre.origin, f.m, f.alpha, 46);
+      },
+      // Lưới: a round fishing net spins open in the air and drops over the leader, its lead weights splashing; the rope
+      // stays taut to the caster, who is pulled ahead.
+      net(b, f) {
+        const src = b.reflected ? b.pre.target : b.pre.origin, T = b.reflected ? b.pre.origin : b.pre.target, hit = b.outcome === 'hit' || b.reflected;
+        const t = clamp01(f.m / .45), R = 54 * (t < 1 ? .25 + .75 * t : 1), drape = t < 1 ? 0 : ease((f.m - .45) / .3), spin = t * 4;
+        const c = t < 1 ? flight({ x: src.x + 24, y: src.y - 40 }, { x: T.x, y: T.y - 26 }, t, 90) : { x: T.x, y: T.y - 26 }, puller = live(b.reflected ? b.targetId : b.actorId) || src;
+        ctx.globalAlpha = f.alpha; ctx.strokeStyle = '#d9c39a'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(puller.x + 20, puller.y - 30); ctx.quadraticCurveTo((puller.x + c.x) / 2, Math.max(puller.y, c.y) + 14 * (1 - drape), c.x - R * .7, c.y); ctx.stroke();
+        if (!hit && t >= 1) { ring(T.x, T.y - 20, 36, 36, '#c2fbff', f.alpha, 4); pop(f.icon, src, f.m, f.alpha, 40); return; }
+        const rim = a => ({ x: c.x + Math.cos(a) * R, y: c.y + Math.sin(a) * R * .55 * (1 - drape * .45) + drape * 18 * Math.max(0, Math.sin(a)) });
+        ctx.strokeStyle = '#f4f8ff'; ctx.lineWidth = 1.6; ctx.globalAlpha = f.alpha * .95;
+        for (let k = 0; k < 12; k++) line(c, rim(spin + k / 12 * TAU));
+        for (let r = 1; r <= 3; r++) { ctx.beginPath(); ctx.ellipse(c.x, c.y + drape * 5 * r, R * r / 3, Math.max(1, R * r / 3 * .55 * (1 - drape * .45)), 0, 0, TAU); ctx.stroke(); }
+        ctx.fillStyle = '#5e6670'; for (let k = 0; k < 10; k++) { const p = rim(spin + k / 10 * TAU); ctx.beginPath(); ctx.arc(p.x, p.y, 2.8, 0, TAU); ctx.fill(); }
+        if (drape > 0) { splash({ x: T.x, y: T.y }, drape * .8 + f.fade * .5, f.alpha, b.id, '#e9fbff', 14); ripples(T, drape + f.fade, f.alpha * .8); }
+        pop(f.icon, src, f.m, f.alpha, 40);
+      },
+      // Diều: a bright diamond kite climbs on its string above the duck, ribbons whipping in the wind, and lifts it along.
+      kite(b, f) {
+        const s = live(b.actorId) || b.origin, rise = ease(f.m / .6), k = { x: s.x + 64 + Math.sin(f.age * 3) * 10, y: s.y - 80 - 80 * rise + Math.sin(f.age * 4.5) * 6 };
+        ctx.globalAlpha = f.alpha; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(s.x + 6, s.y - 46); ctx.quadraticCurveTo(s.x + 50, s.y - 40 - 20 * rise, k.x, k.y + 34); ctx.stroke();
+        const P = [{ x: k.x, y: k.y - 30 }, { x: k.x + 24, y: k.y }, { x: k.x, y: k.y + 36 }, { x: k.x - 24, y: k.y }];
+        ['#ff5a5a', '#ffd166', '#4cc9f0', '#7dff8a'].forEach((col, i) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(k.x, k.y); ctx.lineTo(P[i].x, P[i].y); ctx.lineTo(P[(i + 1) % 4].x, P[(i + 1) % 4].y); ctx.closePath(); ctx.fill(); });
+        ctx.strokeStyle = '#6b4a22'; ctx.lineWidth = 1.5; line(P[0], P[2]); line(P[1], P[3]);
+        const tail = u => ({ x: P[2].x - u * 36, y: P[2].y + u * 48 + Math.sin(u * 8 - f.age * 12) * 7 });
+        ctx.strokeStyle = '#ffffff'; ctx.beginPath(); for (let j = 0; j <= 12; j++) { const p = tail(j / 12); if (j) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); } ctx.stroke();
+        ['#ff7ad9', '#ffd166', '#4cc9f0'].forEach((col, i) => { const p = tail((i + 1) / 4); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 4); ctx.lineTo(p.x + 6, p.y + 4); ctx.lineTo(p.x + 6, p.y - 4); ctx.lineTo(p.x - 6, p.y + 4); ctx.closePath(); ctx.fill(); });
+        ctx.lineCap = 'round'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+        for (let i = 0; i < 6; i++) { const u = (f.age * 1.8 + i / 6) % 1, x = s.x + 40 - u * 200, y = s.y - 70 + i * 12; ctx.globalAlpha = f.alpha * Math.sin(u * Math.PI) * .8; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x - 30, y - 8, x - 70, y); ctx.stroke(); }
+        ctx.lineCap = 'butt';
+        pop(f.icon, { x: s.x - 30, y: s.y + 6 }, f.m, f.alpha, 40);
+      },
+      // Mây đen: dark wind blows from the caster onto its target, where a rain cloud gathers (the cloud then rides the
+      // duck while it lasts: drawStates). The closing event (not a cast) is the bolt that capsizes it.
+      cloud(b, f) {
+        if (!b.cast) {
+          const T = live(b.targetId) || b.target, struck = b.outcome === 'struck';
+          if (struck && f.m < .5) { ctx.globalAlpha = (1 - f.m / .5) * .35; ctx.fillStyle = '#eef3ff'; ctx.fillRect(0, 0, width, height); }
+          stormCloud(T.x + 4, T.y - 82, 1.2 - clamp01(f.m * .4 + f.fade), f.alpha, f.age * 3 + b.id, b.id);
+          if (!struck) { particles({ x: T.x, y: T.y - 80 }, clamp01(f.m + f.fade), '#8d95a3', 14, 60, b.id); ring(T.x, T.y - 20, 34, 34, '#c2fbff', f.alpha, 4); return; }
+          let x = T.x + (noise(b.id) - .5) * 30; const top = T.y - 70, pts = [{ x, y: top }];
+          for (let k = 1; k <= 7; k++) { x = k === 7 ? T.x : x + (noise(b.id + k + Math.floor(f.m * 10)) - .5) * 40; pts.push({ x, y: top + (T.y - 18 - top) * k / 7 }); }
+          if (f.m < .75) for (const [w, col, a] of [[18, '#fff3a0', .55], [6, '#ffffff', 1]]) { ctx.globalAlpha = f.alpha * a; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke(); ctx.lineJoin = 'miter'; }
+          capsize(T, f.m * .7 + f.fade * .8, f.alpha, b.id); pop('⚡', T, f.m, f.alpha, 56);
+          return;
+        }
+        const T = b.reflected ? b.pre.origin : b.pre.target, from = b.reflected ? b.pre.target : b.pre.origin, t = clamp01(f.m / .4);
+        for (let i = 0; i < 10; i++) { const q = flight({ x: from.x, y: from.y - 50 }, { x: T.x, y: T.y - 80 }, clamp01(t - i * .05), 50); ctx.globalAlpha = f.alpha * (1 - i / 10) * .7; ctx.fillStyle = '#5d6675'; ctx.beginPath(); ctx.arc(q.x, q.y, 11 - i * .7, 0, TAU); ctx.fill(); }
+        if (b.outcome !== 'hit' && !b.reflected) { if (t >= 1) ring(T.x, T.y - 20, 36, 36, '#c2fbff', f.alpha, 4); }
+        else if (t >= 1) particles({ x: T.x, y: T.y - 80 }, clamp01((f.m - .4) / .6 + f.fade), '#6b7484', 16, 70, b.id);
+        pop(f.icon, from, f.m, f.alpha, 48);
+      },
+      // Đồng hồ cát: a giant hourglass turns over above the caster and its sand pours; the river tints cold blue and a
+      // clock face rings each frozen duck, its hand spinning down to a stop.
+      hourglass(b, f) {
+        const c = { x: b.pre.origin.x, y: Math.max(84, b.pre.origin.y - 120) }, turn = ease(f.m / .25), stop = clamp01((f.m - .2) / .25), sand = clamp01((f.m - .25) / .75 + f.fade * .3), W = 24, H = 34;
+        ctx.globalAlpha = f.alpha * .26 * stop; ctx.fillStyle = '#5f7ea8'; ctx.fillRect(0, 0, width, height);
+        glow({ x: c.x, y: c.y + 12 }, 76, 'rgba(255,220,140,.8)', f.alpha * .6);
+        ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(Math.PI * (1 - turn)); ctx.globalAlpha = f.alpha;
+        ctx.fillStyle = 'rgba(220,240,255,.35)'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(-W, -H); ctx.lineTo(W, -H); ctx.lineTo(3, -2); ctx.lineTo(3, 2); ctx.lineTo(W, H); ctx.lineTo(-W, H); ctx.lineTo(-3, 2); ctx.lineTo(-3, -2); ctx.closePath(); ctx.fill(); ctx.stroke();
+        const l = 1 - sand, pile = H - H * .8 * sand; ctx.fillStyle = '#f2c26b';
+        if (l > 0) { ctx.beginPath(); ctx.moveTo(-W * l, -H * l); ctx.lineTo(W * l, -H * l); ctx.lineTo(0, -1); ctx.closePath(); ctx.fill(); }
+        ctx.beginPath(); ctx.moveTo(-W, H); ctx.lineTo(W, H); ctx.lineTo(W * pile / H, pile); ctx.lineTo(-W * pile / H, pile); ctx.closePath(); ctx.fill();
+        if (sand > 0 && sand < 1) { ctx.strokeStyle = '#f2c26b'; ctx.lineWidth = 2; line({ x: 0, y: 0 }, { x: 0, y: pile }); }
+        ctx.fillStyle = '#8a5a2b'; ctx.fillRect(-W - 6, -H - 7, W * 2 + 12, 7); ctx.fillRect(-W - 6, H, W * 2 + 12, 7);
+        ctx.restore();
+        if (stop > 0) b.affected.forEach((p, i) => {
+          if (blockedAt(b, i)) { ring(p.x, p.y - 22, 32, 32, '#c2fbff', f.alpha, 3); return; }
+          const R = 32, cy = p.y - 26, hand = -Math.PI / 2 + (1 - stop) * TAU * 3 + i;
+          ring(p.x, cy, R, R, '#ffe7a3', f.alpha * stop, 3);
+          ctx.strokeStyle = '#ffe7a3'; ctx.lineWidth = 2;
+          for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; line({ x: p.x + Math.cos(a) * (R - 5), y: cy + Math.sin(a) * (R - 5) }, { x: p.x + Math.cos(a) * R, y: cy + Math.sin(a) * R }); }
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; line({ x: p.x, y: cy }, { x: p.x + Math.cos(hand) * (R - 9), y: cy + Math.sin(hand) * (R - 9) });
+        });
+        pop(f.icon, { x: c.x + 56, y: c.y + 40 }, f.m, f.alpha, 40);
+      },
+      // Loa phường: a silver horn speaker on a lamp post by the caster blares "A LÔ! A LÔ!"; sound rings sweep out and
+      // every duck nearby jolts with a "!".
+      loudspeaker(b, f) {
+        const s = b.pre.origin, base = { x: s.x - 46, y: s.y + 12 }, up = ease(f.m / .2), head = { x: base.x, y: base.y + (Math.max(64, s.y - 96) - base.y) * up };
+        ctx.globalAlpha = f.alpha; ctx.strokeStyle = '#7d8791'; ctx.lineWidth = 4; line(base, head);
+        const g = ctx.createLinearGradient(head.x, head.y - 16, head.x, head.y + 16); g.addColorStop(0, '#f4f7fb'); g.addColorStop(1, '#9aa6b6');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(head.x, head.y - 7); ctx.lineTo(head.x + 48, head.y - 24); ctx.lineTo(head.x + 48, head.y + 24); ctx.lineTo(head.x, head.y + 7); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#3d4450'; ctx.beginPath(); ctx.ellipse(head.x + 48, head.y, 6, 24, 0, 0, TAU); ctx.fill();
+        if (up >= 1) {
+          for (let k = 0; k < 4; k++) { const r = (f.m * 1.6 + f.fade + k / 4) % 1; ctx.globalAlpha = f.alpha * (1 - r) * .9; ctx.strokeStyle = k % 2 ? '#ffd166' : '#ffffff'; ctx.lineWidth = 4 * (1 - r) + 1; ctx.beginPath(); ctx.arc(head.x + 50, head.y, 24 + r * 230, -.7, .7); ctx.stroke(); }
+          shout('A LÔ! A LÔ!', head.x + 84, head.y - 26 + Math.sin(f.age * 30) * 2, 24, '#ffffff', f.alpha);
+        }
+        b.affected.forEach((p, i) => {
+          const jolt = clamp01((f.m - .25 - i * .05) / .15);
+          if (jolt <= 0) return;
+          if (blockedAt(b, i)) { ring(p.x, p.y - 22, 30, 30, '#c2fbff', f.alpha, 3); return; }
+          const shake = Math.sin(f.age * 80 + i) * 3 * (1 - f.fade);
+          emoji('❗', p.x + 22 + shake, p.y - 70, 26 * Math.min(1, jolt * 1.4), f.alpha);
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+          for (let q = 0; q < 3; q++) { const a = -2.3 + q * .5; ctx.globalAlpha = f.alpha * .8; line({ x: p.x + Math.cos(a) * 30, y: p.y - 40 + Math.sin(a) * 30 }, { x: p.x + Math.cos(a) * 44, y: p.y - 40 + Math.sin(a) * 44 }); }
+        });
+        pop(f.icon, s, f.m, f.alpha, 40);
+      },
+      // Cổng không gian: a swirling portal opens under the duck and swallows it; a twin opens where it lands, linked by a
+      // streak through space, and spits it out.
+      portal(b, f) {
+        const A = b.pre.origin, B = b.origin, moved = Math.abs(B.x - A.x) > 2, shut = clamp01(ease((f.m - .75) / .25) + f.fade);
+        const vortex = (c, k, tag) => {
+          const R = 42 * k, cy = c.y - 6;
+          if (R < 2) return;
+          const g = ctx.createRadialGradient(c.x, cy, 1, c.x, cy, R);
+          g.addColorStop(0, '#12051f'); g.addColorStop(.55, '#5a2db8'); g.addColorStop(1, 'rgba(120,200,255,0)');
+          ctx.globalAlpha = f.alpha; ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(c.x, cy, R, R * .45, 0, 0, TAU); ctx.fill();
+          ctx.lineWidth = 2.5;
+          for (let arm = 0; arm < 4; arm++) {
+            ctx.strokeStyle = arm % 2 ? '#7cf5ff' : '#d9b8ff'; ctx.beginPath();
+            for (let j = 0; j <= 16; j++) { const u = j / 16, a = f.age * 9 + arm * TAU / 4 + u * TAU * 1.2, r = R * (1 - u * .85), x = c.x + Math.cos(a) * r, y = cy + Math.sin(a) * r * .45; if (j) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+            ctx.stroke();
+          }
+          ring(c.x, cy, R, R * .45, '#ffffff', f.alpha * .9, 2);
+          particles({ x: c.x, y: cy }, (f.age * 2 + tag) % 1, '#e5d4ff', 10, R * 1.3, b.id + tag * 10);
+        };
+        vortex(A, ease(f.m / .2) * (1 - shut), 0);
+        if (moved) {
+          const u = clamp01((f.m - .3) / .25), mid = { x: (A.x + B.x) / 2, y: Math.min(A.y, B.y) - 80 };
+          vortex(B, ease((f.m - .3) / .2) * (1 - shut), .5);
+          if (u > 0 && u < 1) {
+            ctx.globalAlpha = f.alpha * .5; ctx.strokeStyle = '#b48bff'; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
+            ctx.beginPath(); ctx.moveTo(A.x, A.y - 20); ctx.quadraticCurveTo(mid.x, mid.y, B.x, B.y - 20); ctx.stroke(); ctx.setLineDash([]);
+            glow({ x: (1 - u) ** 2 * A.x + 2 * u * (1 - u) * mid.x + u * u * B.x, y: (1 - u) ** 2 * (A.y - 20) + 2 * u * (1 - u) * mid.y + u * u * (B.y - 20) + 12 }, 30, '#d9c2ff', f.alpha);
+          }
+        }
+        pop(f.icon, moved ? B : A, f.m, f.alpha, 46);
+      },
+      // Xe ôm: a motorbike taxi zooms up the river carrying the duck past two rivals (in step with its glide), honking
+      // "BÍP BÍP!" and puffing exhaust.
+      xeom(b, f) {
+        const A = b.pre.origin, B = b.origin, k = ease((f.m - .1) / .7), x = A.x + (B.x - A.x) * k, y = A.y + (B.y - A.y) * k;
+        for (let i = 0; i < 8; i++) { const u = (f.age * 2.5 + i / 8) % 1; ctx.globalAlpha = f.alpha * (1 - u) * .55; ctx.fillStyle = '#dcd8d2'; ctx.beginPath(); ctx.arc(x - 48 - u * 90, y - 4 - u * 16 + (noise(i + b.id) - .5) * 8, 5 + u * 13, 0, TAU); ctx.fill(); }
+        ctx.lineCap = 'round'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+        for (let i = 0; i < 5; i++) { const u = (f.age * 4 + i / 5) % 1; ctx.globalAlpha = f.alpha * (1 - u) * .8; line({ x: x - 40 - u * 60, y: y - 30 + i * 9 }, { x: x - 70 - u * 90, y: y - 30 + i * 9 }); }
+        ctx.lineCap = 'butt';
+        splash({ x: x - 30, y: y + 4 }, (f.age * 3) % 1.1, f.alpha * .6, b.id, '#effcff', 10);
+        ctx.save(); ctx.translate(x + 4, y + 2); ctx.scale(-1, 1); emoji(f.icon, 0, 12, 66, f.alpha); ctx.restore(); // the emoji faces left
+        if (f.m < .6) shout('BÍP BÍP!', A.x + 30, A.y - 74, 22, '#ffe27a', f.alpha * (1 - clamp01((f.m - .4) / .2)));
+      },
       torpedo(b, f) {
         const land = b.reflected ? .7 : .45;
         if (f.m < land) {
@@ -1286,7 +1590,7 @@
     function drawTwist(burst, age) {
       const [icon] = TWIST[burst.kind];
       const m = clamp01(age / TWIST_MAIN), fade = clamp01((age - TWIST_MAIN) / (burst.life - TWIST_MAIN));
-      PAINT[burst.kind](burst, { m, fade, alpha: 1 - fade, icon });
+      PAINT[burst.kind](burst, { m, fade, alpha: 1 - fade, icon, age });
       ctx.globalAlpha = 1;
     }
     function draw(sample, elapsed, { running = true } = {}) {
@@ -1302,6 +1606,7 @@
       drawWater(elapsed);
       drawWeather(elapsed, sample);
       for (const racer of sample) drawWake(racer, sample, elapsed, running);
+      drawStates(sample, elapsed);
       bursts = bursts.filter(b => elapsed - b.time < b.life);
       bursts.forEach(b => drawBurst(b, elapsed)); ctx.globalAlpha = 1;
     }
@@ -1335,5 +1640,5 @@
     }
     root.requestAnimationFrame(frame);
   }
-  root.DuckRaceVisuals = Object.freeze({ create, celebrate });
+  root.DuckRaceVisuals = Object.freeze({ create, celebrate, golden });
 })(typeof window !== 'undefined' ? window : globalThis);
