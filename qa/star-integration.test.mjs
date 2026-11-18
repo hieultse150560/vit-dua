@@ -20,7 +20,7 @@ function setup(game) {
   game.fill('setup-names', names.join('\n'));
   game.fill('setup-date', '2026-11-04');
   game.fill('setup-rounds', '10');
-  game.fill('setup-duration', '40');
+  game.fill('setup-duration', '55');
   game.$('setup-form').dispatchEvent(new game.window.Event('submit', { bubbles: true, cancelable: true }));
   assert.equal(game.$('setup-error').textContent, '');
 }
@@ -104,7 +104,7 @@ test('v3 day in progress: new-engine races, no star toggle', async () => {
   try {
     pickRest(game, () => assert.equal(toggle(game).hidden, true));
     game.click('start');
-    assert.equal(current(game).active.engine, 'chaos-v3');
+    assert.equal(current(game).active.engine, 'chaos-v4');
     noErrors(game);
   } finally { await game.close(); }
 });

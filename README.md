@@ -79,6 +79,29 @@ Mỗi vịt được bốc một skill riêng (không trùng nhau khi có đủ 
 | 🌋 Núi lửa phun (`chaos-v3`) | Đá nham thạch rơi trúng 3 con bất kỳ, kể cả mình: 35% bị hất lên 2%, còn lại lùi 3% và quay 0,3 giây. |
 | 🎆 Pháo hoa (`chaos-v3`) | 4 quả pháo rơi vào 4 con khác nhau (mình ít bị chọn hơn một nửa), con trúng lật 0,5 giây. |
 
+### `chaos-v4`: 10 skill mới, chướng ngại, cân bằng lại
+
+Trận mới chạy `chaos-v4`: giữ toàn bộ luật `chaos-v3`, thêm 10 skill, chướng ngại khi chơi có phòng và một bộ thông số riêng. Trận đã chơi vẫn dựng lại bằng engine của nó (`chaos-v3` không đổi gì), nên nhật ký và danh hiệu các ngày trước không lệch. Ngày đua mới mặc định **55 giây** mỗi lượt (tối thiểu 50 giây); ngày đang dở giữ thời lượng cũ.
+
+| Skill mới | Hạng | Tác dụng |
+|---|---|---|
+| 🍜 Tô phở | B | Dừng lại húp phở 0,6 giây, rồi nhanh hơn 40% trong 4 giây. |
+| ☕ Cà phê sữa đá | B | 4 giây tỉnh như sáo: hết choáng ngay, không bị choáng hay làm chậm, không vấp chướng ngại, nhanh hơn 18%. |
+| 💸 Rải tiền | A | 2 con dẫn đầu dừng lại nhặt tiền 1,4 giây. Nhắm được 2 con. |
+| 🕸️ Lưới đánh cá | B | Chụp con dẫn đầu đứng im 0,8 giây, dây lưới kéo mình lên 1%. Nhắm được. |
+| 🪁 Diều gió | A | Bay 2,5 giây, nhanh hơn 35%, bay qua mọi chướng ngại. |
+| ⛈️ Mây đen | S | Mây bám con dẫn đầu 4 giây: chậm 45% (không tính là choáng), hết mây thì sét đánh lật 1,3 giây. Nhắm được. |
+| ⏳ Đồng hồ cát | S | Mọi con phía trước đứng hình 2 giây (đang dẫn thì 2 con ngay sau). |
+| 📣 Loa phường | C | Mọi con trong tầm 8% quanh mình (ít nhất 2 con gần nhất) khựng 1,2 giây. |
+| 🌀 Cổng không gian | C | Trồi ra ở một hạng ngẫu nhiên từ hạng 1 tới hạng hiện tại (đang dẫn thì vọt lên 2%). |
+| 🛵 Xe ôm | A | Chở vượt đúng 2 con. |
+
+**Chướng ngại (chỉ khi chơi có phòng):** 4 hàng chắn ngang sông, từ khoảng 18% đến 86% chặng (trận dưới 50 giây có 3 hàng), mỗi làn một loại: 🪵 khúc gỗ, 🪨 đá ngầm thì nhảy (phím ↑); 🌿 cành cây thấp, 🦅 chim sà thì lặn (phím ↓). Trên máy người chơi, chướng ngại của vịt mình lộ diện 3 giây trước khi tới, kèm hai nút ⬆️ Nhảy / ⬇️ Lặn. Phím chỉ tính khi bấm trước lúc chạm từ 1 đến 3 giây (bấm nhiều lần thì lấy lần cuối): đúng phím thì né, sai phím, bấm trễ hoặc không bấm thì vấp, choáng 0,8 giây (khúc gỗ, đá: lật; cành, chim: quay). Người lái là người tự chọn vịt trên máy mình; vịt do máy chủ chọn hộ né theo may rủi (60%, cố định theo trận). Vịt đang bay, tàng hình hay khổng lồ thì vượt qua luôn; đang uống cà phê thì không vấp. Lệnh né đi như lệnh tung skill (mang theo giờ trận trên máy người bấm, chỉ đổi trận từ 1 giây sau lúc bấm), nên mọi máy vẫn cùng một trận, kể cả khi tab máy chủ đang ẩn. Chơi một màn hình không mở phòng thì không có chướng ngại.
+
+**Cân bằng lại cho trận 55 giây** (mô phỏng 48.000 trận, nửa một màn hình, nửa có phòng): trận dài hơn làm đòn hất lùi mạnh lên và đòn gây choáng yếu đi, nên hạng S bị nerf, hạng C được buff, mọi skill thắng trong khoảng ×0,87–1,13 phần công bằng (trước đó ×0,8–1,3).
+- Nerf: Sóng thần đẩy lùi 10% → 6,5%; Rồng nước quật lùi 4% → 2% (cõng 2% → 1,5%); Tua ngược 2 → 1,6 giây; Lốc xoáy để nạn nhân giữ tới 80% khoảng dẫn trên con chót (trước 30%), quay 1,5 → 1 giây; Nam châm từ dưới chỉ hút lên hạng 5 (hạng 3–6 lên 1 bậc, đang nhì vẫn lên dẫn); Bạch tuộc kéo 2% → 1,5%, giữ 1 → 0,8 giây; Cánh vàng vượt 2 con (trước 2–3); Cá voi vượt 2 con (trước 3); Tàng hình xuyên 1 con (trước 2); Đĩa bay ít bắt nhầm hơn (bắt nhầm là tự thả mình lên tốp đầu: 25% → 20%), nhấc 1,5 → 0,6 giây; Xúc xắc ra 1 lật 1 → 2 giây.
+- Buff: Sét 1,4 → 1,7 giây; Tên lửa tầm nhiệt lật 1 → 1,3 giây; Thủy lôi 2 → 3,5 giây; Biến ếch 2,4 → 3,6 giây; Mỏ neo 1,2 → 1,6 giây; Bóng bay 1,5 → 4,5 giây; Núi lửa hất lùi 3% → 5%, đá trúng chính mình thì luôn hất lên; Pháo hoa lật 0,5 → 1,8 giây; Vỏ chuối 1,5 → 3,8 giây; Bơi ngược 1,5 → 2,5 giây; Đàn ong 2 → 4 giây; Bom hẹn giờ hất lùi 5% → 11%, lật 1,2 → 1,8 giây.
+
 Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 7)` khi đông vịt):
 
 - 🪨 **Vấp đá:** con đang dẫn vấp ngã, đứng yên 1,5 giây. 70% rơi vào 3 giây cuối.

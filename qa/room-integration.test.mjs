@@ -15,9 +15,9 @@ const submit = (game, id) => game.$(id).dispatchEvent(new game.window.Event('sub
 const duck = (game, id) => game.window.document.querySelector(`#duck-grid [data-duck-id="${id}"]`);
 // Every duck deals the heat-seeking missile: an active skill that aims, so the cast tests never depend on the deal.
 const engine = readFileSync(new URL('../dist/chaos-engine-v2.js', import.meta.url), 'utf8');
-const missileDeal = 'return dealLineup(V3_RULES, count, seed);';
+const missileDeal = 'return dealLineup(V4_RULES, count, seed);';
 if (!engine.includes(missileDeal)) throw Error('the engine changed: update missileDeal');
-const dealing = skill => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V3_RULES, count, seed), skills: Array(count).fill('${skill}') };`) } });
+const dealing = skill => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V4_RULES, count, seed), skills: Array(count).fill('${skill}') };`) } });
 const missiles = dealing('missile');
 const key = (game, code, name = code) => game.window.document.body.dispatchEvent(new game.window.KeyboardEvent('keydown', { code, key: name, bubbles: true }));
 const order = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.children[1].textContent);
@@ -26,7 +26,7 @@ async function sync(host, viewer, ms = 200) { host.advance(ms, 50); viewer?.adva
 test('a race room: each player picks on their own turn from their own page and watches the race there', async () => {
   const host = loadGame({}, withChannel); let viewer;
   try {
-    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
     submit(host, 'setup-form'); await settle();
     assert.equal(host.$('room-dialog').open, true, 'a new day opens the room with everyone\'s link');
     const code = host.storage()['vit-dua-room'];
@@ -70,7 +70,7 @@ test('a race room: each player picks on their own turn from their own page and w
 test('with a room open, a player who does not pick within 10 s gets a random duck', async () => {
   const host = loadGame({}, withChannel); let viewer;
   try {
-    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
     submit(host, 'setup-form'); await settle();
     const code = host.storage()['vit-dua-room'];
     viewer = loadGame({}, { ...withChannel, url: `http://localhost/?phong=${code}&ten=An` });
@@ -95,7 +95,7 @@ test("a player's page follows the host: a paused race's totals, the next pick ro
   const pickAll = async () => { for (let i = 0; i < 5 && host.$('start').disabled; i++) host.click('random-picks'); await sync(host, viewer); };
   const race = async () => { for (let i = 0; i < 30 && !host.$('result-dialog').open; i++) { host.advance(4000, 50); viewer.advance(4000, 50); await settle(); } await sync(host, viewer); };
   try {
-    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
     submit(host, 'setup-form'); await settle();
     const code = host.storage()['vit-dua-room'];
     host.click('room-close'); host.click('skills-close');
@@ -131,7 +131,7 @@ test("a player's page follows the host: a paused race's totals, the next pick ro
 test('in a room each player casts their own skill from their page, aimed at any rival; the host casts for others; a skill nobody cast casts itself', async () => {
   const host = loadGame({}, missiles); let viewer;
   try {
-    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
     submit(host, 'setup-form'); await settle();
     const code = host.storage()['vit-dua-room'];
     host.click('room-close'); host.click('skills-close');
@@ -185,12 +185,12 @@ test('in a room each player casts their own skill from their page, aimed at any 
 
     const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
     assert.equal(replay.lineup.casts[binhDuck], null, "Bình's skill was never cast by hand");
-    const race = host.window.DuckChaosEngineV3.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 40, replay.seed, replay.lineup);
+    const race = host.window.DuckChaosEngineV4.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
     const fired = id => race.events.filter(e => e.type === 'skill' && e.activation && e.actorId === id);
     assert.ok(Math.abs(fired(anDuck)[0].time - cast) < 0.06, "the replay fires An's skill when An cast it");
     assert.equal(fired(anDuck)[0].targetId, other, 'at the rival An aimed at');
     assert.equal(fired(binhDuck).length, 1, "Bình's skill cast itself after the deadline");
-    assert.ok(Math.abs(fired(binhDuck)[0].time - race.castWindow.auto[binhDuck]) < 0.06 && fired(binhDuck)[0].time > 40 * 0.55);
+    assert.ok(Math.abs(fired(binhDuck)[0].time - race.castWindow.auto[binhDuck]) < 0.06 && fired(binhDuck)[0].time > 55 * 0.55);
     assert.deepEqual(current(host).session.rounds[0].entries.map(e => e.duckId), Array.from(race.results, r => r.id), 'the replay rebuilds the scored race');
     assert.deepEqual(order(viewer), order(host), 'the player saw the same race');
     assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
@@ -200,7 +200,7 @@ test('in a room each player casts their own skill from their page, aimed at any 
 test('when nobody casts, every skill casts itself after the deadline, spread out and before the finale rock', async () => {
   const host = loadGame({}, withChannel);
   try {
-    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'A\nB\nC\nD\nE\nF\nG\nH'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'A\nB\nC\nD\nE\nF\nG\nH'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
     submit(host, 'setup-form'); await settle();
     host.click('room-close'); host.click('skills-close');
     for (let i = 0; i < 8; i++) host.click('random-picks');
@@ -208,13 +208,13 @@ test('when nobody casts, every skill casts itself after the deadline, spread out
     for (let i = 0; i < 40 && !host.$('result-dialog').open; i++) host.advance(4000, 50);
     const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
     assert.ok(replay.lineup.casts.every(c => c === null), 'nobody cast by hand');
-    const race = host.window.DuckChaosEngineV3.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 40, replay.seed, replay.lineup);
+    const race = host.window.DuckChaosEngineV4.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
     const active = skills.map((s, i) => i).filter(i => !['mirror', 'buoy'].includes(skills[i]));
     const fired = race.events.filter(e => e.type === 'skill' && e.activation && e.scheduled && active.includes(e.actorId));
     assert.deepEqual(Array.from(fired, e => e.actorId).sort(), Array.from(active), 'every active skill fired, once');
     const finale = race.events.find(e => e.finale), twists = race.events.filter(e => e.scheduled).map(e => e.time);
     for (const e of fired) {
-      assert.ok(e.time >= 40 * 0.55, `after the deadline (${e.time})`);
+      assert.ok(e.time >= 55 * 0.55, `after the deadline (${e.time})`);
       if (finale) assert.ok(e.time < finale.time, `before the finale rock (${finale.time})`);
       assert.equal(twists.filter(x => Math.abs(x - e.time) < 0.25).length, 1, `no twist on top of the cast at ${e.time}`);
     }
@@ -225,7 +225,7 @@ test('when nobody casts, every skill casts itself after the deadline, spread out
 test("with the host's tab in the background (its race clock stopped), a player's cast still lands where they pressed and every skill still fires on their page", async () => {
   const host = loadGame({}, missiles); let viewer;
   try {
-    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
     submit(host, 'setup-form'); await settle();
     const code = host.storage()['vit-dua-room'];
     host.click('room-close'); host.click('skills-close');
@@ -239,10 +239,10 @@ test("with the host's tab in the background (its race clock stopped), a player's
     for (let i = 0; i < 40 && viewer.$('cast').disabled; i++) { viewer.advance(500, 50); await settle(); }
     viewer.click('cast'); await settle(); await settle(); viewer.advance(100, 50); // the request hops to the host, its answer hops back
     const cast = current(host).active.lineup.casts[1];
-    assert.ok(Number.isFinite(cast) && cast >= 40 * 0.12 + 1 - 1e-9 && cast <= 40 * 0.12 + 5, `placed from the player's own race time (${cast})`);
+    assert.ok(Number.isFinite(cast) && cast >= 55 * 0.12 + 1 - 1e-9 && cast <= 55 * 0.12 + 5, `placed from the player's own race time (${cast})`);
     assert.match(viewer.$('cast').textContent, /Đang gồng/, "the player's page has it before the wind-up ends");
     let missilesFired = 0; // the race log, read until the result clears it
-    for (let i = 0; i < 60 && !viewer.$('result-dialog').open; i++) {
+    for (let i = 0; i < 120 && !viewer.$('result-dialog').open; i++) {
       missilesFired = [...viewer.window.document.querySelectorAll('#event-history > *')].filter(e => e.textContent.includes('🎯')).length;
       viewer.advance(1000, 50); await settle();
     }
@@ -258,7 +258,7 @@ test("with the host's tab in the background (its race clock stopped), a player's
 test('a multi-target skill lets its owner pick that many rivals: the top ones are suggested, a click picks or drops one', async () => {
   const bees = dealing('bees'), host = loadGame({}, bees); let viewer;
   try {
-    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình\nChi'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '40');
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình\nChi'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
     submit(host, 'setup-form'); await settle();
     const code = host.storage()['vit-dua-room'];
     host.click('room-close'); host.click('skills-close');
@@ -286,5 +286,42 @@ test('a multi-target skill lets its owner pick that many rivals: the top ones ar
     key(viewer, 'Space', ' '); await sync(host, viewer);
     assert.deepEqual(Array.from(current(host).active.lineup.targets[1]), [top[0], top[1]], 'both rivals reach the host, in the order picked');
     assert.deepEqual(host.errors.map(String), []); assert.deepEqual(viewer.errors.map(String), []);
+  } finally { await host.close(); await viewer?.close(); }
+});
+
+test('obstacles: a player steers their own duck with ↑ ↓ from their page; the host gets the key; the river shows every lane', async () => {
+  const host = loadGame({}, withChannel); let viewer;
+  try {
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
+    submit(host, 'setup-form'); await settle();
+    const code = host.storage()['vit-dua-room'];
+    host.click('room-close'); host.click('skills-close');
+    viewer = loadGame({}, { ...withChannel, url: `http://localhost/?phong=${code}&ten=An` });
+    await sync(host, viewer);
+    duck(host, 0).click(); await sync(host, viewer);
+    duck(viewer, 1).click(); await sync(host, viewer);
+    host.click('random-picks'); await sync(host, viewer);
+    host.click('start'); await sync(host, viewer);
+    const lineup = () => current(host).active.lineup, pad = viewer.$('dodge-pad');
+    assert.equal(current(host).active.engine, 'chaos-v4');
+    assert.deepEqual(lineup().pilots, [false, true, false], 'only the player who picked on their own page steers');
+    assert.equal(pad.hidden, false, 'the player gets the pad');
+    assert.equal(host.$('dodge-pad').hidden, true, 'the host does not');
+    for (let i = 0; i < 160 && pad.dataset.state !== 'reveal'; i++) await sync(host, viewer, 150);
+    assert.equal(pad.dataset.state, 'reveal', viewer.$('dodge-status').textContent);
+    const markers = [...viewer.window.document.querySelectorAll('.obstacle-marker')];
+    assert.ok(markers.length >= 3 * 3 - 3, `the river shows each lane's obstacles (${markers.length})`);
+    assert.ok(markers.some(m => m.classList.contains('mine') && m.dataset.state === 'shown'), "the player's own obstacle is revealed");
+    assert.ok(host.window.document.querySelectorAll('.obstacle-marker').length > 0, 'the host shows them too');
+    const up = /Khúc gỗ|Đá ngầm/.test(viewer.$('dodge-status').textContent), name = up ? 'ArrowUp' : 'ArrowDown';
+    // A change of mind: the wrong key, then at once the right one, before the host echoes either. The latest counts.
+    const wrong = up ? 'ArrowDown' : 'ArrowUp';
+    key(viewer, wrong, wrong); viewer.advance(60, 30); key(viewer, name, name); await sync(host, viewer, 50);
+    assert.equal(pad.dataset.state, 'pressed', viewer.$('dodge-status').textContent);
+    assert.equal(lineup().dodges[1]?.length, 2, 'the host has both keys');
+    assert.equal(lineup().dodges[1].at(-1)[1], up ? 'up' : 'down');
+    for (let i = 0; i < 40 && !['pass', 'hit'].includes(pad.dataset.state); i++) await sync(host, viewer, 100);
+    assert.equal(pad.dataset.state, 'pass', viewer.$('dodge-status').textContent);
+    assert.ok(![...viewer.$('event-history').children].some(li => /chướng ngại|NÉ ĐẸP/i.test(li.textContent)), 'obstacles stay out of the race log');
   } finally { await host.close(); await viewer?.close(); }
 });

@@ -65,3 +65,19 @@ test('lightning, reverse and freeze hits make victims; flip and rewind count duc
   assert.deepEqual(awards.unlucky.playerIds, ['p0']);
   assert.equal(awards.unlucky.value, 4);
 });
+
+test('chaos-v4: an obstacle dodged by key makes a dodger, a trip a victim; luck counts for neither', () => {
+  const r = race([1, 2, 3, 4], [1, 2, 3, 4], [
+    { type: 'obstacle', actorId: 1, obstacle: 'log', key: 'up', outcome: 'dodged' },
+    { type: 'obstacle', actorId: 1, obstacle: 'bird', key: 'down', outcome: 'dodged' },
+    { type: 'obstacle', actorId: 2, obstacle: 'rock', key: 'up', outcome: 'lucky' },
+    { type: 'obstacle', actorId: 3, obstacle: 'branch', key: 'down', outcome: 'hit' },
+    { type: 'skill', skill: 'net', actorId: 0, targetId: 3, outcome: 'hit' }
+  ]);
+  const awards = byId(W.compute([{ race: r, ownerOf: owners }]));
+  assert.deepEqual(awards.dodger.playerIds, ['p1']);
+  assert.equal(awards.dodger.value, 2);
+  assert.deepEqual(awards.unlucky.playerIds, ['p3']);
+  assert.equal(awards.unlucky.value, 2);
+  assert.deepEqual(awards.hitman.playerIds, ['p0']);
+});

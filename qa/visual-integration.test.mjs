@@ -208,14 +208,21 @@ test('every v2 event kind maps to a visual burst without throwing', async () => 
       ['skill', 'balloon', 'hit', '🎈'], ['hazard', 'hippo', 'hit', '🦛'], ['hazard', 'log', 'hit', '🪵'], ['hazard', 'frog', 'boost', '🐸'],
       ['skill', 'bomb', 'armed', '💣'], ['skill', 'bomb', 'hit', '💥'], ['skill', 'dice', 'roll', '🎲'], ['skill', 'lullaby', 'asleep', '💤'], ['skill', 'hex', 'hit', '🪄'], ['skill', 'giant', 'giant', '🍄'],
       ['skill', 'kraken', 'grabbed', '🐙'], ['skill', 'dragon', 'swept', '🐉'], ['skill', 'meteor', 'hit', '☄️'], ['skill', 'whale', 'fly', '🐋'], ['skill', 'ufo', 'hit', '🛸'],
-      ['skill', 'ufo', 'mistake', '🛸'], ['skill', 'pirate', 'hit', '🏴‍☠️'], ['skill', 'wheel', 'jackpot', '🎡'], ['skill', 'anchor', 'hit', '⚓'], ['skill', 'volcano', 'erupted', '🌋'], ['skill', 'fireworks', 'hit', '🎆']
+      ['skill', 'ufo', 'mistake', '🛸'], ['skill', 'pirate', 'hit', '🏴‍☠️'], ['skill', 'wheel', 'jackpot', '🎡'], ['skill', 'anchor', 'hit', '⚓'], ['skill', 'volcano', 'erupted', '🌋'], ['skill', 'fireworks', 'hit', '🎆'],
+      ['skill', 'swap', 'swapped', '🔄'], ['skill', 'swap', 'blocked', '🔄'],
+      // chaos-v4 (the rain cloud's closing bolt is not a cast: no activation)
+      ['skill', 'pho', 'eat', '🍜', 'NO BỤNG!'], ['skill', 'coffee', 'awake', '☕', 'TỈNH!'], ['skill', 'cash', 'hit', '💸', '🤑'], ['skill', 'net', 'hit', '🕸️'], ['skill', 'net', 'blocked', '🕸️'],
+      ['skill', 'kite', 'fly', '🪁'], ['skill', 'cloud', 'hit', '⛈️'], ['skill', 'cloud', 'struck', '⚡'], ['skill', 'hourglass', 'frozen', '⏳'],
+      ['skill', 'loudspeaker', 'startled', '📣', 'A LÔ! A LÔ!'], ['skill', 'portal', 'teleport', '🌀'], ['skill', 'xeom', 'ride', '🛵', 'BÍP BÍP!']
     ];
-    cases.forEach(([type, id, outcome, icon], index) => {
+    cases.forEach(([type, id, outcome, icon, words], index) => {
       game.window.__drawn.length = 0; game.window.__calls.length = 0;
-      const event = { id: `event-${index}`, time: 10, type, [type === 'skill' ? 'skill' : 'hazard']: id, outcome, actorId: 0, targetId: 1, affectedIds: [1, 2, 3], icon };
+      const event = { id: `event-${index}`, time: 10, type, [type === 'skill' ? 'skill' : 'hazard']: id, outcome, actorId: 0, targetId: 1, affectedIds: [1, 2, 3], icon, ...(outcome === 'struck' ? {} : { activation: true }) };
       visuals.event(event, sample, 10);
-      visuals.draw(sample, 10.2); visuals.draw(sample, 10.6);
+      visuals.draw(sample, 10.05); visuals.draw(sample, 10.2); visuals.draw(sample, 10.6); visuals.draw(sample, 10.9);
       assert.ok(game.window.__drawn.includes(icon), `${id}/${outcome} drew ${JSON.stringify(game.window.__drawn)}`);
+      if (words) assert.ok(game.window.__drawn.includes(words), `${id} shouts ${words}: ${JSON.stringify(game.window.__drawn)}`);
+      if (id === 'swap' && outcome === 'swapped') assert.ok(game.window.__calls.filter(c => c === 'lineTo').length >= 40, 'swap draws two crossing arcs, not the old chaos-v1 burst');
       if (id === 'mirror') assert.ok(game.window.__calls.includes('createLinearGradient') && game.window.__calls.includes('lineTo'), 'mirror draws a glassy pane and a light beam');
       if (['torpedo', 'rock'].includes(id) || outcome === 'exploded') assert.ok(game.window.__calls.filter(c => c === 'arc').length >= 10, `${id} throws up a water splash`);
     });
@@ -351,7 +358,7 @@ test('twists play their synthesized sound effect when sound is on', async () => 
   const game = loadGame({ [KEY]: JSON.stringify(v2Fixture(4242, 4)) }, { scripts: { 'sound-fx.js': spy }, beforeScripts: fakeAudio });
   try {
     game.click('resume-overlay'); advanceToTwist(game, e);
-    assert.equal(game.window.__sfx.at(-1), real.kindOf(e));
+    assert.ok(game.window.__sfx.includes(real.kindOf(e)), JSON.stringify(game.window.__sfx)); // later hits of the twist queue after it
     assert.deepEqual(game.errors.map(String), []);
   } finally { await game.close(); }
 });

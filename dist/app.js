@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV3, SOUND_KEY='vit-dua-sound';
-  // Saved races replay with the engine version they were started on.
-  const ENGINES={[C.version]:C,[C2.version]:C2,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
+  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV4, C3old=DuckChaosEngineV3, SOUND_KEY='vit-dua-sound';
+  // Saved races replay with the engine version they were started on. New races run chaos-v4 (C3: it keeps every chaos-v3 skill).
+  const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
@@ -21,7 +21,7 @@
     if(cast)n+=race.racers.filter(r=>!C3.passive.includes(r.skill.id)).length; // a race with casts sizes it from every skill to come, so it never changes mid-race
     slowMs=Math.round(Math.max(SLOW_MIN,Math.min(SLOW_MAX,((race?.duration||40)*.5/Math.max(1,n)+SLOWMO_WINDOW)*1000)));document.documentElement.style.setProperty('--fx-time',`${slowmoMs()/1000}s`);}
   // New days race at least this long so every twist has room to play out (older days keep their length).
-  const MIN_RACE_SECONDS=40;let slowmoUntil=0;
+  const MIN_RACE_SECONDS=50,DEFAULT_RACE_SECONDS=55;let slowmoUntil=0;
   // Photo finish: when the runner-up ends within PHOTO_GAP of the line, the last
   // PHOTO_WINDOW race-seconds play at PHOTO_RATE with the camera on the finish line.
   const PHOTO_GAP=.015, PHOTO_WINDOW=1.2, PHOTO_RATE=.3;let photoFinish=false, photoActive=false;
@@ -38,7 +38,7 @@
   let race=null, phase='idle', raf=null, lastTime=0, lastSaved=0, nodes=[], runwayWidth=0;
   let audio=null, sound=soundPref(), lastTick=-1, sprintAnnounced=false, leadersKey='', toastTimer;
   let dialogAction=()=>{}, storageBlocked=false;
-  let eventCursor=0, runeMarkerKey='', skillNodes=[];
+  let eventCursor=0, runeMarkerKey='', skillNodes=[], obstacleKey='', obstacleMeets=null, pendingDodges=[], hostLineup=null, obstacleSfxAt=0;
   let visuals=null, racerViews=[], owners=[], currentSample=[], checkpoint=null, runeSpawns=[], lastTimerText='', lastSprintState=false;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   const node=(tag,className,text)=>{const e=document.createElement(tag);if(className)e.className=className;if(text!==undefined)e.textContent=text;return e;};
@@ -94,8 +94,10 @@
   const lineupOk=(l,count)=>!!l&&typeof l==='object'&&['skills','traits'].every(k=>Array.isArray(l[k])&&l[k].length===count)&&l.skills.every(id=>C3.skills.some(s=>s.id===id))&&l.traits.every(id=>C3.traits.some(t=>t.id===id))
     &&(l.luck===undefined||Array.isArray(l.luck)&&l.luck.length===count&&l.luck.every(v=>Number.isInteger(v)&&v>=0&&v<=3))&&(l.rule===undefined||knownRule(l.rule))
     &&(l.casts===undefined||Array.isArray(l.casts)&&l.casts.length===count&&l.casts.every(t=>t===null||Number.isFinite(t)&&t>=0))
-    &&(l.targets===undefined||Array.isArray(l.targets)&&l.targets.length===count&&l.targets.every(t=>t===null||duckNo(t,count)||Array.isArray(t)&&t.length>0&&t.every(x=>duckNo(x,count))&&new Set(t).size===t.length));
-  const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{}),...(l.rule?{rule:l.rule}:{}),...(l.casts?{casts:[...l.casts]}:{}),...(l.targets?{targets:l.targets.map(t=>Array.isArray(t)?[...t]:t)}:{})});
+    &&(l.targets===undefined||Array.isArray(l.targets)&&l.targets.length===count&&l.targets.every(t=>t===null||duckNo(t,count)||Array.isArray(t)&&t.length>0&&t.every(x=>duckNo(x,count))&&new Set(t).size===t.length))
+    &&(l.pilots===undefined||Array.isArray(l.pilots)&&l.pilots.length===count&&l.pilots.every(p=>typeof p==='boolean'))
+    &&(l.dodges===undefined||Array.isArray(l.dodges)&&l.dodges.length===count&&l.dodges.every(d=>d===null||Array.isArray(d)&&d.length<=60&&d.every(p=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&p[0]>=0&&(p[1]==='up'||p[1]==='down'))));
+  const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{}),...(l.rule?{rule:l.rule}:{}),...(l.casts?{casts:[...l.casts]}:{}),...(l.targets?{targets:l.targets.map(t=>Array.isArray(t)?[...t]:t)}:{}),...(l.pilots?{pilots:[...l.pilots]}:{}),...(l.dodges?{dodges:l.dodges.map(d=>d&&d.map(p=>[...p]))}:{})});
   // Special rule: a new one each round (days made before rules existed have none).
   const dayRuleOf=id=>C3.dayRules.find(r=>r.id===id);
   const knownRule=id=>!!dayRuleOf(id)||C3.retiredDayRules.some(r=>r.id===id); // retired rules still rebuild races already played
@@ -166,7 +168,7 @@
   function tone(f,d=.12,delay=0){if(!sound||!audio||audio.state!=='running')return;const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime+delay;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.10,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+d+.02);o.onended=()=>{o.disconnect();g.disconnect();};}
   function stop(){if(raf!==null)cancelAnimationFrame(raf);raf=null;}
   function schedule(){raf=requestAnimationFrame(frame);}
-  function clearRace(){stop();visuals?.destroy();visuals=null;race=null;phase='idle';eventCursor=0;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];checkpoint=null;lastTimerText='';lastSprintState=false;$('river').classList.remove('is-running');$('race-overlay').hidden=true;$('timer').classList.remove('sprint');$('skill-reveal').replaceChildren();$('event-history').replaceChildren();$('event-feed').replaceChildren();}
+  function clearRace(){stop();cancelSfx();visuals?.destroy();visuals=null;race=null;phase='idle';eventCursor=0;runeMarkerKey='';obstacleKey='';pendingDodges=[];hostLineup=null;document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());skillNodes=[];if($('dodge-pad'))$('dodge-pad').hidden=true;racerViews=[];currentSample=[];checkpoint=null;lastTimerText='';lastSprintState=false;$('river').classList.remove('is-running');$('race-overlay').hidden=true;$('timer').classList.remove('sprint');$('skill-reveal').replaceChildren();$('event-history').replaceChildren();$('event-feed').replaceChildren();}
 
   function render(){
     if(!current)return;
@@ -228,16 +230,18 @@
     $('round-history').replaceChildren(...(records.length?records.map(({r,type})=>{const b=node('button','history-card'),winner=r.entries[0];b.disabled=!!current.active;b.append(node('span','',type==='tie'?'⚖ LƯỢT PHÂN ĐỊNH':`VÒNG ${String(r.number).padStart(2,'0')}`),node('strong','',`🥇 ${playerName(winner.playerId)}`),node('small','',`${A.name(winner.duckId)}${type==='regular'?` · +${winner.points} điểm`:' · Không cộng điểm'}`));b.onclick=()=>showRound(r,type,false);return b;}):[node('p','empty','Chưa có vòng đua nào. Cả hội sẵn sàng chưa?')]));
   }
   function focusDuck(id){const target=id===undefined?null:$('duck-grid').querySelector(`[data-duck-id="${id}"]:not(:disabled)`);(target||$('duck-grid').querySelector('button:not(:disabled)'))?.focus({preventScroll:true});}
-  function pick(duck){if(viewer){viewerPick(duck);return;}if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const players=participants(),nextId=queue().nextPlayerId;if(!nextId||!Number.isInteger(duck)||duck<0||duck>=players.length||Object.values(current.picks).includes(duck))return;current.picks[nextId]=duck;if((starArmed||T.starForced(current.session,nextId))&&current.type==='regular'&&T.starAvailable(current.session,nextId))current.stars=[...starsOf(),nextId];starArmed=false;save();render();if(Object.keys(current.picks).length===players.length)$('start').focus({preventScroll:true});else focusDuck();}
+  // own: the player picked on their own device, so they steer their duck through the obstacles.
+  function pick(duck,own=false){if(viewer){viewerPick(duck);return;}if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const players=participants(),nextId=queue().nextPlayerId;if(!nextId||!Number.isInteger(duck)||duck<0||duck>=players.length||Object.values(current.picks).includes(duck))return;current.picks[nextId]=duck;current.pilots=[...(current.pilots||[]).filter(p=>p!==nextId),...(own?[nextId]:[])];if((starArmed||T.starForced(current.session,nextId))&&current.type==='regular'&&T.starAvailable(current.session,nextId))current.stars=[...starsOf(),nextId];starArmed=false;save();render();if(Object.keys(current.picks).length===players.length)$('start').focus({preventScroll:true});else focusDuck();}
   function viewerPick(duck){if(!room||!current||current.active||current.stage!=='picking')return;if(!meId||queue().nextPlayerId!==meId){toast('Chưa tới lượt bạn chọn.');return;}if(Object.values(current.picks).includes(duck))return;const star=starArmed;starArmed=false;Promise.resolve(room.send({player:meId,duck,star})).then(()=>toast('Đã gửi lựa chọn, chờ máy chủ phòng xác nhận…',2500)).catch(e=>toast(e.message));}
-  function undoPick(){if(viewer||!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const last=queue().order.filter(id=>current.picks[id]!==undefined).at(-1);if(!last)return;const duck=current.picks[last];delete current.picks[last];current.stars=starsOf().filter(id=>id!==last);starArmed=false;save();render();focusDuck(duck);}
+  function undoPick(){if(viewer||!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const last=queue().order.filter(id=>current.picks[id]!==undefined).at(-1);if(!last)return;const duck=current.picks[last];delete current.picks[last];current.pilots=(current.pilots||[]).filter(id=>id!==last);current.stars=starsOf().filter(id=>id!==last);starArmed=false;save();render();focusDuck(duck);}
   function randomPicks(){
     if(viewer||!current||current.active||current.stage!=='picking')return;
     const players=participants(), pool=players.map((_,i)=>i).filter(i=>!Object.values(current.picks).includes(i));if(!pool.length)return;
     let x;const cap=4294967296-(4294967296%pool.length);do{x=crypto.getRandomValues(new Uint32Array(1))[0];}while(x>=cap);pick(pool[x%pool.length]);
   }
   function makeTrack(){
-    photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();planSlowmo();glides={};gains=[];hitStop=0;const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
+    photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();planSlowmo();glides={};gains=[];hitStop=0;cancelSfx();
+    bombHolder=-1;bombTickAt=0;bombEnds=(race.events||[]).filter(e=>e.outcome==='armed'&&e.fuse).map(e=>e.time+e.fuse);const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
     owners=race.racers.map(r=>players.find(p=>current.picks[p.id]===r.id)?.name||A.name(r.id));
     runeSpawns=(race.events||[]).filter(e=>e.type==='rune-spawn');
     $('lanes').replaceChildren(...race.racers.map(r=>{
@@ -273,22 +277,36 @@
   }
   function eventItem(event,picks){const item=node('li','race-event',`${event.time.toFixed(1)}s · ${eventText(event,picks)}`);item.dataset.eventId=String(event.id);item.dataset.eventTime=String(event.time);return item;}
   // Twist banner: newest twist in big type; simultaneous twists are counted.
-  const TWIST_TONE={blocked:'guard',reflected:'guard',immune:'guard',swapped:'swap',shuffled:'swap',fly:'boost',boost:'boost',jackpot:'boost',mistake:'boost'}, TONE_HZ={harm:220,boost:880,swap:660,guard:520};
+  // Colours: red harms, green self-buffs, purple tricks (swaps, traps, lullabies), blue guards.
+  const TWIST_TONE={blocked:'guard',reflected:'guard',immune:'guard',swapped:'swap',dropped:'swap',asleep:'swap',fly:'boost',boost:'boost',jackpot:'boost',mistake:'boost',pull:'boost',ghost:'boost',roll:'boost',giant:'boost',eat:'boost',awake:'boost',ride:'boost',teleport:'swap',startled:'swap',none:'swap'}, TONE_HZ={harm:220,boost:880,swap:660,guard:520};
   function twistTone(event){return TWIST_TONE[event.outcome]||(event.outcome==='fallback'&&event.skill!=='mirror'?'boost':'harm');}
+  // chaos-v3 skill tier (S/A/B/C) of an event; a copycat plays at the tier of what it copied. Older races have none.
+  const tierOf=e=>e.type==='skill'&&race?.racers[0]?.skill?.tier?skillOf(e.copied||e.skill)?.tier||null:null;
   function showBanner(list){
     const event=list.at(-1),kind=twistTone(event),banner=$('twist-banner'),icon=event.icon||'✦',full=eventText(event);
     // Mirror/buoy reactions ride on the attack that triggered them, so only scheduled twists count.
     const phases=list.filter(e=>e.scheduled).length;
-    const text=(full.startsWith(`${icon} `)?full.slice(icon.length+1):full)+(phases>1?` · ${phases} pha liên tiếp!`:'');
+    const tier=['S','A'].find(t=>list.some(e=>e.scheduled&&tierOf(e)===t)),star=list.find(e=>e.scheduled&&tierOf(e)==='S');
+    // ✨ SIÊU CẤP: a rare golden version, picked from the race seed and the event so every screen of a room agrees.
+    const gold=!!window.DuckRaceVisuals?.golden?.(race.seed,event);
+    const text=(gold?'✨ SIÊU CẤP · ':'')+(full.startsWith(`${icon} `)?full.slice(icon.length+1):full)+(phases>1?` · ${phases} pha liên tiếp!`:'');
     // Letters drop in one by one; CSS staggers them by --i.
     // Words never break; their letters drop in one by one (CSS staggers by --i).
     const letters=node('span','twist-text');let index=0;
     text.split(' ').forEach((word,w)=>{if(w)letters.append(' ');const span=node('span','twist-word');Array.from(word).forEach(ch=>{const l=node('span','twist-letter',ch);l.style.setProperty('--i',String(index++));span.append(l);});letters.append(span);});
     // Keep the banner off the ducks involved: twists in the top half show it low, and vice versa.
     const ids=list.flatMap(e=>[e.actorId,e.targetId,...(e.affectedIds||[])]).filter(Number.isInteger),high=ids.length&&ids.reduce((a,b)=>a+b,0)/ids.length<(nodes.length-1)/2;
-    banner.replaceChildren(node('span','twist-icon',icon),letters);banner.className=`twist-banner ${kind}${high?' low':''}`;void banner.offsetWidth;banner.hidden=false;bannerUntil=event.time+1.2;if(!playSfx(event))tone(TONE_HZ[kind],.12);
-    startSlowmo(list,kind);
+    const intro=!!star&&sIntro(star);
+    banner.replaceChildren(node('span','twist-icon',icon),letters);banner.className=`twist-banner ${gold?'gold':kind}${high?' low':''}${intro?' after-intro':''}`;void banner.offsetWidth;banner.hidden=false;bannerUntil=event.time+1.2;
+    startSlowmo(list,kind,tier);
+    if(!playSfx(list,[...(intro?[['drop',event.time]]:[]),...(gold?[['sparkle',event.time+.3*SLOWMO_WINDOW]]:[])]))tone(TONE_HZ[kind],.12);
     say(window.DuckCommentary?.line(event,id=>owners[id]||A.name(id)));
+  }
+  // S-tier intro: the river dims for a beat under a big skill-name card (CSS, real time, inside the slow motion it already has).
+  function sIntro(event){
+    const water=document.querySelector('.race-water'),skill=skillOf(event.copied||event.skill);water.querySelector('.s-intro')?.remove();if(!skill)return false;
+    const card=node('div','s-intro');card.setAttribute('aria-hidden','true');card.append(node('span','s-intro-icon',skill.icon),node('strong','s-intro-name',skill.name.toUpperCase()));
+    water.append(card);setTimeout(()=>card.remove(),900);return true;
   }
   // Commentator: a caption on the river, read aloud in Vietnamese when sound is on.
   function say(text){const box=$('commentary');if(!box||!text)return;box.textContent=`🎙️ ${text}`;box.hidden=false;box.classList.remove('fresh');void box.offsetWidth;box.classList.add('fresh');speak(text);}
@@ -301,17 +319,20 @@
     try{const u=new SpeechSynthesisUtterance(text);u.lang='vi-VN';u.voice=voice;u.rate=1.15;u.pitch=1.1;speechSynthesis.cancel();speechSynthesis.speak(u);}
     catch{} // ponytail: speech is a bonus; a browser without it still shows captions
   }
-  function startSlowmo(list,kind){
+  // Slow effects (screen sharing) only zoom and shake for S/A-tier skills, gently: [zoom, zoom-in time, shake strength].
+  const SOFT_CAMERA={S:[1.15,'.5s',.45],A:[1.08,'.5s',.3]};
+  function startSlowmo(list,kind,tier){
     const water=document.querySelector('.race-water');
     nodes.forEach(n=>n.classList.remove('twist-focus'));
     for(const e of list)for(const id of [e.actorId,e.targetId,...(e.affectedIds||[])])if(Number.isInteger(id))nodes[id]?.classList.add('twist-focus');
     water.classList.add('slowmo');water.classList.remove('shake','flash');void water.offsetWidth;water.classList.add('flash');
     // Camera: zoom toward the centre of the ducks involved (river and effects canvas share the origin).
-    const focus=nodes.filter(n=>n.classList.contains('twist-focus')),box=water.getBoundingClientRect();
-    // Slow effects (screen sharing): no zoom or shake, which repaint the whole frame and stutter on Teams.
-if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingClientRect()).reduce((s,r)=>({x:s.x+(r.left+r.width/2-box.left)/focus.length,y:s.y+(r.top+r.height/2-box.top)/focus.length}),{x:0,y:0});
-      water.style.setProperty('--zx',`${Math.round(c.x)}px`);water.style.setProperty('--zy',`${Math.round(c.y)}px`);water.classList.add('zoom');}
-    if(kind==='harm'&&!reduced.matches&&!slowFx){void water.offsetWidth;water.classList.add('shake');hitStop=HIT_STOP_MS;} // reflow restarts the shake
+    const focus=nodes.filter(n=>n.classList.contains('twist-focus')),box=water.getBoundingClientRect(),soft=slowFx&&SOFT_CAMERA[tier];
+    // Slow effects: full zoom and shake repaint the whole frame and stutter on Teams, so only a soft one for big skills.
+    if(focus.length&&!reduced.matches&&(!slowFx||soft)){const c=focus.map(n=>n.getBoundingClientRect()).reduce((s,r)=>({x:s.x+(r.left+r.width/2-box.left)/focus.length,y:s.y+(r.top+r.height/2-box.top)/focus.length}),{x:0,y:0});
+      water.style.setProperty('--zx',`${Math.round(c.x)}px`);water.style.setProperty('--zy',`${Math.round(c.y)}px`);water.style.setProperty('--zoom',soft?String(soft[0]):'1.45');water.style.setProperty('--zoom-in',soft?soft[1]:'.16s');water.classList.add('zoom');}
+    const shake=!reduced.matches&&(soft?tier==='S'||kind==='harm':!slowFx&&(kind==='harm'||tier==='S'));
+    if(shake){water.style.setProperty('--shake',soft?String(soft[2]):'1');void water.offsetWidth;water.classList.add('shake');if(!slowFx&&kind==='harm')hitStop=HIT_STOP_MS;} // reflow restarts the shake
     slowmoUntil=current.active.elapsed+SLOWMO_WINDOW;
   }
   function endSlowmo(){slowmoUntil=0;document.querySelector('.race-water')?.classList.remove('slowmo','shake','flash',...(photoActive?[]:['zoom']));$('twist-banner')?.classList.add('settled');nodes.forEach(n=>n.classList.remove('twist-focus'));}
@@ -329,7 +350,23 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   let stopAmbience=null;
   function startAmbience(){if(stopAmbience||!sound||!audio||audio.state!=='running'||!window.DuckSfx?.ambience)return;stopAmbience=window.DuckSfx.ambience(audio);}
   function endAmbience(){if(stopAmbience){stopAmbience();stopAmbience=null;}}
-  function playSfx(event){const kind=window.DuckSfx?.kindOf(event);if(!kind||!sound||!audio||audio.state!=='running')return false;window.DuckSfx.play(audio,kind);return true;}
+  const sfxOn=()=>sound&&audio&&audio.state==='running'&&!!window.DuckSfx;
+  function sfx(kind){if(sfxOn())window.DuckSfx.play(audio,kind);}
+  // Each sound lands with its painter's hit: a cue at race time `at` is queued on the audio clock, converted to real
+  // seconds at the current playback speed (slow motion, hit-stop). Pausing cancels the queue; resuming queues it again.
+  let sfxAhead=[];
+  function realUntil(at){const e=current.active.elapsed;if(at<=e)return 0;const slow=Math.max(0,Math.min(at,slowmoUntil)-e);return hitStop/1000+slow/slowmoRate()+Math.max(0,at-Math.max(e,slowmoUntil));}
+  // Every sound of the frame's twists (up to 3 kinds, 6 sounds), plus extras ([kind, race time]) that always play.
+  function playSfx(list,extra=[]){
+    if(!sfxOn()||!window.DuckSfx.cues)return false;
+    const kinds=new Set(),plan=[];
+    for(const e of list)for(const [kind,m] of window.DuckSfx.cues(e)){const at=e.time+m*SLOWMO_WINDOW;if(plan.length<6&&(kinds.has(kind)||kinds.size<3)&&!plan.some(p=>p[0]===kind&&Math.abs(p[1]-at)<.01)){kinds.add(kind);plan.push([kind,at]);}}
+    if(!plan.length)return false;
+    const all=[...extra,...plan],now=current.active.elapsed;for(const [kind,at] of all)window.DuckSfx.play(audio,kind,realUntil(at));
+    sfxAhead=[...sfxAhead,...all].filter(([,at])=>at>now);return true;
+  }
+  function requeueSfx(){if(!sfxOn())return;const now=current.active.elapsed;sfxAhead=sfxAhead.filter(([,at])=>at>now);for(const [kind,at] of sfxAhead)window.DuckSfx.play(audio,kind,realUntil(at));}
+  function cancelSfx(keep=false){if(!keep)sfxAhead=[];if(audio)window.DuckSfx?.cancel?.(audio);}
   function closeFinish(r){
     if(!r?.events||r.results.length<2)return false;
     const end=[...r.sample(r.duration)].sort((a,b)=>a.rank-b.rank);return 1-end[1].progress<PHOTO_GAP;
@@ -342,21 +379,23 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function startPhoto(){
     photoActive=true;const water=document.querySelector('.race-water'),box=water.getBoundingClientRect(),line=document.querySelector('.finish-line')?.getBoundingClientRect();
     const top=[...race.results.slice(0,2)].map(r=>nodes[r.id]?.getBoundingClientRect()).filter(Boolean);
-    if(line&&top.length&&!reduced.matches){water.style.setProperty('--zx',`${Math.round(line.left+line.width/2-box.left)}px`);water.style.setProperty('--zy',`${Math.round(top.reduce((s,r)=>s+r.top+r.height/2-box.top,0)/top.length)}px`);water.classList.add('zoom');}
+    if(line&&top.length&&!reduced.matches){water.style.setProperty('--zoom','1.45');water.style.setProperty('--zoom-in','.16s');water.style.setProperty('--zx',`${Math.round(line.left+line.width/2-box.left)}px`);water.style.setProperty('--zy',`${Math.round(top.reduce((s,r)=>s+r.top+r.height/2-box.top,0)/top.length)}px`);water.classList.add('zoom');}
     water.classList.add('photo-finish');
     const banner=$('twist-banner');banner.replaceChildren(node('span','twist-icon','📸'),node('span','twist-text','SÁT NÚT! CHIẾU CHẬM VẠCH ĐÍCH'));banner.className='twist-banner swap';banner.hidden=false;bannerUntil=race.duration+1;
     say('Ngang nhau! Ngang nhau! Chiếu chậm vạch đích nào!');
   }
   // Jumps are instant in the simulation; on screen the ducks glide there (eased) so a wave
   // visibly sweeps them back and a hook visibly reels the leader in. Results are untouched.
-  const GLIDE={whale:{delay:.06,dur:.2},ufo:{delay:.15,dur:.12},dragon:{delay:.05,dur:.22},pirate:{delay:.1,dur:.15},volcano:{delay:.1,dur:.17},wheel:{delay:.17,dur:.1},hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25},tornado:{delay:.07,dur:.2},blackhole:{delay:.1,dur:.1},ghost:{delay:.03,dur:.2},buoy:{delay:0,dur:.25},dice:{delay:.12,dur:.15},giant:{delay:.05,dur:.18}};let glides={};
+  const GLIDE={whale:{delay:.06,dur:.2},ufo:{delay:.15,dur:.12},dragon:{delay:.05,dur:.22},pirate:{delay:.1,dur:.15},volcano:{delay:.1,dur:.17},wheel:{delay:.17,dur:.1},hook:{delay:.1,dur:.17},wave:{delay:0,dur:.25},rewind:{delay:0,dur:.25},tornado:{delay:.07,dur:.2},blackhole:{delay:.1,dur:.1},ghost:{delay:.03,dur:.2},buoy:{delay:0,dur:.25},dice:{delay:.12,dur:.15},giant:{delay:.05,dur:.18},swap:{delay:.02,dur:.2},flip:{delay:0,dur:.2},portal:{delay:.09,dur:.03},xeom:{delay:.03,dur:.2}};let glides={};
   // Ducks thrown back by a tornado are lifted and twirled; by a black hole they shrink into it and pop out behind
-  // (CSS, real time; matches the 1.8 s slow motion).
-  // A buoy bounce hops the duck forward three times. [class, direction of the move it decorates]
-  const BODY_FX={tornado:['swept',-1],blackhole:['swallowed',-1],buoy:['bouncy',1],ufo:['swept',-1]};
+  // (CSS, real time, lasting the slow motion). A buoy bounce hops the duck forward three times; a wave tumbles its
+  // victims, a hook yanks one, a flip somersaults both, a dragon tosses, a kraken drags under.
+  // [class, direction of the move it decorates (0 either way)]; events without moves decorate the ducks they hit.
+  const BODY_FX={tornado:['swept',-1],blackhole:['swallowed',-1],buoy:['bouncy',1],ufo:['swept',-1],wave:['tumbled',-1],hook:['hooked',-1],flip:['flipped',0],dragon:['tossed',-1],kraken:['dunked',-1],portal:['warped',0],xeom:['riding',1]};
   function sweep(event){
     const [cls,dir]=BODY_FX[event.copied||event.skill]||[];if(!cls||reduced.matches)return;
-    for(const [id,d] of Object.entries(event.after||{}))if((d-event.before[id])*dir>1e-9&&nodes[id]){const n=nodes[id];n.classList.remove(cls);void n.offsetWidth;n.classList.add(cls);setTimeout(()=>n.classList.remove(cls),slowmoMs()+100);}
+    const ids=event.after?Object.keys(event.after).filter(id=>{const d=event.after[id]-event.before[id];return (dir?d*dir:Math.abs(d))>1e-9;}):(event.affectedIds||[]).filter(id=>event.outcomes?.[id]==='hit');
+    for(const id of ids)if(nodes[id]){const n=nodes[id];n.classList.remove(cls);void n.offsetWidth;n.classList.add(cls);setTimeout(()=>n.classList.remove(cls),slowmoMs()+100);}
   }
   // Boosts show how many ducks they overtook: "⏩ +N" pops over the duck once the move is done
   // (a jump right after its glide, a surge such as wind, dolphin or rocket when it has run).
@@ -395,18 +434,19 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function drawEvents(elapsed){
     if(!race.events)return;
     let changed=false;const fresh=[];
-    while(eventCursor<race.events.length&&race.events[eventCursor].time<=elapsed+1e-8){const event=race.events[eventCursor];$('event-history').append(eventItem(event));if(phase==='running'&&elapsed-event.time<.3){const pre=race.sample(Math.max(0,event.time-.051));startGlides(event,pre);scheduleGain(event);visuals?.event(event,currentSample,elapsed,pre);if(event.type==='skill'||event.type==='hazard')fresh.push(event);}eventCursor++;changed=true;}
+    while(eventCursor<race.events.length&&race.events[eventCursor].time<=elapsed+1e-8){const event=race.events[eventCursor];if(event.type==='obstacle'){if(phase==='running'&&elapsed-event.time<.3)obstacleFx(event,elapsed);eventCursor++;continue;}$('event-history').append(eventItem(event));if(phase==='running'&&elapsed-event.time<.3){const pre=race.sample(Math.max(0,event.time-.051));startGlides(event,pre);scheduleGain(event);visuals?.event(event,currentSample,elapsed,pre);if(event.type==='skill'||event.type==='hazard')fresh.push(event);}eventCursor++;changed=true;}
     if(fresh.length)showBanner(fresh);else if(bannerUntil&&elapsed>=bannerUntil)hideBanner();
-    if(changed){const recent=race.events.slice(Math.max(0,eventCursor-3),eventCursor);$('event-feed').replaceChildren(...recent.map(e=>node('p','live-event',eventText(e))));}
+    if(changed){const recent=race.events.slice(0,eventCursor).filter(e=>e.type!=='obstacle').slice(-3);$('event-feed').replaceChildren(...recent.map(e=>node('p','live-event',eventText(e))));}
     const visible=runeSpawns.filter(e=>e.time<=elapsed&&elapsed<e.pickupTime),key=visible.map(e=>e.id).join('|');
     if(key!==runeMarkerKey){runeMarkerKey=key;document.querySelectorAll('.rune-marker').forEach(e=>e.remove());for(const rune of visible){const runway=nodes[rune.actorId]?.parentElement;if(!runway)continue;const marker=node('span','rune-marker',rune.icon);marker.title=rune.label;marker.style.left=`${Math.max(0,Math.min(1,rune.progress))*100}%`;marker.style.translate=`0 ${bendAt(rune.progress).toFixed(1)}px`;runway.append(marker);}}
+    renderObstacles(elapsed);
   }
   function measure(){runwayWidth=$('lanes').querySelector('.runway')?.getBoundingClientRect().width||0;visuals?.resize();if(race&&current?.active)draw(race.sample(current.active.elapsed));}
   function start(){
     if(viewer||!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;
     // Last round: any star still unused is spent now (covers random picks and older saves).
     if(current.type==='regular'){const forced=participants().map(p=>p.id).filter(id=>T.starForced(current.session,id)&&!starsOf().includes(id));if(forced.length)current.stars=[...starsOf(),...forced];}
-    try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);ensureLineup();if(!isLegacy()){const luck=luckByDuck();current.lineup={...plainLineup(current.lineup),...(luck.some(Boolean)?{luck}:{}),...(current.rule?{rule:current.rule}:{}),casts:room?Array(participants().length).fill(null):undefined};}race=isLegacy()?DuckRaceEngine.createRace(participants().map((_,i)=>A.name(i)),current.session.duration):C3.createRace(participants().map((_,i)=>A.name(i)),current.session.duration,undefined,current.lineup);}catch(e){toast(e.message);return;}
+    try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);ensureLineup();if(!isLegacy()){const luck=luckByDuck();current.lineup={...plainLineup(current.lineup),...(luck.some(Boolean)?{luck}:{}),...(current.rule?{rule:current.rule}:{}),casts:room?Array(participants().length).fill(null):undefined,...(room?obstacleCrew():{})};}race=isLegacy()?DuckRaceEngine.createRace(participants().map((_,i)=>A.name(i)),current.session.duration):C3.createRace(participants().map((_,i)=>A.name(i)),current.session.duration,undefined,current.lineup);}catch(e){toast(e.message);return;}
     roomStartAt=room?room.now()+3000:0;stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C3.version,lineup:plainLineup(current.lineup)})};save();beginRace();
   }
   // Kicks off current.active (its countdownLeft seconds of countdown, then the race): the host's start and a player's page.
@@ -416,22 +456,36 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     document.querySelector('.arena-panel').scrollIntoView({block:'start',behavior:reduced.matches?'instant':'smooth'});
     schedule();
   }
+  // Hot-potato bomb (chaos-v3): a tick and a flash when it hops to a new leader; in its last second the ticks speed up.
+  // Both run on the race clock, so they slow down with slow motion and stop on pause.
+  let bombHolder=-1,bombTickAt=0,bombEnds=[];
+  function bombFx(holder,t){
+    const live=phase==='running';
+    if(holder!==bombHolder){
+      const n=nodes[holder];if(live&&holder>=0&&bombHolder>=0&&n){sfx('tick');if(!reduced.matches){n.classList.remove('bomb-hop');void n.offsetWidth;n.classList.add('bomb-hop');setTimeout(()=>n.classList.remove('bomb-hop'),500);}}
+      bombHolder=holder;
+    }
+    if(!live||holder<0)return;
+    const left=Math.min(...bombEnds.filter(end=>end>t))-t;
+    if(left<1&&t-bombTickAt>=.06+.2*left){bombTickAt=t;sfx('tick');}
+  }
   function draw(sample){
-    currentSample=sample;
+    currentSample=sample;let holder=-1;
     for(const r of sample){
+      if(r.bomb)holder=r.id;
       const view=racerViews[r.id];if(!view)continue;const e=view.element;
       // Exact engine interpolation at the display refresh rate. No CSS easing
       // on this transform: easing chases a moving target and makes overtakes lag.
       const p=glided(r,current.active?.elapsed??race.duration);e.style.transform=`translate3d(${(p*runwayWidth).toFixed(3)}px,${bendAt(p).toFixed(2)}px,0)`;
       const boosting=!!r.boosting&&phase==='running',leading=current.active.elapsed>0&&r.currentRank===1;
-      const flags=(boosting?1:0)|(leading?2:0)|(r.slowed?4:0)|(r.shielded?8:0)|(r.swapping?16:0)|(r.skillUsed?32:0)|(r.pose==='capsized'?64:0)|(r.pose==='spinning'?128:0)|(r.flying?256:0)|(r.pose==='reversed'?512:0)|(r.pose==='frozen'?1024:0)|(r.pose==='ghost'?2048:0)|(r.pose==='lifted'?4096:0)|(r.pose==='asleep'?8192:0)|(r.pose==='hex'?16384:0)|(r.pose==='giant'?32768:0)|(r.bomb?65536:0)|(r.mirror?131072:0)|(r.pose==='grabbed'?262144:0);
-      if(flags!==view.flags){view.flags=flags;e.classList.toggle('boosting',boosting);e.classList.toggle('leading',leading);e.classList.toggle('slowed',!!r.slowed);e.classList.toggle('shielded',!!r.shielded);e.classList.toggle('swapping',!!r.swapping);e.classList.toggle('skill-used',!!r.skillUsed);e.classList.toggle('stunned',!!r.stunned);e.classList.toggle('capsized',r.pose==='capsized');e.classList.toggle('spinning',r.pose==='spinning');e.classList.toggle('flying',!!r.flying);e.classList.toggle('reversed',r.pose==='reversed');e.classList.toggle('frozen',r.pose==='frozen');e.classList.toggle('ghost',r.pose==='ghost');e.classList.toggle('lifted',r.pose==='lifted');e.classList.toggle('asleep',r.pose==='asleep');e.classList.toggle('hex',r.pose==='hex');e.classList.toggle('giant',r.pose==='giant');e.classList.toggle('grabbed',r.pose==='grabbed');e.classList.toggle('has-bomb',!!r.bomb);e.classList.toggle('has-mirror',!!r.mirror);view.stateBadge.textContent=r.pose==='grabbed'?'🐙':r.pose==='asleep'?'💤':r.pose==='hex'?'🐸':r.pose==='giant'?'🍄':r.pose==='lifted'?'🎈':r.pose==='ghost'?'👻':r.pose==='reversed'?'↩️':r.pose==='frozen'?'🧊':r.pose==='capsized'?'🙃':r.pose==='spinning'?'💫':r.flying?'🪽':r.swapping?'🔄':r.shielded?'🛟':r.mirror?'🪞':r.slowed?'💫':boosting?'⚡':'';skillNodes[r.id]?.classList.toggle('skill-used',!!r.skillUsed);}
+      const flags=(boosting?1:0)|(leading?2:0)|(r.slowed?4:0)|(r.shielded?8:0)|(r.swapping?16:0)|(r.skillUsed?32:0)|(r.pose==='capsized'?64:0)|(r.pose==='spinning'?128:0)|(r.flying?256:0)|(r.pose==='reversed'?512:0)|(r.pose==='frozen'?1024:0)|(r.pose==='ghost'?2048:0)|(r.pose==='lifted'?4096:0)|(r.pose==='asleep'?8192:0)|(r.pose==='hex'?16384:0)|(r.pose==='giant'?32768:0)|(r.bomb?65536:0)|(r.mirror?131072:0)|(r.pose==='grabbed'?262144:0)|(r.pose==='eating'?1<<19:0)|(r.pose==='greedy'?1<<20:0)|(r.pose==='netted'?1<<21:0)|(r.pose==='startled'?1<<22:0)|(r.dodge==='up'?1<<23:0)|(r.dodge==='down'?1<<24:0)|(r.clouded?1<<25:0)|(r.awake?1<<26:0);
+      if(flags!==view.flags){view.flags=flags;e.classList.toggle('boosting',boosting);e.classList.toggle('leading',leading);e.classList.toggle('slowed',!!r.slowed);e.classList.toggle('shielded',!!r.shielded);e.classList.toggle('swapping',!!r.swapping);e.classList.toggle('skill-used',!!r.skillUsed);e.classList.toggle('stunned',!!r.stunned);e.classList.toggle('capsized',r.pose==='capsized');e.classList.toggle('spinning',r.pose==='spinning');e.classList.toggle('flying',!!r.flying);e.classList.toggle('reversed',r.pose==='reversed');e.classList.toggle('frozen',r.pose==='frozen');e.classList.toggle('ghost',r.pose==='ghost');e.classList.toggle('lifted',r.pose==='lifted');e.classList.toggle('asleep',r.pose==='asleep');e.classList.toggle('hex',r.pose==='hex');e.classList.toggle('giant',r.pose==='giant');e.classList.toggle('grabbed',r.pose==='grabbed');for(const c of ['eating','greedy','netted','startled'])e.classList.toggle(c,r.pose===c);e.classList.toggle('dodge-up',r.dodge==='up');e.classList.toggle('dodge-down',r.dodge==='down');e.classList.toggle('clouded',!!r.clouded);e.classList.toggle('awake',!!r.awake);e.classList.toggle('has-bomb',!!r.bomb);e.classList.toggle('has-mirror',!!r.mirror);view.stateBadge.textContent=r.pose==='eating'?'🍜':r.pose==='greedy'?'💸':r.pose==='netted'?'🕸️':r.pose==='startled'?'📣':r.clouded?'⛈️':r.awake?'☕':r.pose==='grabbed'?'🐙':r.pose==='asleep'?'💤':r.pose==='hex'?'🐸':r.pose==='giant'?'🍄':r.pose==='lifted'?'🎈':r.pose==='ghost'?'👻':r.pose==='reversed'?'↩️':r.pose==='frozen'?'🧊':r.pose==='capsized'?'🙃':r.pose==='spinning'?'💫':r.flying?'🪽':r.swapping?'🔄':r.shielded?'🛟':r.mirror?'🪞':r.slowed?'💫':boosting?'⚡':'';skillNodes[r.id]?.classList.toggle('skill-used',!!r.skillUsed);}
       // Faces: dizzy when knocked over, silly when spun, cool when flying, grumpy when slowed, party when winning.
-      const face=r.pose==='grabbed'?'😖':r.pose==='asleep'?'😴':r.pose==='hex'?'🐸':r.pose==='giant'?'😈':r.bomb?'😰':r.pose==='lifted'?'😨':r.pose==='ghost'?'😇':r.pose==='reversed'?'😱':r.pose==='frozen'?'🥶':r.pose==='capsized'?'😵':r.pose==='spinning'?'🤪':r.flying?'😎':r.slowed?'😣':current.active.elapsed>=race.duration&&r.rank===1?'🥳':'';
+      const face=r.pose==='eating'?'😋':r.pose==='greedy'?'🤑':r.pose==='netted'?'😫':r.pose==='startled'?'😳':r.dodge?'😤':r.clouded?'😩':r.awake?'🤩':r.pose==='grabbed'?'😖':r.pose==='asleep'?'😴':r.pose==='hex'?'🐸':r.pose==='giant'?'😈':r.bomb?'😰':r.pose==='lifted'?'😨':r.pose==='ghost'?'😇':r.pose==='reversed'?'😱':r.pose==='frozen'?'🥶':r.pose==='capsized'?'😵':r.pose==='spinning'?'🤪':r.flying?'😎':r.slowed?'😣':current.active.elapsed>=race.duration&&r.rank===1?'🥳':'';
       if(face!==view.face){view.face=face;view.emote.textContent=face;view.emote.classList.toggle('show',!!face);}
       if(view.rank!==r.currentRank){view.rank=r.currentRank;view.rankBadge.textContent=String(r.currentRank);view.rankBadge.title=`Đang hạng ${r.currentRank}`;}
     }
-    drawEvents(current.active.elapsed);
+    drawEvents(current.active.elapsed);bombFx(holder,current.active.elapsed);
     visuals?.draw(sample,current.active.elapsed,{running:phase==='running'});
     const ordered=[...sample].sort((a,b)=>a.currentRank-b.currentRank).slice(0,3), key=ordered.map(r=>r.id).join(',');
     if(key!==leadersKey){leadersKey=key;$('live-leaders').replaceChildren(...ordered.map((r,i)=>node('span','',`${['🥇','🥈','🥉'][i]} ${owners[r.id]}`)));}
@@ -451,21 +505,21 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
       if(a.elapsed>=race.duration){finish();return;}
     }
     if(now-lastSaved>=500){saveCheckpoint();lastSaved=now;}
-    renderCasts();schedule();
+    renderCasts();renderDodge();schedule();
   }
   function pause(){
     if(!current?.active)return;
-    if(phase==='running'){stop();phase='paused';window.speechSynthesis?.cancel?.();endAmbience();$('river').classList.remove('is-running');if(currentSample.length)draw(currentSample);$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Nghỉ quẩy một chút';$('resume-overlay').hidden=false;$('pause').textContent='▶ Tiếp tục';save();}
-    else if(phase==='paused'){activateAudio();phase=current.active.countdownLeft>0?'countdown':'running';lastTime=performance.now();lastSaved=lastTime;$('resume-overlay').hidden=true;$('pause').textContent='Ⅱ Tạm dừng';$('pause').disabled=phase==='countdown';$('race-overlay').hidden=phase==='running';$('overlay-number').textContent=String(Math.ceil(current.active.countdownLeft));$('overlay-text').textContent='Chuẩn bị nào!';$('river').classList.toggle('is-running',phase==='running');$('restore-notice').hidden=true;publishRoom();if(phase==='running'){const sprint=current.active.elapsed>=race.sprintStart;$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('arena-title').textContent=sprint?'NƯỚC RÚT! Cơ hội lật ngược!':'Quạc quạc… tăng tốc nào!';$('sprint-label').textContent=sprint?'⚡ 5 GIÂY CUỐI · BỨT PHÁ!':'CỔ VŨ CHO CHÚ VỊT CỦA BẠN';$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';}schedule();}
+    if(phase==='running'){stop();phase='paused';window.speechSynthesis?.cancel?.();endAmbience();cancelSfx(true);$('river').classList.remove('is-running');if(currentSample.length)draw(currentSample);$('race-overlay').hidden=false;$('overlay-number').textContent='Ⅱ';$('overlay-text').textContent='Nghỉ quẩy một chút';$('resume-overlay').hidden=false;$('pause').textContent='▶ Tiếp tục';save();}
+    else if(phase==='paused'){activateAudio();phase=current.active.countdownLeft>0?'countdown':'running';requeueSfx();lastTime=performance.now();lastSaved=lastTime;$('resume-overlay').hidden=true;$('pause').textContent='Ⅱ Tạm dừng';$('pause').disabled=phase==='countdown';$('race-overlay').hidden=phase==='running';$('overlay-number').textContent=String(Math.ceil(current.active.countdownLeft));$('overlay-text').textContent='Chuẩn bị nào!';$('river').classList.toggle('is-running',phase==='running');$('restore-notice').hidden=true;publishRoom();if(phase==='running'){const sprint=current.active.elapsed>=race.sprintStart;$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('arena-title').textContent=sprint?'NƯỚC RÚT! Cơ hội lật ngược!':'Quạc quạc… tăng tốc nào!';$('sprint-label').textContent=sprint?'⚡ 5 GIÂY CUỐI · BỨT PHÁ!':'CỔ VŨ CHO CHÚ VỊT CỦA BẠN';$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';}schedule();}
   }
   function finish(){
     if(!current.active)return;if(viewer){viewerFinish();return;}stop();const type=current.type,a=current.active;
     const input={id:a.id,picks:{...current.picks},order:race.results.map(r=>r.id),completedAt:new Date().toISOString(),...(type==='regular'?{stars:starsOf()}:{})};
     try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);}catch(e){phase='paused';toast(`Chưa ghi được điểm: ${e.message}`);return;}
     if(engineFor(a.engine)){current.raceReplays??=[];if(!current.raceReplays.some(r=>r.id===a.id))current.raceReplays.push({id:a.id,seed:a.seed,engine:a.engine,...(a.lineup?{lineup:plainLineup(a.lineup)}:{})});}
-    endAmbience();if(sound&&audio&&audio.state==='running')window.DuckSfx?.play(audio,'cheer');
+    endAmbience();
     const photo=photoFinish,cheer=finishTalk(race.results,a.seed);
-    current.active=null;current.stage='result';current.stars=[];clearRace();save();render();tone(523,.2);tone(659,.2,.17);tone(784,.3,.34);
+    current.active=null;current.stage='result';current.stars=[];clearRace();sfx('cheer');save();render();tone(523,.2);tone(659,.2,.17);tone(784,.3,.34);
     const record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);showRound(record,type,true);
     if(photo)$('result-content').prepend(node('div','photo-finish-card',`📸 PHOTO FINISH · ${playerName(record.entries[0].playerId)} thắng ${playerName(record.entries[1].playerId)} trong gang tấc!`));
     cheerCard(cheer);
@@ -480,9 +534,10 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function next(){
     if(viewer||!current||current.active)return;close('result-dialog');const status=outcome();
     if(status.status==='resolved'){current.stage='complete';save();render();showFinal();return;}
-    clearRace();current.type=status.status==='tie'?'tie':'regular';current.stage='picking';current.picks={};current.stars=[];delete current.lineup;if(current.rule)current.rule=drawDayRule(current.rule);starArmed=false;selected=participants()[0]?.id;save();render();
+    clearRace();current.type=status.status==='tie'?'tie':'regular';current.stage='picking';current.picks={};current.pilots=[];current.stars=[];delete current.lineup;if(current.rule)current.rule=drawDayRule(current.rule);starArmed=false;selected=participants()[0]?.id;save();render();
   }
   function table(headers,rows){const wrap=node('div','result-table-wrap'),t=node('table','result-table'),head=node('thead'),tr=node('tr');headers.forEach(h=>tr.append(node('th','',h)));head.append(tr);const body=node('tbody');rows.forEach(row=>{const r=node('tr',row.coffee?'coffee-row':'');row.cells.forEach((cell,i)=>r.append(node('td',i===1?'name':i===row.cells.length-1?'total':'',cell)));body.append(r);});t.append(head,body);wrap.append(t);return wrap;}
+  const obstacleTally=(race,id)=>{const met=race.events.filter(e=>e.type==='obstacle'&&e.actorId===id);return met.length?` · né ${met.filter(e=>e.outcome!=='hit').length}/${met.length} chướng ngại`:'';};
   function showRound(record,type,advance){
     if(!record||current.active)return;
     $('result-emoji').textContent=type==='tie'?'⚖':'🏆';$('result-label').textContent=type==='tie'?'KẾT QUẢ LƯỢT PHÂN ĐỊNH':`KẾT QUẢ LƯỢT ${record.number}/${current.session.roundLimit}`;
@@ -495,8 +550,8 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
       const simulation=engineFor(replay.engine).createRace(record.entries.map((_,i)=>A.name(i)),current.session.duration,replay.seed,replay.lineup),picks=Object.fromEntries(record.entries.map(e=>[e.playerId,e.duckId]));
       if(simulation.results.every((r,i)=>r.id===record.entries[i].duckId)){
         const details=node('details','race-recap'),summary=node('summary','',simulation.racers[0].talent?'Thiên phú, skill & diễn biến lượt này':'Skill & diễn biến lượt này'),roster=node('div','recap-skills');
-        for(const racer of simulation.racers){const owner=record.entries.find(e=>e.duckId===racer.id);roster.append(node('p','',`${playerName(owner.playerId)} · ${racer.talent?`${racer.talent.icon} ${racer.talent.name} · `:''}${racer.skill.icon} ${racer.skill.name}`));}
-        const events=node('ol','recap-events');events.append(...simulation.events.map(e=>eventItem(e,picks)));details.append(summary,roster,events);$('result-content').append(details);
+        for(const racer of simulation.racers){const owner=record.entries.find(e=>e.duckId===racer.id);roster.append(node('p','',`${playerName(owner.playerId)} · ${racer.talent?`${racer.talent.icon} ${racer.talent.name} · `:''}${racer.skill.icon} ${racer.skill.name}${obstacleTally(simulation,racer.id)}`));}
+        const events=node('ol','recap-events');events.append(...simulation.events.filter(e=>e.type!=='obstacle').map(e=>eventItem(e,picks)));details.append(summary,roster,events);$('result-content').append(details);
       }
     }
     if(advance&&status.status==='tie')$('result-content').append(node('p','tie-note',`${status.tiedIds.map(playerName).join(', ')} đồng điểm. Đua phụ để phân định thứ hạng cuối${isLegacy()?'':' và mức đóng 60k / 40k'}; tổng điểm không đổi.`));
@@ -569,7 +624,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function openSetup(mode='season',names=null){
     if(current?.active)return;const season=openSeason();if(mode==='season'&&season){toast('Chốt mùa hiện tại trước khi mở mùa mới.');return;}if(mode==='day'&&!season)return;
     if(mode==='day'&&seasonDays(season).some(s=>T.coffeeStatus(s).status!=='resolved')){toast('Hoàn tất ngày đang chơi trước khi thêm ngày mới.');return;}
-    setupMode=mode;$('setup-close').hidden=!current;$('setup-error').textContent='';$('setup-date').value=today();$('setup-duration').value=String(MIN_RACE_SECONDS);$('setup-rounds').value='10';$('setup-season-group').hidden=mode==='day';$('setup-roster-group').hidden=mode==='day';$('setup-names').required=mode==='season';$('setup-names').disabled=mode==='day';$('setup-season-name').required=mode==='season';$('setup-season-name').disabled=mode==='day';
+    setupMode=mode;$('setup-close').hidden=!current;$('setup-error').textContent='';$('setup-date').value=today();$('setup-duration').value=String(DEFAULT_RACE_SECONDS);$('setup-rounds').value='10';$('setup-season-group').hidden=mode==='day';$('setup-roster-group').hidden=mode==='day';$('setup-names').required=mode==='season';$('setup-names').disabled=mode==='day';$('setup-season-name').required=mode==='season';$('setup-season-name').disabled=mode==='day';
     $('setup-title').textContent=mode==='day'?'Thêm ngày đua mới':'Mở mùa giải mới';$('setup-description').textContent=mode==='day'?`${season.name} · ${season.players.length} người. Điểm ngày mới bắt đầu từ 0, quỹ mùa tiếp tục cộng dồn.`:'Không giới hạn số ngày. Danh sách người chơi giữ nguyên trong mùa.';$('setup-submit').textContent=mode==='day'?'Tạo ngày & chọn vịt ↗':'Tạo mùa & bắt đầu ngày đầu ↗';
     if(mode==='day'){const days=seasonDays(season).sort((a,b)=>a.date.localeCompare(b.date)),last=days.at(-1)?.date;if(last&&last>=$('setup-date').value){const d=new Date(`${last}T12:00:00`);d.setDate(d.getDate()+1);$('setup-date').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}}
     else{$('setup-season-name').value=`Mùa giải ${store.seasons.length+1}`;if(names)$('setup-names').value=names.join('\n');else if(current)$('setup-names').value=current.session.players.map(p=>p.name).join('\n');}
@@ -597,10 +652,11 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   }
   function publishRoom(now=false){if(!room||viewer)return;clearTimeout(publishTimer);const send=()=>{Promise.resolve(room?.publish(roomSnapshot())).catch(e=>toast(`Phòng: ${e.message}`));};if(now)send();else publishTimer=setTimeout(send,120);}
   function roomRequest(req){
+    if(req?.kind==='dodge'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&(req.race===undefined||req.race===a.id))dodgeFor(duck,req.time,req.key);return;}
     if(req?.kind==='cast'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&(req.race===undefined||req.race===a.id))castFor(duck,typeof req.time==='number'?req.time:a.elapsed,req.targets??req.target);return;}
     if(!current||current.active||current.stage!=='picking'||!req||typeof req.player!=='string')return;
     if(queue().nextPlayerId!==req.player)return; // not their turn (or a stale request)
-    starArmed=req.star===true&&current.type==='regular'&&T.starAvailable(current.session,req.player);pick(Number(req.duck));
+    starArmed=req.star===true&&current.type==='regular'&&T.starAvailable(current.session,req.player);pick(Number(req.duck),true);
   }
   // ---- Casting (race room): each player casts their own active skill, and may aim it; the host decides when it lands ----
   const castable=id=>!!race?.racers[id]&&!C3.passive.includes(race.racers[id].skill.id);
@@ -635,14 +691,94 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     let next;try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch(e){toast(e.message);return false;}
     a.lineup=lineup;swapRace(next);save();publishRoom(true);return true; // at once: the players' pages need it before the wind-up ends
   }
+  // ---- Obstacles (race room, chaos-v4): ↑ jumps, ↓ dives; a key counts for the obstacle a duck meets 1–3 s later ----
+  const OBSTACLE_REVEAL=3,OBSTACLE_LEAD=1;
+  // Who steers (players who picked on their own device; the rest get past on luck), and no key pressed yet.
+  function obstacleCrew(){
+    const n=participants().length,owner=duck=>Object.keys(current.picks).find(p=>current.picks[p]===duck);
+    return {pilots:Array.from({length:n},(_,duck)=>(current.pilots||[]).includes(owner(duck))),dodges:Array(n).fill(null)};
+  }
+  // Host: a key a player pressed, at their own race time. Like a cast, it only changes the race from then on.
+  function dodgeFor(duck,t,key){
+    const a=current?.active,list=a?.lineup?.dodges?.[duck]||[];
+    if(viewer||!a?.lineup?.dodges||!race?.racers[duck]||!['up','down'].includes(key)||!Number.isFinite(t)||t<0||t>race.duration||list.length>=60||list.some(p=>p[0]===t&&p[1]===key))return false;
+    const base=plainLineup(a.lineup),lineup={...base,dodges:base.dodges.map((d,i)=>i===duck?[...(d||[]),[t,key]]:d)};
+    let next;try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch(e){toast(e.message);return false;}
+    a.lineup=lineup;swapRace(next);save();publishRoom(true);return true;
+  }
+  // Player: the key counts on this page at once (the race swaps in place) and goes to the host, whose race echoes it to
+  // every page. Until the host's copy has it, it is merged into what the host sends, so the race never flickers back.
+  function lineupSig(l){return JSON.stringify([l?.casts,l?.targets,l?.dodges]);}
+  const PENDING_MS=4000,samePress=(p,q)=>p[0]===q[0]&&p[1]===q[1];
+  function withPending(lineup,fromHost){
+    const a=current?.active;if(!lineup?.dodges||!a)return lineup;
+    const now=performance.now(),has=p=>(lineup.dodges[p.duck]||[]).some(q=>samePress(q,p.press));
+    pendingDodges=pendingDodges.filter(p=>p.race===a.id&&now-p.at<PENDING_MS&&!(fromHost&&has(p)));
+    const mine=i=>pendingDodges.filter(p=>p.duck===i&&!has(p)).map(p=>p.press);
+    return pendingDodges.length?{...lineup,dodges:lineup.dodges.map((d,i)=>mine(i).length?[...(d||[]),...mine(i)]:d)}:lineup;
+  }
+  function viewerDodge(key){
+    const duck=myDuck(),a=current?.active;
+    if(!viewer||!room||phase!=='running'||!a?.lineup?.dodges||!Number.isInteger(duck)||!race?.racers[duck]||(a.lineup.dodges[duck]||[]).length>=60)return;
+    const t=Math.round(a.elapsed*100)/100;
+    pendingDodges=[...pendingDodges,{race:a.id,duck,press:[t,key],at:performance.now()}];applyLineup(withPending(hostLineup?.id===a.id?hostLineup.lineup:a.lineup,false));renderDodge();
+    Promise.resolve(room.send({kind:'dodge',player:meId,race:a.id,time:t,key})).catch(e=>toast(e.message));
+  }
+  // The player's pad: what comes next, then the result for a moment.
+  function renderDodge(){
+    const pad=$('dodge-pad'),a=current?.active,duck=myDuck();if(!pad)return;
+    const shown=!!(viewer&&a?.lineup?.dodges&&race?.obstacles&&Number.isInteger(duck)&&race.racers[duck]);
+    if(pad.hidden===shown)pad.hidden=!shown;if(!shown)return;
+    const now=a.elapsed,meets=race.events.filter(e=>e.type==='obstacle'&&e.actorId===duck),kindOf=e=>C3.obstacles.find(o=>o.id===e.obstacle);
+    const done=meets.findLast(e=>e.time<=now&&now-e.time<1.2),next=meets.find(e=>e.time>now);
+    let state,text,chosen='';
+    if(done){state=done.outcome==='hit'?'hit':'pass';text=state==='hit'?`💥 Vấp ${kindOf(done).name.toLowerCase()}!`:`✨ ${done.label}`;}
+    else if(!next){state='idle';text='🏁 Hết chướng ngại, về đích thôi!';}
+    else if(next.time-now>OBSTACLE_REVEAL){state='idle';text=`❓ Chướng ngại tiếp theo · còn ${Math.ceil(next.time-now)}s`;}
+    else{
+      const k=kindOf(next),press=(a.lineup.dodges[duck]||[]).filter(p=>p[0]>=next.time-OBSTACLE_REVEAL-1e-6&&p[0]<=next.time-OBSTACLE_LEAD+1e-6).at(-1);
+      if(press){state='pressed';chosen=press[1];text=`${k.icon} ${k.name} · đã chọn ${press[1]==='up'?'⬆️ nhảy':'⬇️ lặn'}`;}
+      else if(next.time-now>OBSTACLE_LEAD){state='reveal';text=`${k.icon} ${k.name}! Nhảy ⬆️ hay lặn ⬇️? · ${(next.time-now-OBSTACLE_LEAD).toFixed(1)}s`;}
+      else{state='late';text=`${k.icon} ${k.name} · trễ rồi!`;}
+    }
+    if(pad.dataset.state!==state)pad.dataset.state=state;const status=$('dodge-status');if(status.textContent!==text)status.textContent=text;
+    $('dodge-up').classList.toggle('on',chosen==='up');$('dodge-down').classList.toggle('on',chosen==='down');
+  }
+  // Each lane's obstacles on the river. One stays ❓ until its duck is 3 s away, then shows what it is; once the duck
+  // gets there it drifts off (passed) or breaks (crashed), and is gone 1.5 s later.
+  function renderObstacles(elapsed){
+    if(!race?.obstacles){if(obstacleKey){obstacleKey='';document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());}return;}
+    if(obstacleMeets?.race!==race)obstacleMeets={race,at:new Map(race.events.filter(e=>e.type==='obstacle').map(e=>[`${e.line}|${e.actorId}`,e]))};
+    const mine=myDuck(),list=race.obstacles.flatMap((line,k)=>race.racers.map(r=>{
+      const e=obstacleMeets.at.get(`${k}|${r.id}`),state=!e||elapsed<e.time-OBSTACLE_REVEAL?'hidden':elapsed<e.time?'shown':elapsed>e.time+1.5?'gone':e.outcome==='hit'?'crashed':'passed';
+      return {id:r.id,state,progress:e?e.progress:line.at,kind:C3.obstacles.find(o=>o.id===line.kinds[r.id])};}));
+    const key=list.map(o=>o.state[0]).join('');if(key===obstacleKey)return;obstacleKey=key;
+    document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());
+    for(const o of list){
+      const runway=nodes[o.id]?.parentElement;if(o.state==='gone'||!runway)continue;
+      const m=node('span',`obstacle-marker${o.id===mine?' mine':''}`,o.state==='hidden'?'❓':o.kind.icon);m.dataset.state=o.state;m.dataset.key=o.kind.key;
+      m.title=o.state==='hidden'?'Chướng ngại chưa lộ diện':`${o.kind.name}: ${o.kind.key==='up'?'nhảy ↑':'lặn ↓'}`;
+      m.style.left=`${Math.max(0,Math.min(1,o.progress))*100}%`;m.style.translate=`0 ${bendAt(o.progress).toFixed(1)}px`;runway.append(m);
+    }
+  }
+  // An obstacle moment stays quiet: a flash on a trip, a soft sound for your own duck (the host: trips only), and the
+  // commentator only talks about your own duck.
+  function obstacleFx(e,elapsed){
+    const mine=e.actorId===myDuck(),hit=e.outcome==='hit';
+    visuals?.event(e,currentSample,elapsed,race.sample(Math.max(0,e.time-.051))); // a small spray, bubbles or splinters
+    if(hit)flashHits({type:'hazard',outcome:'hit',actorId:e.actorId});
+    if((mine||!viewer&&hit)&&performance.now()-obstacleSfxAt>250){obstacleSfxAt=performance.now();sfx(window.DuckSfx?.kindOf(e));}
+    if(mine)say(window.DuckCommentary?.line(e,id=>owners[id]||A.name(id)));
+  }
   // A new cast only changes the race from its own time on, so the race swaps in place. A page already past it (its clock
   // ran ahead) just catches up: positions jump, nothing already shown is replayed.
   function swapRace(next){
     race=next;eventCursor=race.events.filter(e=>e.time<=current.active.elapsed+1e-8).length;
-    photoFinish=closeFinish(race);runeSpawns=race.events.filter(e=>e.type==='rune-spawn');runeMarkerKey='';
+    photoFinish=closeFinish(race);runeSpawns=race.events.filter(e=>e.type==='rune-spawn');runeMarkerKey='';obstacleKey='';bombEnds=race.events.filter(e=>e.outcome==='armed'&&e.fuse).map(e=>e.time+e.fuse);
   }
-  function viewerCasts(lineup){
-    const a=current.active;if(!lineupOk(lineup,participants().length))return;
+  function viewerCasts(lineup){hostLineup={id:current.active.id,lineup};applyLineup(withPending(lineup,true));}
+  function applyLineup(lineup){
+    const a=current.active;if(!lineupOk(lineup,participants().length)||a.lineup&&lineupSig(lineup)===lineupSig(a.lineup))return;
     let next;try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch{return;}
     a.lineup=lineup;swapRace(next);
   }
@@ -746,7 +882,7 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   function viewerState(state){
     if(state&&typeof state.fx==='boolean'&&state.fx!==slowFx){slowFx=state.fx;setSlowFx();} // the host's effect speed keeps every race clock together
     if(!state){if(!current?.active){$('viewer-pill').hidden=false;$('viewer-pill').textContent=`📡 Phòng ${viewerCode} chưa mở hoặc đã đóng.`;}return;}
-    if(current?.active){latestState=state;const a=state.active;if(a&&a.id===current.active.id&&a.lineup?.casts&&JSON.stringify(a.lineup.casts)!==JSON.stringify(current.active.lineup?.casts))viewerCasts(a.lineup);if(a&&a.id===current.active.id&&a.paused!==(phase==='paused')&&['running','paused'].includes(phase))pause();return;}
+    if(current?.active){latestState=state;const a=state.active;if(a&&a.id===current.active.id&&a.lineup?.casts&&lineupSig(a.lineup)!==lineupSig(current.active.lineup))viewerCasts(a.lineup);if(a&&a.id===current.active.id&&a.paused!==(phase==='paused')&&['running','paused'].includes(phase))pause();return;}
     let session;try{session=T.validateSession(state.session);}catch{return;}
     meId=session.players.find(p=>DuckRoom.sameName(p.name,viewerName))?.id||null;pickDeadline=Number(state.pickDeadline)||0;const was=current?.stage;
     const replays=Array.isArray(state.raceReplays)?state.raceReplays.filter(r=>r&&engineFor(r.engine)):[];
@@ -771,9 +907,9 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     const input={id:a.id,picks:{...current.picks},order:race.results.map(r=>r.id),completedAt:new Date().toISOString(),...(type==='regular'?{stars:starsOf()}:{})};
     let record=null;try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);}catch{}
     current.raceReplays=[...(current.raceReplays||[]).filter(r=>r.id!==a.id),{id:a.id,seed:a.seed,engine:a.engine,...(a.lineup?{lineup:a.lineup}:{})}];
-    endAmbience();if(sound&&audio&&audio.state==='running')window.DuckSfx?.play(audio,'cheer');
+    endAmbience();
     const cheer=finishTalk(race.results,a.seed);
-    current.active=null;current.stage='result';clearRace();
+    current.active=null;current.stage='result';clearRace();sfx('cheer');
     // A snapshot from during this race (a pause) is older than the result just recorded: wait for the host's next one.
     const s=latestState;latestState=null;if(s&&s.active?.id!==a.id)viewerState(s);else render();
     if(record){showRound(record,type,false);cheerCard(cheer);}
@@ -798,13 +934,15 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
   $('room-open').onclick=()=>{renderRoom();open('room-dialog');};$('room-close').onclick=()=>{close('room-dialog');if(skillsAfterRoom){skillsAfterRoom=false;showSkills();}};
   $('open-skills').onclick=showSkills;$('open-skills-inline').onclick=showSkills;$('skills-close').onclick=()=>close('skills-dialog');
   $('cancel-season').onclick=requestCancelSeason;$('cancel-season-close').onclick=()=>close('cancel-season-dialog');$('confirm-cancel-season').onclick=confirmCancelSeason;
-  $('cast').onclick=viewerCast;$('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
+  $('cast').onclick=viewerCast;$('dodge-up').onclick=e=>{e.currentTarget.blur();viewerDodge('up');};$('dodge-down').onclick=e=>{e.currentTarget.blur();viewerDodge('down');};$('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
   $('final-summary').onclick=()=>{if(outcome().status==='tie'){if(current.stage==='picking'&&current.type==='tie'){toast('Chọn vịt cho nhóm đồng điểm ở bên dưới.');return;}next();}else{current.stage='complete';save();render();showFinal();}};
   $('slow-fx').onclick=()=>{slowFx=!slowFx;try{localStorage.setItem(SLOW_FX_KEY,slowFx?'1':'0');}catch{}setSlowFx();publishRoom();};
-  $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem(SOUND_KEY,sound?'1':'0');}catch{}if(!sound){endAmbience();window.speechSynthesis?.cancel?.();}setSound();activateAudio();tone(700);};
+  $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem(SOUND_KEY,sound?'1':'0');}catch{}if(!sound){endAmbience();cancelSfx();window.speechSynthesis?.cancel?.();}setSound();activateAudio();tone(700);};
   $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.body.requestFullscreen)await document.body.requestFullscreen();else toast('Dùng phím F11 để mở toàn màn hình.');}catch{toast('Dùng phím F11 để mở toàn màn hình.');}};
-  document.addEventListener('keydown',e=>{if(!viewer||$('cast').hidden||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,select,a,button:not(.cast-target):not(#cast)')||document.querySelector('dialog[open]'))return;
-    if(e.code==='Space'){e.preventDefault();if(!e.repeat)viewerCast();return;}const step={ArrowLeft:-1,ArrowUp:-1,ArrowRight:1,ArrowDown:1}[e.key];if(step&&!$('cast-targets').hidden){e.preventDefault();aimStep(step);}});
+  document.addEventListener('keydown',e=>{if(!viewer||$('cast').hidden||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,select,a,button:not(.cast-target):not(#cast):not(.dodge-key)')||document.querySelector('dialog[open]'))return;
+    if(e.code==='Space'){e.preventDefault();if(!e.repeat)viewerCast();return;}const step={ArrowLeft:-1,ArrowRight:1}[e.key];if(step&&!$('cast-targets').hidden){e.preventDefault();aimStep(step);}});
+  // Race room (chaos-v4): ↑ jumps, ↓ dives over the next obstacle.
+  document.addEventListener('keydown',e=>{if(!viewer||e.repeat||e.ctrlKey||e.altKey||e.metaKey||$('dodge-pad').hidden||!['ArrowUp','ArrowDown'].includes(e.key)||e.target.closest('input,textarea,select')||document.querySelector('dialog[open]'))return;e.preventDefault();viewerDodge(e.key==='ArrowUp'?'up':'down');});
   document.addEventListener('keydown',e=>{if(e.code!=='Space'||e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,button,a,select')||document.querySelector('dialog[open]')||viewer)return;e.preventDefault();if(current?.active)pause();else if(current?.stage==='picking')start();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&current?.active)save();});window.addEventListener('pagehide',()=>{if(current)save();});
   new ResizeObserver(measure).observe($('river'));
