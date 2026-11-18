@@ -78,7 +78,7 @@ test('a new cast never changes the race before it: every page can switch to the 
 });
 
 test('a targeted skill hits the rival its owner aimed at, anywhere in the field', () => {
-  assert.deepEqual([...V3.targeted].sort(), ['anchor', 'balloon', 'bees', 'blackhole', 'hex', 'hook', 'kraken', 'lightning', 'missile', 'reverse', 'swap', 'torpedo', 'ufo']);
+  assert.deepEqual([...V3.targeted].sort(), ['anchor', 'balloon', 'bees', 'blackhole', 'flip', 'hex', 'hook', 'kraken', 'lightning', 'missile', 'reverse', 'swap', 'tornado', 'torpedo', 'ufo', 'wave']);
   for (const skill of V3.targeted) for (let seed = 1; seed <= 12; seed++) for (const aim of [1, 6]) {
     const base = V3.deal(7, seed), skills = [skill, ...base.skills.slice(1)], list = Array(7).fill(null), targets = Array(7).fill(null);
     list[0] = 10; targets[0] = aim;
@@ -86,13 +86,14 @@ test('a targeted skill hits the rival its owner aimed at, anywhere in the field'
     const event = race.events.find(e => e.type === 'skill' && e.actorId === 0 && e.scheduled);
     if (skill === 'ufo' && event.outcome === 'mistake') continue; // the saucer sometimes beams up its own caster
     if (skill === 'hook' && event.outcome === 'fallback') assert.fail('an aimed hook never falls back');
+    if (skill === 'flip' && event.affectedIds[1] === aim) continue; // aiming at the last duck is the usual flip
     const hit = event.targetId ?? event.affectedIds[0];
     assert.equal(hit, aim, `${skill} seed ${seed} aimed at ${aim}`);
   }
 });
 
 test('a multi-target skill strikes every rival its owner picked, in order; a short pick is filled as before', () => {
-  assert.deepEqual({ ...V3.aims }, { lightning: 2, reverse: 2, bees: 2, kraken: 3 });
+  assert.deepEqual({ ...V3.aims }, { lightning: 2, reverse: 2, bees: 2, kraken: 3, wave: 3, tornado: 3 });
   for (const [skill, n] of Object.entries(V3.aims)) for (let seed = 1; seed <= 12; seed++) {
     const base = V3.deal(7, seed), skills = [skill, ...base.skills.slice(1)], list = Array(7).fill(null);
     list[0] = 10;
@@ -103,6 +104,24 @@ test('a multi-target skill strikes every rival its owner picked, in order; a sho
     const one = struck([5]);
     assert.equal(one.length, n); assert.equal(one[0], 5, 'the one picked first, then the usual targets');
     assert.deepEqual(struck(5), one, 'a replay from before multi-target aims (a single duck number) plays the same');
+  }
+});
+
+test('an aim past the leaders marks the event, and the label stops naming the leaders', () => {
+  for (let seed = 1; seed <= 12; seed++) {
+    const base = V3.deal(7, seed), list = Array(7).fill(null); list[0] = 10;
+    const fire = (skill, targets) => V3.createRace(names(7), D, seed, { ...base, skills: [skill, ...base.skills.slice(1)], casts: list, ...(targets ? { targets: [targets, ...Array(6).fill(null)] } : {}) })
+      .events.find(e => e.type === 'skill' && e.actorId === 0 && e.scheduled);
+    for (const skill of ['tornado', 'kraken']) {
+      const plain = fire(skill), usual = plain.affectedIds;
+      assert.equal(plain.aimed, undefined, 'no aim, no mark');
+      assert.match(plain.label, /TỐP ĐẦU!$/);
+      const back = [6, 5, 4].filter(id => !usual.includes(id));
+      if (!back.length) continue;
+      const aimed = fire(skill, back);
+      assert.equal(aimed.aimed, true, `${skill} seed ${seed}`);
+      assert.doesNotMatch(aimed.label, /TỐP ĐẦU/);
+    }
   }
 });
 

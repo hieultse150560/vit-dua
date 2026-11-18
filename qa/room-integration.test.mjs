@@ -111,6 +111,9 @@ test("a player's page follows the host: a paused race's totals, the next pick ro
     const totals = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.lastElementChild.textContent);
     assert.deepEqual(totals(viewer), totals(host), "the player's totals match the host's after a paused race");
     assert.ok(viewer.$('result-content').querySelector('.race-recap'), 'the player gets the recap too');
+    const cheer = game => game.$('result-content').querySelector('.cheer-card')?.textContent;
+    assert.ok(cheer(host) && cheer(host) === cheer(viewer), 'host and player get the same poem for the last duck');
+    assert.ok(cheer(host).includes(order(host).at(-1)), `it names the last player: ${cheer(host)}`);
 
     host.click('result-next'); await sync(host, viewer);
     assert.equal(viewer.$('result-dialog').open, false, "the host's next pick round closes the player's result, so they can pick");

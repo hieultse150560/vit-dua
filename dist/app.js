@@ -464,11 +464,18 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);}catch(e){phase='paused';toast(`Chưa ghi được điểm: ${e.message}`);return;}
     if(engineFor(a.engine)){current.raceReplays??=[];if(!current.raceReplays.some(r=>r.id===a.id))current.raceReplays.push({id:a.id,seed:a.seed,engine:a.engine,...(a.lineup?{lineup:plainLineup(a.lineup)}:{})});}
     endAmbience();if(sound&&audio&&audio.state==='running')window.DuckSfx?.play(audio,'cheer');
-    const [first,second]=race.results,photo=photoFinish;say(window.DuckCommentary?.finish(owners[first.id],owners[second?.id],photo));
+    const photo=photoFinish,cheer=finishTalk(race.results,a.seed);
     current.active=null;current.stage='result';current.stars=[];clearRace();save();render();tone(523,.2);tone(659,.2,.17);tone(784,.3,.34);
     const record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);showRound(record,type,true);
     if(photo)$('result-content').prepend(node('div','photo-finish-card',`📸 PHOTO FINISH · ${playerName(record.entries[0].playerId)} thắng ${playerName(record.entries[1].playerId)} trong gang tấc!`));
+    cheerCard(cheer);
   }
+  // The finish call, then a poem or a song for the last duck's owner (the same on every screen); the result card keeps it.
+  function finishTalk(results,seed){
+    const name=id=>owners[id]||A.name(id),last=results.at(-1),c=window.DuckCommentary?.cheer?.(name(last.id),seed);
+    say([window.DuckCommentary?.finish(name(results[0].id),results[1]&&name(results[1].id),photoFinish),c?.intro,...(c?.lines||[])].filter(Boolean).join(' '));return c;
+  }
+  function cheerCard(c){if(!c)return;const card=node('div','cheer-card');card.append(node('strong','',`${c.icon} ${c.title}`),node('p','',c.lines.join('\n')));$('result-content').append(card);}
   function nextLabel(){if(!current)return '';const s=current.session;if(s.rounds.length<s.roundLimit)return `Chọn vịt vòng ${s.rounds.length+1} →`;return outcome().status==='tie'?'Chọn vịt đua phụ →':'Xem tổng kết ngày ↗';}
   function next(){
     if(viewer||!current||current.active)return;close('result-dialog');const status=outcome();
@@ -765,11 +772,11 @@ if(focus.length&&!reduced.matches&&!slowFx){const c=focus.map(n=>n.getBoundingCl
     let record=null;try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);}catch{}
     current.raceReplays=[...(current.raceReplays||[]).filter(r=>r.id!==a.id),{id:a.id,seed:a.seed,engine:a.engine,...(a.lineup?{lineup:a.lineup}:{})}];
     endAmbience();if(sound&&audio&&audio.state==='running')window.DuckSfx?.play(audio,'cheer');
-    const [first,second]=race.results;say(window.DuckCommentary?.finish(owners[first.id],owners[second?.id],photoFinish));
+    const cheer=finishTalk(race.results,a.seed);
     current.active=null;current.stage='result';clearRace();
     // A snapshot from during this race (a pause) is older than the result just recorded: wait for the host's next one.
     const s=latestState;latestState=null;if(s&&s.active?.id!==a.id)viewerState(s);else render();
-    if(record)showRound(record,type,false);
+    if(record){showRound(record,type,false);cheerCard(cheer);}
   }
   function restoreCurrent(){
     clearRace();if(!current)return;selected=participants()[0]?.id;

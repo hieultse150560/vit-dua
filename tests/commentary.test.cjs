@@ -44,3 +44,24 @@ test('new chaos-v3 skills and the finale rock get their own lines, not the gener
   const finale = twists.find(e => e.finale);
   assert.ok(/vạch đích|về nhất|chiến thắng/i.test(K.line(finale, nameOf)));
 });
+
+test('an area skill aimed past the leaders names the ducks it struck, after its label', () => {
+  const e = { id: 'x', time: 10, type: 'skill', skill: 'tornado', outcome: 'shuffled', actorId: 0, affectedIds: [6, 5, 4], label: 'LỐC XOÁY CUỐN BAY!', aimed: true };
+  const text = K.line(e, n => ['Tú', 'An', 'Bình', 'Chi', 'Dũng', 'Phú', 'Gia'][n]);
+  assert.match(text, /^Lốc xoáy cuốn bay! /);
+  assert.ok(['Tú', 'Gia', 'Phú', 'Dũng'].every(n => text.includes(n)), text);
+  const single = K.line({ ...e, skill: 'missile', outcome: 'hit', affectedIds: undefined, targetId: 4 }, n => `#${n}`);
+  assert.ok(single.includes('#4'), 'a one-target skill keeps its own lines');
+});
+
+test('the last duck gets a poem, a song or a rap: the same on every screen, with its owner named', () => {
+  const kinds = new Set();
+  for (let seed = 1; seed <= 80; seed++) {
+    const c = K.cheer('Bình', seed);
+    assert.deepEqual(c, K.cheer('Bình', seed));
+    kinds.add(c.kind);
+    assert.ok(c.lines.length >= 3 && c.intro.includes('Bình') && c.title.includes('Bình'), JSON.stringify(c));
+    assert.ok(!`${c.intro} ${c.lines.join(' ')}`.includes('{n}'));
+  }
+  assert.deepEqual([...kinds].sort(), ['poem', 'rap', 'song']);
+});

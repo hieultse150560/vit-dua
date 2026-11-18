@@ -70,7 +70,9 @@
     blocked: ['{b} có lá chắn, đòn của {a} tan biến!', 'Đỡ được rồi! {a} vô vọng trước {b}!', 'Phao cứu {a} một bàn thua trông thấy!'],
     reflected: ['Đòn của {a} bị gương của {b} dội ngược!', '{a} tấn công {b} và… tự hại mình!', 'Gương thần! Đòn của {a} bị dội ngược về chính nó!'],
     immune: ['{b} đang miễn nhiễm, {a} đánh hụt!', '{a} ra đòn nhưng không ăn thua!', '{a} vẫn còn choáng nên không sao!'],
-    default: ['{a} tung chiêu vào {b}!', '{a} ra tay!']
+    default: ['{a} tung chiêu vào {b}!', '{a} ra tay!'],
+    // Race room: an area skill its owner aimed past the leaders ({c} = the ducks it struck).
+    aimed: ['{a} chỉ mặt điểm tên, {c} lãnh trọn!', '{a} bỏ qua tốp đầu, nhắm thẳng {c}!', 'Có thù riêng chăng? {a} nhắm đúng {c}!']
   };
   const OPENERS = ['Các tay bơi đã vào vị trí, trận đấu bắt đầu!', 'Xuất phát! Hãy xem ai sẽ lật kèo hôm nay!'];
   const WEATHER = {
@@ -91,10 +93,13 @@
     // Copycat: credit the thief, then call the move it copied.
     if (event.skill === 'copycat' && event.copied) return `${a} học lỏm chiêu ${event.copiedName}! ${line({ ...event, skill: event.copied }, nameOf)}`;
     const guardLines = { ghost: LINES['ghost-pass'], dodge: LINES['dodge-pass'], lucky: LINES['lucky-pass'] };
-    const pool = [event.finale && LINES['rock:finale'], guardLines[event.guard], LINES[`${id}:${event.outcome}`], LINES[event.outcome], LINES.default].map(fits).find(list => list.length)
-      || [`${a} ${event.label || ''}`.trim()];
-    const pick = pool[hash(`${event.id}|${event.time}`) % pool.length];
-    return pick.replaceAll('{a}', a).replaceAll('{b}', hasTarget ? nameOf(event.targetId) : '').replaceAll('{n}', String(event.roll ?? ''));
+    const lists = [event.finale && LINES['rock:finale'], guardLines[event.guard], event.aimed && LINES.aimed, LINES[`${id}:${event.outcome}`], LINES[event.outcome], LINES.default].map(fits);
+    const at = lists.findIndex(list => list.length), pool = lists[at] || [`${a} ${event.label || ''}`.trim()];
+    const struck = (event.affectedIds || []).filter(id => id !== event.actorId).map(nameOf);
+    const c = struck.length > 1 ? `${struck.slice(0, -1).join(', ')} và ${struck.at(-1)}` : struck[0] || '';
+    const said = (at === 2 && event.label ? `${event.label[0]}${event.label.slice(1).toLowerCase()} ` : '')
+      + pool[hash(`${event.id}|${event.time}`) % pool.length];
+    return said.replaceAll('{a}', a).replaceAll('{b}', hasTarget ? nameOf(event.targetId) : '').replaceAll('{c}', c).replaceAll('{n}', String(event.roll ?? ''));
   }
   function start(race) {
     const opener = OPENERS[hash(race?.seed ?? 0) % OPENERS.length];
@@ -103,7 +108,32 @@
   function finish(winner, runnerUp, close) {
     return close ? `Sát nút! Ảnh chụp vạch đích cho thấy ${winner} thắng ${runnerUp} chỉ trong gang tấc!` : `${winner} về nhất! Một chiến thắng đầy cảm xúc!`;
   }
-  const api = Object.freeze({ line, start, finish });
+  // The round's last duck gets a poem, a song or a rap: chin up, and thanks for feeding the fund. {n} = its owner.
+  const CHEERS = [
+    ['poem', 'Về chót đâu phải là thua,', 'Nhường anh em nhất, để mua tiếng cười.', 'Ví tiền có mỏng đôi mươi,', 'Quỹ chung thêm béo, cả mười người vui!'],
+    ['poem', 'Vịt ai bơi cuối hàng xa,', 'Hóa ra mạnh thường quân là chính đây.', 'Hôm nay ví có hơi gầy,', 'Mai kia quỹ béo, cả bầy nhớ ơn.'],
+    ['poem', 'Thua keo này, bày keo sau,', 'Tiền rơi vào quỹ, có đâu mất phần.', 'Hôm nay về chót một lần,', 'Mai kia lội ngược, xa gần nể ghê!'],
+    ['poem', 'Bơi sau chẳng phải bơi hèn,', 'Ấy là nhường bạn đi lên trước mình.', 'Ví tiền chịu cảnh hi sinh,', 'Cả làng vỗ tay, tôn vinh anh hùng!'],
+    ['poem', 'Rùa xưa thắng thỏ hôm nao,', 'Vịt ta về chót, có sao đâu mà.', 'Tiền này góp quỹ chung nhà,', 'Cuối mùa liên hoan, chén là nhớ ai!'],
+    ['poem', '{n} ơi, chớ có buồn lâu,', 'Về sau cùng nhất, đứng đầu tấm lòng.', 'Ví tiền vơi, quỹ thêm đông,', 'Cuối mùa liên hoan, ai không nhớ {n}!'],
+    ['poem', 'Đường đua có lúc lên xuống,', 'Hôm nay về chót, mai uống trà chanh.', 'Tiền này góp quỹ cho nhanh,', 'Để mùa sau nữa đua tranh hăng hơn!'],
+    ['song', 'Quạc quạc quạc, {n} ơi đừng buồn,', 'Tiền đi tiền lại, quỹ chung vẫn còn.', 'Mai ta lật kèo, bơi vượt cả đoàn,', 'Quạc quạc quạc, {n} ơi đừng buồn!'],
+    ['song', 'Ai bơi chậm nhất sông này? {n} đó!', 'Ai góp quỹ đầy hôm nay? Cũng {n} luôn!', 'La la la, vịt chậm mà lòng rộng như sông!'],
+    ['song', 'Hôm nay {n} về chót,', 'Nhưng ví {n} rộng nhất làng.', 'Cả hội cùng hát vang:', 'Cảm ơn mạnh thường quân!'],
+    ['song', 'Vinh danh {n}, mạnh thường quân của mùa!', 'Một lòng vì quỹ, một ví vì anh em.', 'Hôm nay về chót, mai này về nhất,', 'Hát lên nào, cả sông cùng hò reo!'],
+    ['rap', 'Yo! Về chót không sao, {n} vẫn ngẩng cao đầu,', 'Ví mỏng một chút, quỹ chung thì giàu.', 'Cuối mùa liên hoan ai bao? Hỏi đâu xa,', 'Chính là {n}, huyền thoại vịt bơi sau!']
+  ];
+  const CHEER_KIND = {
+    poem: ['📜', 'Thơ tặng {n} về chót', 'Và bây giờ, một bài thơ tặng {n}, người về chót.'],
+    song: ['🎵', 'Hát tặng {n} về chót', 'Cả sông cùng hát tặng {n}, người về chót.'],
+    rap: ['🎤', 'Rap tặng {n} về chót', 'Lên nhạc! Một đoạn rap tặng {n}, người về chót.']
+  };
+  // Same race, same owner: the same cheer on every screen.
+  function cheer(name, seed) {
+    const [kind, ...lines] = CHEERS[hash(`${seed}|${name}`) % CHEERS.length], [icon, title, intro] = CHEER_KIND[kind], fill = text => text.replaceAll('{n}', name);
+    return { kind, icon, title: fill(title), intro: fill(intro), lines: lines.map(fill) };
+  }
+  const api = Object.freeze({ line, start, finish, cheer });
   root.DuckCommentary = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
