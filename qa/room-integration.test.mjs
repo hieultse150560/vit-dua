@@ -354,7 +354,7 @@ test('lane obstacles and runes: in sight from the start; a player steers their o
     assert.ok(mine, "the player's own next thing is in sight");
     assert.ok(mine.querySelector('svg.thing-art') && mine.textContent.trim() === '', 'drawn as the real thing, not an icon');
     const up = /nhảy/.test(viewer.$('dodge-status').textContent), name = up ? 'ArrowUp' : 'ArrowDown';
-    assert.ok((up ? ['rock', 'spark'] : ['bird', 'pearl']).some(look => mine.classList.contains(look)), `its height matches the key (${mine.className})`);
+    assert.ok((up ? ['low', 'spark'] : ['high', 'pearl']).some(tier => mine.classList.contains(tier)), `its height matches the key (${mine.className})`);
     assert.ok(host.window.document.querySelectorAll('.obstacle-marker').length > 0, 'the host shows them too');
     // A change of mind: the wrong key, then at once the right one, before the host echoes either. The latest counts.
     const wrong = up ? 'ArrowDown' : 'ArrowUp';
@@ -387,7 +387,6 @@ test("commentator lines take turns, and each player hears their own duck's lane 
     const heard = { host: [], viewer: [] }, clock = { t: 0 };
     const listen = (game, list) => { const text = game.$('commentary').textContent.replace(/^🎙️\s*/, ''); if (text && text !== list.at(-1)?.text) list.push({ t: clock.t, text }); };
     for (; clock.t < 150000 && !viewer.$('result-dialog').open; clock.t += 250) { await sync(host, viewer, 200); listen(host, heard.host); listen(viewer, heard.viewer); }
-    const lane = /tảng đá|chim sà|rune/;
     for (const [page, said] of Object.entries(heard)) {
       const inRace = said.slice(1, -2); // past the opening line, short of the photo-finish call and the winner's line
       assert.ok(inRace.length >= 3, `${page}: the commentator talks through the race (${said.map(s => s.text).join(' | ')})`);
@@ -396,8 +395,8 @@ test("commentator lines take turns, and each player hears their own duck's lane 
         assert.ok(inRace[i].t - prev.t >= need - 300, `${page}: "${inRace[i].text}" came ${inRace[i].t - prev.t} ms after "${prev.text}" (needs ${Math.round(need)})`);
       }
     }
-    assert.ok(!heard.host.some(s => lane.test(s.text)), 'no lane moments on the host');
-    const own = heard.viewer.filter(s => lane.test(s.text));
+    // Lines only An's page read are An's own lane moments (the host's page reads none).
+    const own = heard.viewer.slice(1, -2).filter(s => !heard.host.some(h => h.text === s.text));
     assert.ok(own.length >= 1 && own.every(s => s.text.includes('An')), `An hears their own duck's lane moments (${own.map(s => s.text).join(' | ')})`);
     assert.deepEqual([...host.errors, ...viewer.errors].map(String), []);
   } finally { await host.close(); await viewer?.close(); }

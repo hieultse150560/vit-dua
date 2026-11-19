@@ -115,7 +115,8 @@
   }
   const LANE_NAMES = { up: 'tảng đá', down: 'con chim sà', speed: 'rune tốc độ', bubble: 'rune bong bóng' };
   function laneLine(event, a) {
-    const kind = event.rune ? 'rune' : 'obstacle', o = LANE_NAMES[event.rune || event.key] || 'chướng ngại';
+    // event.thing: what the page drew there (lane-art.js), else the plain name of the key.
+    const kind = event.rune ? 'rune' : 'obstacle', o = event.thing || LANE_NAMES[event.rune || event.key] || 'chướng ngại';
     const pool = LINES[`${kind}:${event.key}:${event.outcome}`] || LINES[`${kind}:${event.outcome}`] || [`${a} ${event.label || ''}`.trim()];
     return pool[hash(`${event.id}|${event.time}`) % pool.length].replaceAll('{a}', a).replaceAll('{o}', o);
   }

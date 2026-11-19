@@ -267,7 +267,10 @@
     if(!viewer&&casting)skillNodes.forEach((chip,id)=>{chip.tabIndex=0;chip.setAttribute('role','button');chip.title=`Bấm để tung skill hộ ${owners[id]}`;chip.onclick=()=>{if(!castFor(id))toast('Chưa tung được skill này lúc này.');};});
     visuals?.destroy();showWeather();visuals=window.DuckRaceVisuals?.create({lite:slowFx,container:document.querySelector('.race-water'),river:$('river'),nodes,reduced:()=>reduced.matches,seed:race.seed,weather:race.weather?.id,duration:race.duration,bend:bendAt,map:race.map||null})||null;
     if(viewer&&meId&&current.picks[meId]!==undefined)racerViews[current.picks[meId]]?.element.classList.add('mine');
-    $('river').scrollTop=0;measure();
+    // A player's river is cut to fit above their control bar: it opens on their own lane.
+    const river=$('river'),lane=viewer&&meId?nodes[current.picks[meId]]?.closest('.lane'):null;river.scrollTop=0;
+    if(lane)river.scrollTop=Math.max(0,lane.getBoundingClientRect().top-river.getBoundingClientRect().top-(river.clientHeight-lane.offsetHeight)/2);
+    measure();
   }
   function eventText(event,picks=current.picks){
     const owner=id=>{const entry=Object.entries(picks).find(([,duck])=>duck===id);return entry?playerName(entry[0]):A.name(id);};
@@ -753,8 +756,15 @@
     pendingDodges=[...pendingDodges,{race:a.id,duck,press:[t,key],at:performance.now()}];applyLineup(withPending(hostLineup?.id===a.id?hostLineup.lineup:a.lineup,false));renderDodge();
     Promise.resolve(room.send({kind:'dodge',player:meId,race:a.id,time:t,key})).catch(e=>toast(e.message));
   }
+  // What each lane thing of this race looks like (lane-art.js): its drawing comes from the race seed and its place, so
+  // every page draws the same. Older races without lanes fall back to the kind alone.
+  let laneLooks=null;const kindById=id=>C3.obstacles.find(o=>o.id===id),keyWord=k=>k==='up'?'nhảy ⬆️':'lặn ⬇️';
+  const pickOf=k=>Math.imul((Number(race.seed)>>>0)^Math.imul(k+1,0x9e3779b1),0x85ebca6b)>>>16;
+  function thingOf(e){
+    if(laneLooks?.race!==race)laneLooks={race,list:(race.obstacles||[]).map((o,k)=>'duck' in o?window.DuckLaneArt.look(kindById(o.kind),pickOf(k)):null)};
+    return laneLooks.list[e.line]||window.DuckLaneArt.look(kindById(e.obstacle));
+  }
   // The player's pad: the next thing in their lane and its key, then how it went for a moment.
-  const LANE_KINDS=new Map(C3.obstacles.map(k=>[k.id,window.DuckLaneArt.look(k)])),laneKind=id=>LANE_KINDS.get(id),keyWord=k=>k==='up'?'nhảy ⬆️':'lặn ⬇️';
   function renderDodge(){
     const pad=$('dodge-pad'),a=current?.active,duck=myDuck();if(!pad)return;
     const shown=!!(viewer&&a?.lineup?.dodges&&race?.obstacles&&Number.isInteger(duck)&&race.racers[duck]);
@@ -762,11 +772,11 @@
     const now=a.elapsed,meets=race.events.filter(e=>e.type==='obstacle'&&e.actorId===duck);
     const done=meets.findLast(e=>e.time<=now&&now-e.time<1.2),next=meets.find(e=>e.time>now);
     let state,text,chosen='';
-    if(done){const k=laneKind(done.obstacle),bad=done.outcome==='hit'||done.outcome==='missed';state=bad?'hit':'pass';
+    if(done){const k=thingOf(done),bad=done.outcome==='hit'||done.outcome==='missed';state=bad?'hit':'pass';
       text=done.rune?(bad?`💨 Hụt ${k.name.toLowerCase()}`:`${k.icon} Ăn ${k.name.toLowerCase()}!`):done.outcome==='hit'?`💥 Vấp ${k.name.toLowerCase()}!`:`✨ ${done.label}`;}
     else if(!next){state='idle';text='🏁 Hết chướng ngại, về đích thôi!';}
     else{
-      const k=laneKind(next.obstacle),what=`${k.icon} ${k.name} · ${keyWord(k.key)}${k.rune?' để ăn':''}`;
+      const k=thingOf(next),what=`${k.icon} ${k.name} · ${keyWord(k.key)}${k.rune?' để ăn':''}`;
       const press=(a.lineup.dodges[duck]||[]).filter(p=>p[0]>=next.time-OBSTACLE_REVEAL-1e-6&&p[0]<=next.time-OBSTACLE_LEAD+1e-6).at(-1);
       if(next.time-now>OBSTACLE_REVEAL){state='idle';text=`${what} · còn ${Math.ceil(next.time-now)}s`;}
       else if(press){state='pressed';chosen=press[1];text=`${k.icon} ${k.name} · đã chọn ${keyWord(press[1])}`;}
@@ -785,13 +795,13 @@
     const mine=myDuck(),next=new Map();
     for(const e of obstacleMeets.at.values())if(e.time>elapsed&&!(next.get(e.actorId)<=e.time))next.set(e.actorId,e.time);
     race.obstacles.forEach((o,k)=>{
-      const e=obstacleMeets.at.get(k),kind=laneKind(o.kind);let m=obstacleNodes.get(k);
+      const e=obstacleMeets.at.get(k),kind=thingOf({line:k,obstacle:o.kind});let m=obstacleNodes.get(k);
       const state=!e||elapsed>e.time+1.2?null:elapsed<e.time?(e.time===next.get(o.duck)&&e.time-elapsed<=OBSTACLE_SHOW?'shown':null):kind.rune?(e.outcome==='missed'?'missed':'grabbed'):e.outcome==='hit'?'crashed':'passed';
       const runway=nodes[o.duck]?.parentElement;
       if(!state||!runway){if(m){m.remove();obstacleNodes.delete(k);}return;}
       if(!m){
         if(!document.querySelector('.lane-art-defs'))document.body.insertAdjacentHTML('beforeend',window.DuckLaneArt.defs);
-        m=node('span',`obstacle-marker ${kind.look}${o.duck===mine?' mine':''}`);m.innerHTML=window.DuckLaneArt.html(kind.look);m.title=`${kind.name}: ${keyWord(kind.key)}`;
+        m=node('span',`obstacle-marker ${kind.look} ${kind.tier}${o.duck===mine?' mine':''}`);m.innerHTML=window.DuckLaneArt.html(kind.look);m.title=`${kind.name}: ${keyWord(kind.key)}`;
         obstacleNodes.set(k,m);runway.append(m);
       }
       if(m.dataset.state!==state)m.dataset.state=state;
@@ -802,8 +812,8 @@
   // (the host: trips only). The commentator reads them per person: only your own duck's, on your own page (skills and
   // river events are read the same on every page).
   function obstacleFx(e,elapsed){
-    const mine=e.actorId===myDuck(),hit=e.outcome==='hit';if(mine)narrate(window.DuckCommentary?.line(e,id=>owners[id]||A.name(id)),2);
-    visuals?.event(e,currentSample,elapsed,race.sample(Math.max(0,e.time-.051)));
+    const mine=e.actorId===myDuck(),hit=e.outcome==='hit',thing=thingOf(e);if(mine)narrate(window.DuckCommentary?.line({...e,thing:thing.said},id=>owners[id]||A.name(id)),2);
+    visuals?.event({...e,chips:thing.chips},currentSample,elapsed,race.sample(Math.max(0,e.time-.051)));
     if(hit)flashHits({type:'hazard',outcome:'hit',actorId:e.actorId});
     const kind=window.DuckSfx?.kindOf(e);if(kind&&(mine||!viewer&&hit)&&performance.now()-obstacleSfxAt>250){obstacleSfxAt=performance.now();sfx(kind);}
   }
