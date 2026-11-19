@@ -543,34 +543,44 @@ body:not(.viewer) .skill-chip[data-cast="ready"]:hover{background:#fff1e8}
 @keyframes charge{from{filter:drop-shadow(0 0 4px #ff5a1f) drop-shadow(0 0 10px #ff3d00)}to{filter:drop-shadow(0 0 10px #ff5a1f) drop-shadow(0 0 22px #ff3d00)}}
 @media (prefers-reduced-motion:reduce){.cast-button.ready,.racer.charging .duck-body{animation:none}.racer.charging .duck-body{filter:drop-shadow(0 0 10px #ff3d00)}}
 
-/* River obstacles (chaos-v4 race rooms), placed like rune markers at the duck's centre: ❓ until revealed, then the
-   real thing with a ⬆ jump (warm) or ⬇ dive (cool) hint, pulsing gently; it drifts away once passed and shakes
-   with a 💥 when hit. The viewer's own obstacle (.mine) wears a gold ring. */
-/* At the duck's beak (a duck meets an obstacle when its position reaches it), so the duck never hides its own next one. */
-/* Every lane's things are in sight from the start: obstacles on a small tile (orange edge: jump, blue edge: dive), runes
-   as glowing orbs, one floating high (jump for it) or one deep under the water (dive for it). */
-.obstacle-marker{position:absolute;top:16px;margin-left:calc(var(--racer-size,94px) * .9);transform:translateX(-50%);z-index:1;width:40px;height:40px;display:grid;place-items:center;border:2px solid #fff;border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 3px 0 rgba(30,80,90,.3);font-size:27px;line-height:1;pointer-events:none;transition:opacity .45s,transform .45s}
-.obstacle-marker[data-key="up"]{border-color:#ffb347}
-.obstacle-marker[data-key="down"]{border-color:#6fb8ff}
-.obstacle-marker.rune-item{border:0;border-radius:50%;box-shadow:none;font-size:24px}
-.obstacle-marker.rune-item[data-key="up"]{top:0;background:radial-gradient(circle,#fff8c8 0 45%,rgba(255,216,77,.55) 60%,rgba(255,216,77,0) 72%);filter:drop-shadow(0 0 6px #ffe27a)}
-.obstacle-marker.rune-item[data-key="down"]{top:30px;background:radial-gradient(circle,rgba(207,236,255,.9) 0 45%,rgba(111,184,255,.45) 62%,rgba(111,184,255,0) 72%);opacity:.85}
-.is-running .obstacle-marker.rune-item[data-state="shown"]{animation:rune-bob 1.1s ease-in-out infinite alternate}
-@keyframes rune-bob{to{transform:translateX(-50%) translateY(-4px)}}
-/* Your own lane: a gold ring, the key to press, and a gentle pulse. */
-.obstacle-marker.mine{box-shadow:0 3px 0 rgba(30,80,90,.3),0 0 0 4px #ffd84d,0 0 16px rgba(255,216,77,.85)}
-.obstacle-marker.mine[data-state="shown"]::after{position:absolute;right:-10px;top:-10px;width:20px;height:20px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;color:#fff;font-size:11px;font-weight:900;box-shadow:0 2px 4px rgba(0,0,0,.25)}
-.obstacle-marker.mine[data-state="shown"][data-key="up"]::after{content:'⬆';background:#e8732c}
-.obstacle-marker.mine[data-state="shown"][data-key="down"]::after{content:'⬇';background:#2f7fd1}
-.is-running .obstacle-marker.mine:not(.rune-item)[data-state="shown"]{animation:obstacle-pulse .8s ease-in-out infinite alternate}
-@keyframes obstacle-pulse{to{transform:translateX(-50%) scale(1.1)}}
-.obstacle-marker[data-state="passed"],.obstacle-marker[data-state="missed"]{opacity:0;transform:translateX(-120%) scale(.7)}
+/* Lane things (chaos-v5 race rooms), drawn by lane-art.js at the duck's beak (a duck meets a thing when its position
+   reaches it). The height shows the key: a rock sits in the water (jump), a gull flies at head height over its shadow
+   (dive), the gold rune floats high over its shadow (jump for it), the pearl rune lies under the water below a ring on
+   the surface (dive for it). Your own lane's thing glows gold. --water-line: the ducks' water line, from the lane top. */
+.obstacle-marker{--water-line:58px;position:absolute;top:0;height:100%;width:84px;margin-left:calc(var(--racer-size,94px) * .9);transform:translateX(-50%);z-index:1;pointer-events:none;animation:thing-in .45s ease-out both}
+.obstacle-marker .thing-art{position:absolute;left:50%;translate:-50% 0;overflow:visible}
+.obstacle-marker .thing-shadow{position:absolute;left:50%;top:calc(var(--water-line) - 6px);width:54px;height:12px;margin-left:-27px;border-radius:50%;background:radial-gradient(closest-side,rgba(10,55,58,.55),rgba(10,55,58,0))}
+.obstacle-marker.rock .thing-art{top:calc(var(--water-line) - 46px)}
+.obstacle-marker.bird .thing-art{top:calc(var(--water-line) - 83px);filter:drop-shadow(0 3px 2px rgba(20,60,60,.2))}
+.obstacle-marker.bird .wing{transform-box:fill-box;transform-origin:50% 100%}
+.obstacle-marker.spark .thing-art{top:calc(var(--water-line) - 70px);filter:drop-shadow(0 0 6px #ffe27a)}
+.obstacle-marker.spark .thing-shadow{width:36px;margin-left:-18px}
+.obstacle-marker.pearl .thing-art{top:calc(var(--water-line) - 4px);opacity:.72;filter:saturate(.85)}
+.obstacle-marker.pearl .thing-surface{position:absolute;left:50%;top:calc(var(--water-line) - 5px);width:44px;height:10px;margin-left:-22px;border:2px solid rgba(240,253,255,.85);border-radius:50%}
+.obstacle-marker.mine .thing-art{filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 7px #ffd84d)}
+.obstacle-marker.spark.mine .thing-art{filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 9px #ffb800)}
+.is-running .obstacle-marker.bird .thing-art{animation:thing-bob .68s ease-in-out infinite alternate}
+.is-running .obstacle-marker.bird .wing{animation:thing-flap .34s ease-in-out infinite alternate}
+.is-running .obstacle-marker.bird .thing-shadow{animation:thing-shadow .68s ease-in-out infinite alternate}
+.is-running .obstacle-marker.spark .thing-art{animation:thing-bob 1s ease-in-out infinite alternate}
+.is-running .obstacle-marker.pearl .bubble{animation:thing-bubble 1.6s ease-in infinite}
+.is-running .obstacle-marker.pearl .bubble.b2{animation-delay:-.8s}
+/* Then: a passed rock and a missed rune fade, a dodged gull flies off, an eaten rune pops into the duck, a hit shakes. */
+.obstacle-marker[data-state="passed"],.obstacle-marker[data-state="missed"]{animation:thing-out .9s ease-out forwards}
+.obstacle-marker.bird[data-state="passed"]{animation:thing-fly-off .9s ease-in forwards}
 .obstacle-marker[data-state="grabbed"]{animation:rune-eat .5s ease-out forwards}
-@keyframes rune-eat{40%{transform:translateX(-50%) scale(1.5);opacity:1}100%{transform:translateX(-80%) scale(.2);opacity:0}}
-.obstacle-marker[data-state="crashed"]{animation:obstacle-crash .7s ease-out forwards}
-.obstacle-marker[data-state="crashed"]::before{content:'💥';position:absolute;left:50%;top:50%;font-size:30px;transform:translate(-50%,-50%);animation:obstacle-boom .5s ease-out forwards}
-@keyframes obstacle-crash{10%,30%{transform:translateX(calc(-50% - 5px)) rotate(-9deg)}20%,40%{transform:translateX(calc(-50% + 5px)) rotate(9deg)}55%{transform:translateX(-50%) rotate(0);opacity:1}100%{transform:translateX(-50%) scale(.6);opacity:0}}
-@keyframes obstacle-boom{from{transform:translate(-50%,-50%) scale(.4);opacity:1}to{transform:translate(-50%,-50%) scale(1.6);opacity:0}}
+.obstacle-marker[data-state="crashed"]{animation:obstacle-crash .8s ease-out forwards}
+.lane-art-defs{position:absolute;width:0;height:0;overflow:hidden}
+@keyframes thing-in{from{opacity:0;transform:translateX(-50%) scale(.6)}}
+@keyframes thing-out{to{opacity:0}}
+@keyframes thing-fly-off{to{opacity:0;transform:translateX(-50%) translate(46px,-44px) scale(.8)}}
+@keyframes thing-flap{to{transform:scaleY(-.35)}}
+@keyframes thing-bob{to{translate:-50% -4px}}
+@keyframes thing-shadow{to{transform:scale(.85);opacity:.8}}
+@keyframes thing-bubble{from{transform:translateY(6px);opacity:0}30%{opacity:1}to{transform:translateY(-10px);opacity:0}}
+@keyframes rune-eat{40%{transform:translateX(-50%) scale(1.4);opacity:1}100%{transform:translateX(-80%) scale(.2);opacity:0}}
+@keyframes obstacle-crash{10%,30%{transform:translateX(calc(-50% - 5px)) rotate(-8deg)}20%,40%{transform:translateX(calc(-50% + 5px)) rotate(8deg)}55%{transform:translateX(-50%) rotate(0);opacity:1}100%{transform:translateX(-50%);opacity:0}}
+@media (prefers-reduced-motion:reduce){.obstacle-marker,.obstacle-marker *{animation:none!important}}
 
 /* Dodge pad (race rooms): the viewer's own jump/dive keys under the cast button. idle: calm and dim; reveal: an
    obstacle is coming, keys bright and pulsing; pressed: the chosen key lit; late, pass, hit: the result for a beat. */

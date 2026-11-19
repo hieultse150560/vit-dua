@@ -437,12 +437,13 @@
       ctx.globalAlpha = alpha * .5; ctx.fillStyle = '#8b94a6'; ctx.beginPath(); ctx.arc(x - 6 * scale, y - 12 * scale, 8 * scale, 0, TAU); ctx.fill();
       if (flash) glow({ x, y: y + 12 }, 34 * scale, 'rgba(255,250,200,.9)', alpha * .8);
     }
-    // River obstacles (chaos-v4 race rooms) stay small and quiet: spray for a jump, bubbles for a dive, splinters for a hit.
+    // River obstacles (race rooms) stay small and quiet: spray for a jump, bubbles for a dive, and for a hit rock chips
+    // (a jump missed) or feathers (a dive missed; lanes draw jump things as rocks and dive things as gulls).
     function drawObstacle(b, p) {
       const s = live(b.actorId) || b.origin, a = 1 - p, o = b.outcome;
       if (o === 'missed') return; // a rune that floated by
       if (b.rune) { particles({ x: s.x + 10, y: s.y - (b.key === 'up' ? 40 : 4) }, p, b.rune === 'speed' ? '#ffe27a' : '#bfeaff', 12, 44, b.id); return; }
-      if (o === 'hit') { particles({ x: s.x + 24, y: s.y - 10 }, p, '#a0703a', 10, 46, b.id); ring(s.x, s.y + 6, 16 + p * 36, 5 + p * 10, '#ffffff', a * .8, 2); return; }
+      if (o === 'hit') { particles({ x: s.x + 24, y: s.y - 10 }, p, b.key === 'down' ? '#f4f8fa' : '#8e948c', 10, 46, b.id); ring(s.x, s.y + 6, 16 + p * 36, 5 + p * 10, '#ffffff', a * .8, 2); return; }
       if (o === 'immune') { ring(s.x, s.y - 20, 30, 30, '#c2fbff', a, 3); return; }
       if (o === 'smashed') { particles({ x: s.x + 30, y: s.y - 6 }, p, '#8a6a4a', 14, 60, b.id); return; }
       if (o === 'over') { particles({ x: s.x, y: s.y - 40 }, p, '#fff6c8', 10, 40, b.id); return; }

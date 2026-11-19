@@ -15,9 +15,9 @@ const submit = (game, id) => game.$(id).dispatchEvent(new game.window.Event('sub
 const duck = (game, id) => game.window.document.querySelector(`#duck-grid [data-duck-id="${id}"]`);
 // Every duck deals the heat-seeking missile: an active skill that aims, so the cast tests never depend on the deal.
 const engine = readFileSync(new URL('../dist/chaos-engine-v2.js', import.meta.url), 'utf8');
-const missileDeal = 'return dealLineup(V5_RULES, count, seed);';
+const missileDeal = 'return dealLineup(V6_RULES, count, seed);';
 if (!engine.includes(missileDeal)) throw Error('the engine changed: update missileDeal');
-const dealing = skill => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V5_RULES, count, seed), skills: Array(count).fill('${skill}') };`) } });
+const dealing = skill => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V6_RULES, count, seed), skills: Array(count).fill('${skill}') };`) } });
 const missiles = dealing('missile');
 const key = (game, code, name = code) => game.window.document.body.dispatchEvent(new game.window.KeyboardEvent('keydown', { code, key: name, bubbles: true }));
 const order = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.children[1].textContent);
@@ -188,7 +188,7 @@ test('in a room each player casts their own skill from their page, aimed at any 
 
     const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
     assert.equal(replay.lineup.casts[binhDuck], null, "Bình's skill was never cast by hand");
-    const race = host.window.DuckChaosEngineV5.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
+    const race = host.window.DuckChaosEngineV6.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
     const fired = id => race.events.filter(e => e.type === 'skill' && e.activation && e.actorId === id);
     assert.ok(Math.abs(fired(anDuck)[0].time - cast) < 0.06, "the replay fires An's skill when An cast it");
     assert.equal(fired(anDuck)[0].targetId, other, 'at the rival An aimed at');
@@ -211,12 +211,14 @@ test('when nobody casts, every skill casts itself after the deadline, spread out
     for (let i = 0; i < 40 && !host.$('result-dialog').open; i++) host.advance(4000, 50);
     const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
     assert.ok(replay.lineup.casts.every(c => c === null), 'nobody cast by hand');
-    const race = host.window.DuckChaosEngineV5.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
+    const race = host.window.DuckChaosEngineV6.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
     const active = skills.map((s, i) => i).filter(i => !['mirror', 'buoy'].includes(skills[i]));
     const fired = race.events.filter(e => e.type === 'skill' && e.activation && e.scheduled && active.includes(e.actorId));
     assert.deepEqual(Array.from(fired, e => e.actorId).sort(), Array.from(active), 'every active skill fired, once');
     const twists = race.events.filter(e => e.scheduled).map(e => e.time);
-    assert.ok(!race.events.some(e => e.finale), 'no finale rock');
+    // The calm finish: after the casts and the plot twist nothing happens until the line, but for the finale rock (some races).
+    assert.ok(race.events.filter(e => e.scheduled && e.time > 55 * 0.85 + 1e-6).every(e => e.finale), 'only the finale rock after the calm starts');
+    assert.ok(race.events.some(e => e.scheduled && e.type === 'hazard' && !e.finale && e.time >= 55 * 0.7 - 1e-6 && e.time <= 55 * 0.85 + 1e-6), 'a late plot twist on the river');
     for (const e of fired) {
       assert.ok(e.time >= 55 * 0.45, `after the deadline (${e.time})`);
       assert.ok(e.time <= 55 * 0.85 + 1e-6, `before the calm finish (${e.time})`);
@@ -338,22 +340,22 @@ test('lane obstacles and runes: in sight from the start; a player steers their o
     host.click('random-picks'); await sync(host, viewer);
     host.click('start'); await sync(host, viewer);
     const lineup = () => current(host).active.lineup, pad = viewer.$('dodge-pad');
-    assert.equal(current(host).active.engine, 'chaos-v5');
+    assert.equal(current(host).active.engine, 'chaos-v6');
     assert.deepEqual(lineup().pilots, [false, true, false], 'only the player who picked on their own page steers');
     assert.equal(pad.hidden, false, 'the player gets the pad');
     assert.equal(host.$('dodge-pad').hidden, true, 'the host does not');
     await sync(host, viewer, 150);
-    const atStart = [...viewer.window.document.querySelectorAll('.obstacle-marker')], runes = lineup().rule === 'runes' ? 4 : 2; // rune rain doubles them
-    assert.equal(atStart.length, 3 * (4 + runes), 'every lane shows its 4 obstacles and its runes from the start');
-    assert.ok(atStart.every(m => m.dataset.state === 'shown' && !m.textContent.includes('❓')), 'no mystery boxes: each shows what it is');
-    assert.equal(atStart.filter(m => m.classList.contains('rune-item')).length, 3 * runes);
+    assert.equal(viewer.window.document.querySelectorAll('.obstacle-marker').length, 0, 'nothing in sight at the start: the first things lie 15% down the course');
     for (let i = 0; i < 160 && pad.dataset.state !== 'reveal'; i++) await sync(host, viewer, 150);
     assert.equal(pad.dataset.state, 'reveal', viewer.$('dodge-status').textContent);
-    const markers = [...viewer.window.document.querySelectorAll('.obstacle-marker')];
-    assert.ok(markers.length >= 3 * 3 - 3, `the river shows each lane's obstacles (${markers.length})`);
-    assert.ok(markers.some(m => m.classList.contains('mine') && m.dataset.state === 'shown'), "the player's own obstacle is revealed");
-    assert.ok(host.window.document.querySelectorAll('.obstacle-marker').length > 0, 'the host shows them too');
+    const shown = [...viewer.window.document.querySelectorAll('.obstacle-marker[data-state="shown"]')];
+    assert.ok(new Set(shown.map(m => m.parentElement)).size === shown.length, 'one thing per lane at a time');
+    const mine = shown.find(m => m.classList.contains('mine'));
+    assert.ok(mine, "the player's own next thing is in sight");
+    assert.ok(mine.querySelector('svg.thing-art') && mine.textContent.trim() === '', 'drawn as the real thing, not an icon');
     const up = /nhảy/.test(viewer.$('dodge-status').textContent), name = up ? 'ArrowUp' : 'ArrowDown';
+    assert.ok((up ? ['rock', 'spark'] : ['bird', 'pearl']).some(look => mine.classList.contains(look)), `its height matches the key (${mine.className})`);
+    assert.ok(host.window.document.querySelectorAll('.obstacle-marker').length > 0, 'the host shows them too');
     // A change of mind: the wrong key, then at once the right one, before the host echoes either. The latest counts.
     const wrong = up ? 'ArrowDown' : 'ArrowUp';
     key(viewer, wrong, wrong); viewer.advance(60, 30); key(viewer, name, name); await sync(host, viewer, 50);
@@ -363,5 +365,40 @@ test('lane obstacles and runes: in sight from the start; a player steers their o
     for (let i = 0; i < 40 && !['pass', 'hit'].includes(pad.dataset.state); i++) await sync(host, viewer, 100);
     assert.equal(pad.dataset.state, 'pass', viewer.$('dodge-status').textContent);
     assert.ok(![...viewer.$('event-history').children].some(li => /chướng ngại|NÉ ĐẸP|RUNE/i.test(li.textContent)), 'lane moments stay out of the race log');
+  } finally { await host.close(); await viewer?.close(); }
+});
+
+// The commentator takes turns: a line is read to the end, then a short rest, then the next (skills first; a waiting line
+// goes stale). Only the opening line may be cut short. Lane moments are read per person: a player's page reads their own
+// duck's trips and runes, the host's page none.
+test("commentator lines take turns, and each player hears their own duck's lane moments", async () => {
+  const host = loadGame({}, withChannel); let viewer;
+  try {
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-04'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
+    submit(host, 'setup-form'); await settle();
+    const code = host.storage()['vit-dua-room'];
+    host.click('room-close'); host.click('skills-close');
+    viewer = loadGame({}, { ...withChannel, url: `http://localhost/?phong=${code}&ten=An` });
+    await sync(host, viewer);
+    duck(host, 0).click(); await sync(host, viewer);
+    duck(viewer, 1).click(); await sync(host, viewer);
+    host.click('random-picks'); await sync(host, viewer);
+    host.click('start'); await sync(host, viewer);
+    const heard = { host: [], viewer: [] }, clock = { t: 0 };
+    const listen = (game, list) => { const text = game.$('commentary').textContent.replace(/^🎙️\s*/, ''); if (text && text !== list.at(-1)?.text) list.push({ t: clock.t, text }); };
+    for (; clock.t < 150000 && !viewer.$('result-dialog').open; clock.t += 250) { await sync(host, viewer, 200); listen(host, heard.host); listen(viewer, heard.viewer); }
+    const lane = /tảng đá|chim sà|rune/;
+    for (const [page, said] of Object.entries(heard)) {
+      const inRace = said.slice(1, -2); // past the opening line, short of the photo-finish call and the winner's line
+      assert.ok(inRace.length >= 3, `${page}: the commentator talks through the race (${said.map(s => s.text).join(' | ')})`);
+      for (let i = 1; i < inRace.length; i++) {
+        const prev = inRace[i - 1], need = (1 + prev.text.length * 0.065) * 1000 + 1200;
+        assert.ok(inRace[i].t - prev.t >= need - 300, `${page}: "${inRace[i].text}" came ${inRace[i].t - prev.t} ms after "${prev.text}" (needs ${Math.round(need)})`);
+      }
+    }
+    assert.ok(!heard.host.some(s => lane.test(s.text)), 'no lane moments on the host');
+    const own = heard.viewer.filter(s => lane.test(s.text));
+    assert.ok(own.length >= 1 && own.every(s => s.text.includes('An')), `An hears their own duck's lane moments (${own.map(s => s.text).join(' | ')})`);
+    assert.deepEqual([...host.errors, ...viewer.errors].map(String), []);
   } finally { await host.close(); await viewer?.close(); }
 });

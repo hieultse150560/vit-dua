@@ -144,12 +144,27 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 
 Có 18 đặc tính; mỗi trận 7 vịt nhận 7 cái khác nhau. Đo 40.000 trận 7 vịt × 40 giây: người có đặc tính nào cũng thắng trong khoảng 0,85–1,14 lần mức công bằng (test giữ mốc 0,7–1,3).
 
+### `chaos-v6`: điểm theo đúng thứ tự chạm vạch, vấp đá sát đích trở lại, plot twist cuối trận
+
+Trận mới chạy `chaos-v6`: giữ nguyên `chaos-v5` (bộ skill, thông số, làn riêng), chỉ đổi những điểm dưới đây. Trận `chaos-v5` (và cũ hơn) vẫn dựng lại bằng engine của nó, không đổi gì.
+
+- **Điểm theo đúng thứ tự chạm vạch đích:** vạch đích trên sông là chỗ con thắng dừng lúc hết giờ, còn hạng tính theo quãng đường lúc hết giờ. Vì vậy một con đã chạm vạch rồi bị đánh lùi sẽ về sau, dù trên sông trông như đã về đích. Ở `chaos-v4`, với 3 vịt, khoảng 3 trận trong 10 có con chạm vạch đầu tiên mà không thắng, 1 trong 10 còn bị tính về chót (thường do cú vấp đá trong 2 giây cuối). `chaos-v6` chặn hẳn chuyện này: cú vấp đá xảy ra trước khi con nào tới vạch, và con bỏ xa tới mức có thể đã ở vạch thì không bị vấp. Test giữ mốc: con chạm vạch đầu tiên luôn thắng (3 và 6 vịt, có phòng, không phòng, luật 🎬).
+- **Vấp đá sát đích trở lại:** khoảng 1/3 số trận (luật ngày 🎬 Về đích nghẹt thở: gần như trận nào cũng có, và luật này được bốc lại), lúc 88–92% trận (khoảng 5 giây trước vạch của trận 55 giây). Con dẫn đầu bị bật ra sau con thứ hai, choáng 0,7 giây rồi bơi tiếp, không gì đụng được nó nữa: nó mất ngôi đầu nhưng còn sức gỡ lại.
+- **Plot twist cuối trận (khi chơi có phòng):** mỗi trận có thêm một sự kiện sông nước ngẫu nhiên ở 70–85% trận. Người chơi tự tung skill nên skill "plot twist" của trận cũng đến sớm theo; sự kiện này thì luôn ở cuối. Đo 200 trận người chơi tung skill sớm: `chaos-v5` chỉ 1/3 số trận còn biến cố ở đoạn cuối, `chaos-v6` thì trận nào cũng có.
+- Sau plot twist vẫn là quãng êm: không skill, sự kiện hay chướng ngại; chỉ còn có thể có cú vấp đá sát đích và nước rút 5 giây cuối (một số con được tăng tốc).
+
+**Trên sông (mọi trận có làn, cả `chaos-v5`):** mỗi làn chỉ hiện một thứ sắp tới, hiện ra khoảng 5 giây (giờ trận) trước khi vịt tới, nên màn hình không còn hàng chục ô. Mọi thứ vẽ thành hình thật (file `lane-art.js`), độ cao nói luôn phím cần bấm: tảng đá nằm trên mặt nước, có viền sóng ở chân (nhảy qua); chim hải âu vỗ cánh bay ngang đầu vịt, bóng in xuống nước (lặn tránh); rune vàng lơ lửng trên cao, có bóng (nhảy lên ăn); viên ngọc nằm mờ dưới nước, có vòng sóng trên mặt và bọt nổi lên (lặn xuống ăn). Khúc gỗ vẽ như tảng đá, cành cây thấp vẽ như chim, vì cùng phím. Thứ của làn mình phát sáng vàng.
+
+**Bình luận lần lượt từng câu:** mỗi câu được đọc hết, nghỉ 1,2 giây rồi mới tới câu sau; chỉ câu mở màn có thể bị cắt ngang. Câu đang chờ: skill trước, rồi sự kiện sông nước và chuyện làn; chờ quá 2,5 giây thì bỏ. Skill và sự kiện sông nước thì máy nào cũng đọc như nhau. Chuyện làn (vấp đá, vấp chim, ăn hay hụt rune) đọc riêng từng người: máy người chơi chỉ đọc chuyện của vịt mình, máy chủ (màn hình chiếu chung) không đọc.
+
+**Bảng kết quả lượt** ghi rõ cách tính: điểm theo đúng thứ tự chạm vạch, nhất N điểm, mỗi hạng sau bớt 1, ⭐ nhân đôi.
+
 ### `chaos-v5`: làn riêng có chướng ngại và rune, về đích êm
 
 Trận mới chạy `chaos-v5`: giữ nguyên bộ skill và thông số `chaos-v4`, chỉ đổi những điểm dưới đây. Trận `chaos-v4` (và cũ hơn) vẫn dựng lại bằng engine của nó, không đổi gì.
 
-- **Làn riêng (chỉ khi chơi có phòng):** thay cho các hàng chướng ngại chắn ngang sông, mỗi làn có 4 chướng ngại và 2 rune ở chỗ ngẫu nhiên riêng, rải từ 15% đến 78% chặng, cách nhau ít nhất 5% chặng (trận dưới 50 giây: 3 chướng ngại; luật Mưa rune: 4 rune). Tất cả hiện rõ ngay từ đầu trận, không còn ô ❓. 🪵 Khúc gỗ, 🪨 đá ngầm thì nhảy (↑); 🌿 cành cây thấp, 🦅 chim sà thì lặn (↓). ⚡ Rune tốc độ bay lơ lửng: nhảy để ăn, tăng tốc 40% trong 1,5 giây; 🫧 rune bong bóng nằm dưới nước: lặn để ăn, được lớp bảo vệ chặn một đòn. Phím vẫn tính khi bấm trước lúc tới từ 1 đến 3 giây (lấy lần bấm cuối); sai, trễ hoặc không bấm thì vấp (choáng 0,8 giây) hoặc hụt rune. Vịt do máy chủ chọn hộ trông vào may rủi (60%). Rune tự nhặt không còn trong trận có phòng; sự kiện sông nước giảm một nửa vì làn đã có đá và chim. Trên máy người chơi, làn của mình có viền vàng và mũi tên chỉ phím cần bấm; bảng phím báo trước thứ sắp tới và phím của nó.
-- **Không bình luận làn:** chướng ngại và rune diễn ra lặng lẽ (tia nước, bọt, lấp lánh, tiếng nhỏ cho vịt của mình); không banner, không vào nhật ký. Bình luận viên chỉ đọc skill, không đọc sự kiện sông nước nữa.
+- **Làn riêng (chỉ khi chơi có phòng):** thay cho các hàng chướng ngại chắn ngang sông, mỗi làn có 4 chướng ngại và 2 rune ở chỗ ngẫu nhiên riêng, rải từ 15% đến 78% chặng, cách nhau ít nhất 5% chặng (trận dưới 50 giây: 3 chướng ngại; luật Mưa rune: 4 rune). Không còn ô ❓ (cách hiện trên sông: xem `chaos-v6`). 🪵 Khúc gỗ, 🪨 đá ngầm thì nhảy (↑); 🌿 cành cây thấp, 🦅 chim sà thì lặn (↓). ⚡ Rune tốc độ bay lơ lửng: nhảy để ăn, tăng tốc 40% trong 1,5 giây; 🫧 rune bong bóng nằm dưới nước: lặn để ăn, được lớp bảo vệ chặn một đòn. Phím vẫn tính khi bấm trước lúc tới từ 1 đến 3 giây (lấy lần bấm cuối); sai, trễ hoặc không bấm thì vấp (choáng 0,8 giây) hoặc hụt rune. Vịt do máy chủ chọn hộ trông vào may rủi (60%). Rune tự nhặt không còn trong trận có phòng; sự kiện sông nước giảm một nửa vì làn đã có đá và chim. Bảng phím trên máy người chơi báo trước thứ sắp tới và phím của nó.
+- **Làn không có banner:** chướng ngại và rune diễn ra bằng tia nước, bọt, lấp lánh và tiếng nhỏ cho vịt của mình; không banner, không vào nhật ký (bình luận: xem `chaos-v6`).
 - **Về đích êm:** khoảng 15% cuối trận (8 giây cuối của trận 55 giây) không còn skill, sự kiện hay chướng ngại; vịt nào tới vật cản trong quãng đó thì bơi qua luôn. Bỏ cú vấp đá sát đích, nên luật ngày 🎬 Về đích nghẹt thở không còn được bốc (các trận đã chơi với nó vẫn dựng lại đúng). Nút tung skill mở tới 45% trận (thay vì 55%); skill không ai bấm tự tung sau đó, cách nhau 3 giây. Trước đây khoảng 1/4 số trận có con vịt chạm vạch đích rồi vẫn bị đánh bật xuống; mô phỏng 300 trận `chaos-v5` không còn trận nào như vậy.
 - **Cân bằng:** Diều gió nhanh hơn 45% (thay vì 35%); Cá voi cho con dẫn đầu nhảy 2% và cú đáp hất lùi 1% (thay vì 3% và 2%).
 
@@ -218,7 +233,7 @@ Mỗi vòng đua (kể cả đua phụ) bốc ngẫu nhiên một luật, luôn 
 | 🌀 Vòng hỗn loạn | Sự kiện sông nước nhiều gấp đôi. |
 | 💎 Mưa rune | Rune trên sông nhiều gấp đôi. |
 | ⛈️ Trời nổi giông | Không có nắng đẹp: trận nào cũng mưa, gió, bão, sương mù hoặc đêm. |
-| 🎬 Về đích nghẹt thở | Trận nào cũng có cú vấp đá sát đích quật ngã con dẫn đầu. |
+| 🎬 Về đích nghẹt thở | Trận nào cũng có cú vấp đá sát đích quật ngã con dẫn đầu (`chaos-v6`: trừ khi nó bỏ xa tới mức có thể đã ở vạch). |
 | 🍀 Lội ngược dòng | Bùa may của người đang thua mạnh gấp đôi (né sự kiện xấu tối đa 75%). |
 
 Đo 2.500 trận 7 vịt × 40 giây cho mỗi luật: người cầm skill hay đặc tính nào cũng thắng trong khoảng 0,75–1,3 lần mức công bằng; ngày Lội ngược dòng, người chót bảng thắng khoảng 1,7 lần mức công bằng (ngày thường khoảng 1,5).
