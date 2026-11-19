@@ -31,7 +31,7 @@
     'rewind:rewound': ['{a} tua ngược thời gian, cả đoàn bị kéo lùi lại!', 'Tua lại nào! Mọi con trừ {a} đều về chỗ cũ!'],
     'reverse:hit': ['Bơi ngược chiều! {a} khiến tốp đầu quay đầu bơi lùi!', '{a} làm hai con dẫn đầu lú lẫn, bơi ngược về sau!'],
     'freeze:frozen': ['Đóng băng! Cả sông đứng hình, chỉ mình {a} còn bơi!', '{a} thổi một luồng gió lạnh, mặt sông đóng băng tức thì!'],
-    'rock:finale': ['Trời ơi! {a} vấp đá ngay trước vạch đích, mất trắng chiến thắng!', 'Kịch tính tột độ! {a} sắp về nhất thì vấp đá ngã lăn!', '{a} chỉ còn một sải nữa thôi… và vấp đá! Chiến thắng tuột khỏi tay!'],
+    'rock:finale': ['Trời ơi! {a} vấp đá ngay trước vạch đích, mất ngôi đầu!', 'Kịch tính tột độ! {a} sắp về nhất thì vấp đá ngã lăn!', '{a} chỉ còn một quãng nữa là tới vạch đích… và vấp đá! Ngôi đầu đổi chủ!'],
     'missile:hit': ['Tên lửa tầm nhiệt của {a} bám đuôi {b}… BÙM! Nổ tung!', '{b} chạy đằng trời! Tên lửa của {a} trúng ngay giữa lưng!', 'Một vệt khói dài… và {b} bị {a} thổi bay ngược lại!'],
     'bees:hit': ['Đàn ong của {a} bu kín tốp đầu, chạy không nổi!', 'Vo ve vo ve! {a} thả ong đuổi hai con dẫn đầu!'],
     'blackhole:hit': ['Hố đen của {a} nuốt chửng {b}, nhả ra tận cuối đoàn!', '{b} bị hố đen của {a} hút mất tăm, rơi xuống chót bảng!', 'Không gian xoắn lại! {a} tặng {b} một vé về cuối đoàn!'],
@@ -85,6 +85,19 @@
     reflected: ['Đòn của {a} bị gương của {b} dội ngược!', '{a} tấn công {b} và… tự hại mình!', 'Gương thần! Đòn của {a} bị dội ngược về chính nó!'],
     immune: ['{b} đang miễn nhiễm, {a} đánh hụt!', '{a} ra đòn nhưng không ăn thua!', '{a} vẫn còn choáng nên không sao!'],
     default: ['{a} tung chiêu vào {b}!', '{a} ra tay!'],
+    // Lane moments (race rooms). Lanes draw every jump thing as a rock and every dive thing as a gull ({o}).
+    'obstacle:up:dodged': ['{a} nhảy phốc qua {o}!', 'Hây! {a} bật qua {o} gọn gàng!'],
+    'obstacle:down:dodged': ['{a} lặn xuống, {o} sượt qua đầu!', '{a} ngụp đầu né {o} trong gang tấc!'],
+    'obstacle:up:hit': ['{a} đâm sầm vào {o}, lật nhào!', 'Ối! {a} quên nhảy, vấp {o}!'],
+    'obstacle:down:hit': ['Cộp! {a} không kịp lặn, bị {o} đâm trúng!', '{a} đụng ngay {o}, choáng váng!'],
+    'obstacle:lucky': ['{a} may mắn lách qua {o}!'],
+    'obstacle:over': ['{a} bay vèo qua {o}!'],
+    'obstacle:smashed': ['{a} khổng lồ, {o} chẳng cản nổi!'],
+    'obstacle:immune': ['{a} va phải {o} mà chẳng hề hấn gì!'],
+    'rune:up:grabbed': ['{a} nhảy lên đớp gọn {o}!', 'Ngon! {a} bật cao ăn trúng {o}!'],
+    'rune:down:grabbed': ['{a} lặn xuống nhặt được {o}!', '{a} ngụp sâu, vớt gọn {o}!'],
+    'rune:lucky': ['Hên quá! {a} vớ được {o}!'],
+    'rune:missed': ['{a} để tuột mất {o}!', 'Tiếc quá! Viên {o} trôi qua mặt {a}!'],
     // Race room: an area skill its owner aimed past the leaders ({c} = the ducks it struck).
     aimed: ['{a} chỉ mặt điểm tên, {c} lãnh trọn!', '{a} bỏ qua tốp đầu, nhắm thẳng {c}!', 'Có thù riêng chăng? {a} nhắm đúng {c}!']
   };
@@ -100,9 +113,15 @@
     for (const ch of String(text)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
     return h;
   }
+  const LANE_NAMES = { up: 'tảng đá', down: 'con chim sà', speed: 'rune tốc độ', bubble: 'rune bong bóng' };
+  function laneLine(event, a) {
+    const kind = event.rune ? 'rune' : 'obstacle', o = LANE_NAMES[event.rune || event.key] || 'chướng ngại';
+    const pool = LINES[`${kind}:${event.key}:${event.outcome}`] || LINES[`${kind}:${event.outcome}`] || [`${a} ${event.label || ''}`.trim()];
+    return pool[hash(`${event.id}|${event.time}`) % pool.length].replaceAll('{a}', a).replaceAll('{o}', o);
+  }
   function line(event, nameOf) {
     const id = event.skill || event.hazard, a = nameOf(event.actorId);
-    if (event.type === 'obstacle') return null; // the lanes play out without commentary: only skills get it
+    if (event.type === 'obstacle') return laneLine(event, a);
     const hasTarget = Number.isInteger(event.targetId) && event.targetId !== event.actorId;
     const fits = list => (list || []).filter(text => text.includes('{b}') === hasTarget);
     // Copycat: credit the thief, then call the move it copied.

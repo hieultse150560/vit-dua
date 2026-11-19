@@ -261,6 +261,9 @@
     const hazardCount = (H.countMin + hazardRng.integer(H.countMax - H.countMin + 1) + (weather?.extra || 0)) * Math.ceil(count / 7) * (rules.hazardScale || 1);
     const pickHazard = weather ? () => weighted(rules.hazards, h => weather.weights[h.id] || 1, hazardRng) : () => rules.hazards[hazardRng.integer(rules.hazards.length)];
     for (let i = 0; i < hazardCount; i++) slots.push({ kind: 'hazard', hazard: pickHazard() });
+    // chaos-v6 race room: one more river event, the plot twist, spread late with the plot skill below (the owners fire
+    // the skills, so the plot skill may come early; this one stays late whatever they cast).
+    if (rules.plotHazard) slots.push({ kind: 'hazard', hazard: pickHazard(), plot: true });
     const first = tuning.firstPhase, last = duration - 0.2, minGap = rules.gap ?? tuning.minGap;
     let stride = minGap; // seconds between twists; chaos-v3 shrinks it only when the field is too big to fit
     if (!rules.midSpread) for (const slot of slots) {
@@ -287,8 +290,11 @@
       spread([...shuffled(ordinary.filter(sl => !sl.passive), scheduleRng), ...ordinary.filter(sl => sl.passive)], from, to);
       spread(slots.filter(sl => sl.plot), rules.calmEnd ? duration * (rules.calmEnd - .15) : duration * .8, rules.calmEnd ? duration * rules.calmEnd : duration - 1);
     }
-    // chaos-v3 finale: a rock in the last 2 s that always trips the leader out of the win.
-    if (finaleRng && finaleRng.unit() < rules.finaleChance) slots.push({ kind: 'hazard', hazard: hazards[0], finale: true, time: duration - 0.6 - finaleRng.unit() * 1.4 });
+    // chaos-v3 finale: a rock in the last 2 s that always trips the leader out of the win. chaos-v6 (tuning.finale): between
+    // `from` and `to` of the race instead, before any duck gets to the line, so a duck seen at the line is never tripped.
+    const F = rules.tuning?.finale;
+    if (finaleRng && finaleRng.unit() < rules.finaleChance) slots.push({ kind: 'hazard', hazard: hazards[0], finale: true,
+      time: F ? duration * (F.from + (F.to - F.from) * finaleRng.unit()) : duration - 0.6 - finaleRng.unit() * 1.4 });
     const visible = slot => slot.kind === 'hazard' || !slot.passive;
     const byTime = () => slots.sort((a, b) => a.time - b.time);
     byTime();
@@ -398,6 +404,13 @@
     finaleChance: 0, gap: 3, castBy: 0.45, calmEnd: 0.85 });
   // No finale rock in chaos-v5, so its day rule is no longer drawn (it stays known for the races played with it).
   const V5_DAY_RULES = freeze(dayRules.filter(r => r.id !== 'thriller')), V5_RETIRED_RULES = freeze([...retiredRules, ...dayRules.filter(r => r.id === 'thriller')]);
+  // chaos-v6: chaos-v5 with the finale rock back (`finaleChance` of races, every race under the 🎬 day rule) and, in race
+  // rooms, a plot twist the casts cannot move: one random river event between `calmEnd` - .15 and `calmEnd` of the race.
+  // The calm stretch after it stays, so the last seconds hold at most the finale rock and the final sprint.
+  // The finale rock trips the leader 5 s or so before the line (`from`–`to` of the race), before any duck gets there: the
+  // line is where the winner ends, so a rock in the last 2 s could trip a duck already seen at the line out of the win.
+  const TUNING_V6 = freeze(merged(TUNING_V5, { finale: { from: 0.88, to: 0.92, stun: 0.7, reach: 0.6 } }));
+  const V6_RULES = freeze({ ...V5_RULES, tuning: TUNING_V6, finaleChance: 0.4, roomPlot: true });
   // Skills and traits for each duck, dealt before the picks (chaos-v3); the same seed always deals the same lineup.
   function dealLineup(rules, count, seed) {
     const deckOf = (list, salt) => shuffled(Array.from({ length: Math.ceil(count / list.length) }, () => list).flat(), randomFor(seed, salt)).slice(0, count);
@@ -503,7 +516,7 @@
 
     // chaos-v5 race room: the lanes have their own rocks and runes, so the river throws in half as many hazards.
     const lanes = !!(rules.lanes && dealt?.casts);
-    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, lanes ? { ...R, hazardScale: (R.hazardScale || 1) / 2 } : R, finaleRng).map((slot, index) => ({ ...slot, index }));
+    const schedule = planSlots(racers, duration, hazardRng, scheduleRng, weather, lanes ? { ...R, hazardScale: (R.hazardScale || 1) / 2, plotHazard: !!R.roomPlot } : R, finaleRng).map((slot, index) => ({ ...slot, index }));
     // Race room (chaos-v3): an active skill fires when its owner cast it. One nobody cast casts itself after the deadline
     // (castWindow.to), at a moment every page works out alone: fixed by the plan, never by the casts, so a new cast
     // only changes the race from its own time on. The plan is still drawn in full first, so every random stream stays the same.
@@ -1218,11 +1231,15 @@
         return { victim: helpedDuck(), label: 'CÁ HEO CÕNG LÊN!', surge: pct(HZD.dolphinPush) };
       }
     };
-    // Finale: unblockable; the leader falls behind 2nd place and stays capsized to the end.
+    // Finale: unblockable; the leader falls behind 2nd place and stays capsized to the end (chaos-v6: for `finale.stun` s,
+    // then swims on, untouchable to the line).
     function applyFinale(hazard) {
       const ranks = ranksNow(), victim = atRank(1), before = snapshot([victim]);
+      // chaos-v6: a leader that far ahead (`reach` × the seconds left, about where the others will finish) may already be
+      // at the line: no rock then, it wins clean.
+      if (tuning.finale && victim.distance - atRank(2).distance > (duration - now) * tuning.finale.reach) return;
       jump(victim, Math.min(victim.distance, atRank(2).distance - pct(HZD.finaleKnock)), true);
-      Object.assign(victim, { impairKind: 'capsized', impairFactor: 0, impairUntil: duration + 1, immuneUntil: duration + 1 });
+      Object.assign(victim, { impairKind: 'capsized', impairFactor: 0, impairUntil: tuning.finale ? tick(now + tuning.finale.stun) / HZ : duration + 1, immuneUntil: duration + 1 });
       // Nobody may drift back past the fallen leader after this: end any backwards swimming.
       for (const r of racers) if (r !== victim && r.impairKind === 'reversed' && now < r.impairUntil) r.impairUntil = now;
       bombs.length = 0; // a late bomb would knock 2nd back past the fallen leader
@@ -1510,7 +1527,7 @@
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V4_RULES, count, seed);
     } });
-  // chaos-v5: what new races use. Race rooms get lanes (lineup.pilots and dodges as in chaos-v4) and a calm finish.
+  // chaos-v5: race rooms get lanes (lineup.pilots and dodges as in chaos-v4) and a calm finish.
   const v5 = Object.freeze({ version: 'chaos-v5', passive: v3.passive, targeted: TARGETED_V4, aims: AIMS_V4, obstacles: freeze([...OBSTACLES, ...LANE_RUNES]), freeSlot, skills: V5_RULES.skills,
     hazards: V5_RULES.hazards, traits, runeTypes, tuning: TUNING_V5, weathers, maps, dayRules: V5_DAY_RULES, retiredDayRules: V5_RETIRED_RULES,
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v5', V5_RULES, names, duration, seed, lineup),
@@ -1518,11 +1535,19 @@
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V5_RULES, count, seed);
     } });
-  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5,
+  // chaos-v6: what new races use. chaos-v5 with the finale rock (and its day rule) back and a late plot twist in race rooms.
+  const v6 = Object.freeze({ ...v5, version: 'chaos-v6', tuning: TUNING_V6, dayRules, retiredDayRules: retiredRules,
+    createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v6', V6_RULES, names, duration, seed, lineup),
+    deal: (count, seed = newSeed()) => {
+      if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
+      return dealLineup(V6_RULES, count, seed);
+    } });
+  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5, v6,
     createRace: (names, duration, seed) => createRaceFor(VERSION, V2_RULES, names, duration, seed) });
   root.DuckChaosEngineV2 = api;
   root.DuckChaosEngineV3 = v3;
   root.DuckChaosEngineV4 = v4;
   root.DuckChaosEngineV5 = v5;
+  root.DuckChaosEngineV6 = v6;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
