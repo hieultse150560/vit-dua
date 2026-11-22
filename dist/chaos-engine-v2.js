@@ -411,6 +411,9 @@
   // line is where the winner ends, so a rock in the last 2 s could trip a duck already seen at the line out of the win.
   const TUNING_V6 = freeze(merged(TUNING_V5, { finale: { from: 0.88, to: 0.92, stun: 0.7, reach: 0.6 } }));
   const V6_RULES = freeze({ ...V5_RULES, tuning: TUNING_V6, finaleChance: 0.4, roomPlot: true });
+  // chaos-v7: chaos-v6 with a longer time to cast. The skills nobody cast still cast themselves 3 s apart, from `autoFrom`
+  // of the race, and each owner may cast until just before their own one (`castBy` only caps it at the calm finish).
+  const V7_RULES = freeze({ ...V6_RULES, castBy: 0.85, autoFrom: 0.47 });
   // Skills and traits for each duck, dealt before the picks (chaos-v3); the same seed always deals the same lineup.
   function dealLineup(rules, count, seed) {
     const deckOf = (list, salt) => shuffled(Array.from({ length: Math.ceil(count / list.length) }, () => list).flat(), randomFor(seed, salt)).slice(0, count);
@@ -526,7 +529,10 @@
       const busy = schedule.filter(sl => !own(sl)).map(sl => sl.tick / HZ);
       const limit = Math.min(R.calmEnd ? duration * R.calmEnd : duration - 1.5, finale ? finale.tick / HZ - castWindow.gap / 2 : Infinity);
       castWindow.auto = Array(count).fill(null);
-      for (const slot of schedule.filter(own)) { const t = freeSlot(castWindow.to + AUTO_WINDUP, castWindow.gap, busy, limit); castWindow.auto[slot.actorId] ??= t; busy.push(t); }
+      // chaos-v7: the skills that cast themselves start from `autoFrom` of the race while each owner may cast until just
+      // before their own one (castWindow.to is later): longer to cast, and still spread out.
+      const autoFrom = duration * (R.autoFrom ?? R.castBy ?? .55);
+      for (const slot of schedule.filter(own)) { const t = freeSlot(autoFrom + AUTO_WINDUP, castWindow.gap, busy, limit); castWindow.auto[slot.actorId] ??= t; busy.push(t); }
       for (const slot of schedule.filter(own)) slot.tick = Math.max(1, tick(dealt.casts[slot.actorId] ?? castWindow.auto[slot.actorId]));
     }
     // Race room (chaos-v4): lines of obstacles across the river, each lane its own kind. Each duck meets a line at its own
@@ -1535,19 +1541,27 @@
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V5_RULES, count, seed);
     } });
-  // chaos-v6: what new races use. chaos-v5 with the finale rock (and its day rule) back and a late plot twist in race rooms.
+  // chaos-v6: chaos-v5 with the finale rock (and its day rule) back and a late plot twist in race rooms.
   const v6 = Object.freeze({ ...v5, version: 'chaos-v6', tuning: TUNING_V6, dayRules, retiredDayRules: retiredRules,
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v6', V6_RULES, names, duration, seed, lineup),
     deal: (count, seed = newSeed()) => {
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V6_RULES, count, seed);
     } });
-  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5, v6,
+  // chaos-v7: what new races use. chaos-v6 with each owner casting until just before their own skill would cast itself.
+  const v7 = Object.freeze({ ...v6, version: 'chaos-v7',
+    createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v7', V7_RULES, names, duration, seed, lineup),
+    deal: (count, seed = newSeed()) => {
+      if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
+      return dealLineup(V7_RULES, count, seed);
+    } });
+  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5, v6, v7,
     createRace: (names, duration, seed) => createRaceFor(VERSION, V2_RULES, names, duration, seed) });
   root.DuckChaosEngineV2 = api;
   root.DuckChaosEngineV3 = v3;
   root.DuckChaosEngineV4 = v4;
   root.DuckChaosEngineV5 = v5;
   root.DuckChaosEngineV6 = v6;
+  root.DuckChaosEngineV7 = v7;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

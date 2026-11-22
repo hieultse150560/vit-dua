@@ -144,6 +144,13 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 
 Có 18 đặc tính; mỗi trận 7 vịt nhận 7 cái khác nhau. Đo 40.000 trận 7 vịt × 40 giây: người có đặc tính nào cũng thắng trong khoảng 0,85–1,14 lần mức công bằng (test giữ mốc 0,7–1,3).
 
+### `chaos-v7`: thêm thời gian tung skill
+
+Trận mới chạy `chaos-v7`: giữ nguyên `chaos-v6`, chỉ đổi thời gian tung skill khi chơi có phòng. Trận `chaos-v6` (và cũ hơn) vẫn dựng lại bằng engine của nó.
+
+- Trước đây mọi người hết hạn tung cùng lúc ở 45% trận (24,75 giây của trận 55 giây). Giờ mỗi vịt có giờ "máy tung hộ" riêng, cách nhau 3 giây, từ 47% trận trở đi, và chủ vịt được bấm tới ngay trước giờ đó của mình (nút tung đếm ngược đúng hạn của mình).
+- Đo 60 trận 6 vịt: không ai có ít thời gian hơn trước; hạn sớm nhất khoảng 26 giây, trung bình khoảng 35 giây, muộn nhất khoảng 46 giây. Skill không ai bấm vẫn tự tung cách nhau như cũ, và vẫn trước quãng êm cuối trận.
+
 ### `chaos-v6`: điểm theo đúng thứ tự chạm vạch, vấp đá sát đích trở lại, plot twist cuối trận
 
 Trận mới chạy `chaos-v6`: giữ nguyên `chaos-v5` (bộ skill, thông số, làn riêng), chỉ đổi những điểm dưới đây. Trận `chaos-v5` (và cũ hơn) vẫn dựng lại bằng engine của nó, không đổi gì.
@@ -155,7 +162,7 @@ Trận mới chạy `chaos-v6`: giữ nguyên `chaos-v5` (bộ skill, thông s�
 
 **Trên sông (mọi trận có làn, cả `chaos-v5`):** mỗi làn chỉ hiện một thứ sắp tới, hiện ra khoảng 5 giây (giờ trận) trước khi vịt tới, nên màn hình không còn hàng chục ô. Mọi thứ vẽ thành hình thật (file `lane-art.js`), và độ cao nói luôn phím cần bấm. Đồ nằm trên mặt nước, có viền sóng ở chân, thì nhảy qua: tảng đá, khúc gỗ trôi, bè lục bình, con rùa, thùng gỗ trôi. Đồ bay hoặc chìa ra ngang đầu vịt, bóng in xuống nước, thì lặn tránh: hải âu, bói cá, cành cây thấp, nón lá bay. Rune vàng lơ lửng trên cao, có bóng (nhảy lên ăn); viên ngọc nằm mờ dưới nước, có vòng sóng trên mặt và bọt nổi lên (lặn xuống ăn). Engine chỉ biết phím, nên mỗi chướng ngại lấy một hình trong nhóm của phím đó, chọn theo seed của trận và chỗ của nó: máy nào cũng vẽ giống nhau, bảng phím và bình luận gọi đúng tên hình đang thấy. Thứ của làn mình phát sáng vàng.
 
-**Thanh điều khiển của người chơi:** trong trận, nút tung skill, chỗ chọn mục tiêu, bảng phím Nhảy/Lặn và lời bình gom thành một thanh gọn dính đáy màn hình; khung sông thu lại cho vừa phía trên và mở ngay ở làn của mình (sông vẫn cuộn được). Trước đây trên laptop 768 px phải cuộn trang mới thấy nút skill và phím né.
+**Thanh điều khiển của người chơi:** trong trận, nút tung skill, chỗ chọn mục tiêu, bảng phím Nhảy/Lặn và lời bình gom thành một thanh mảnh cố định ở đáy màn hình (một hàng trên laptop, xếp chồng trên điện thoại). Toàn cảnh sông giữ nguyên: tiêu đề và hàng skill phía trên thu gọn, và lúc xuất phát trang tự cuộn để làn cuối nằm ngay trên thanh (laptop 1366×768: thấy trọn sông tới 8 vịt). Đồ bay vẽ gọn, nằm giữa làn của mình để không đè sang làn trên.
 
 **Bình luận lần lượt từng câu:** mỗi câu được đọc hết, nghỉ 1,2 giây rồi mới tới câu sau; chỉ câu mở màn có thể bị cắt ngang. Câu đang chờ: skill trước, rồi sự kiện sông nước và chuyện làn; chờ quá 2,5 giây thì bỏ. Skill và sự kiện sông nước thì máy nào cũng đọc như nhau. Chuyện làn (vấp đá, vấp chim, ăn hay hụt rune) đọc riêng từng người: máy người chơi chỉ đọc chuyện của vịt mình, máy chủ (màn hình chiếu chung) không đọc.
 

@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV6, C3old=DuckChaosEngineV3, C3v4=DuckChaosEngineV4, C3v5=DuckChaosEngineV5, SOUND_KEY='vit-dua-sound';
+  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV7, C3old=DuckChaosEngineV3, C3v4=DuckChaosEngineV4, C3v5=DuckChaosEngineV5, C3v6=DuckChaosEngineV6, SOUND_KEY='vit-dua-sound';
   // Saved races replay with the engine version they were started on. New races run chaos-v4 (C3: it keeps every chaos-v3 skill).
-  const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3v4.version]:C3v4,[C3v5.version]:C3v5,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
+  const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3v4.version]:C3v4,[C3v5.version]:C3v5,[C3v6.version]:C3v6,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
@@ -465,11 +465,18 @@
     try{T.selectionState(current.session,current.type,current.picks);T.validatePicks(participants(),current.picks);ensureLineup();if(!isLegacy()){const luck=luckByDuck();current.lineup={...plainLineup(current.lineup),...(luck.some(Boolean)?{luck}:{}),...(current.rule?{rule:current.rule}:{}),casts:room?Array(participants().length).fill(null):undefined,...(room?obstacleCrew():{})};}race=isLegacy()?DuckRaceEngine.createRace(participants().map((_,i)=>A.name(i)),current.session.duration):C3.createRace(participants().map((_,i)=>A.name(i)),current.session.duration,undefined,current.lineup);}catch(e){toast(e.message);return;}
     roomStartAt=room?room.now()+3000:0;stop();current.active={id:uuid(),seed:race.seed,elapsed:0,countdownLeft:3,...(isLegacy()?{}:{engine:C3.version,lineup:plainLineup(current.lineup),...(room?{startAt:roomStartAt,pausedMs:0}:{})})};save();beginRace();
   }
+  // The race comes into view at the start: the arena's top; on a player's page as far down as puts the last lane just
+  // above their control bar (fixed at the bottom of the screen), but never past the top of the river.
+  function scrollToRace(){
+    const panel=document.querySelector('.arena-panel'),bar=document.querySelector('.race-talk'),lane=$('lanes').lastElementChild;let top=panel.getBoundingClientRect().top+scrollY-16;
+    if(viewer&&bar&&lane)top=Math.min(Math.max(top,lane.getBoundingClientRect().bottom+scrollY+8-(innerHeight-bar.offsetHeight)),$('river').getBoundingClientRect().top+scrollY-50);
+    scrollTo({top:Math.max(0,top),behavior:reduced.matches?'instant':'smooth'});
+  }
   // Kicks off current.active (its countdownLeft seconds of countdown, then the race): the host's start and a player's page.
   function beginRace(){
     phase='countdown';lastTime=performance.now();lastSaved=lastTime;lastTick=Math.ceil(current.active.countdownLeft);sprintAnnounced=false;leadersKey='';render();makeTrack();activateAudio();tone(520);
     $('restore-notice').hidden=true;$('arena-title').textContent='Chuẩn bị xuất phát…';$('race-overlay').hidden=false;$('overlay-number').textContent=String(Math.max(1,lastTick));$('overlay-text').textContent=race.weather?`Chuẩn bị nào! · ${race.weather.icon} ${race.weather.name}`:'Chuẩn bị nào!';$('resume-overlay').hidden=true;$('sprint-label').textContent='ĐANG VÀO VỊ TRÍ';$('live-leaders').replaceChildren();
-    document.querySelector('.arena-panel').scrollIntoView({block:'start',behavior:reduced.matches?'instant':'smooth'});
+    scrollToRace();
     schedule();
   }
   // Hot-potato bomb (chaos-v3): a tick and a flash when it hops to a new leader; in its last second the ticks speed up.
@@ -511,7 +518,7 @@
     let delta=Math.max(0,(now-lastTime)/1000);lastTime=now;const a=current.active;
     if(phase==='countdown'){
       const consumed=Math.min(delta,a.countdownLeft);a.countdownLeft-=consumed;delta-=consumed;const count=Math.max(1,Math.ceil(a.countdownLeft));if(count!==lastTick){$('overlay-number').textContent=count;lastTick=count;tone(520);}
-      if(a.countdownLeft<=0){phase='running';say(window.DuckCommentary?.start(race));$('race-overlay').hidden=true;$('pause').disabled=false;$('river').classList.add('is-running');$('arena-title').textContent='Quạc quạc… tăng tốc nào!';$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';$('sprint-label').textContent='CỔ VŨ CHO CHÚ VỊT CỦA BẠN';tone(820,.25);lastTick=-1;}
+      if(a.countdownLeft<=0){phase='running';if(viewer)scrollToRace();say(window.DuckCommentary?.start(race));$('race-overlay').hidden=true;$('pause').disabled=false;$('river').classList.add('is-running');$('arena-title').textContent='Quạc quạc… tăng tốc nào!';$('arena-label').textContent=current.type==='tie'?'ĐUA PHỤ · KHÔNG CỘNG ĐIỂM':`LƯỢT ${current.session.rounds.length+1} · ĐANG ĐUA`;$('race-status').textContent=race.events?'Skill tự kích hoạt · Theo dõi rune và nhật ký bên trên.':'Cổ vũ cho vịt của bạn — chờ cú bứt phá 5 giây cuối!';$('sprint-label').textContent='CỔ VŨ CHO CHÚ VỊT CỦA BẠN';tone(820,.25);lastTick=-1;}
     }
     if(phase==='running'){
       startAmbience();
