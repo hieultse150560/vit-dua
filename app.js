@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV7, C3old=DuckChaosEngineV3, C3v4=DuckChaosEngineV4, C3v5=DuckChaosEngineV5, C3v6=DuckChaosEngineV6, SOUND_KEY='vit-dua-sound';
+  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV8, C3old=DuckChaosEngineV3, C3v4=DuckChaosEngineV4, C3v5=DuckChaosEngineV5, C3v6=DuckChaosEngineV6, C3v7=DuckChaosEngineV7, SOUND_KEY='vit-dua-sound';
   // Saved races replay with the engine version they were started on. New races run chaos-v4 (C3: it keeps every chaos-v3 skill).
-  const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3v4.version]:C3v4,[C3v5.version]:C3v5,[C3v6.version]:C3v6,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
+  const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3v4.version]:C3v4,[C3v5.version]:C3v5,[C3v6.version]:C3v6,[C3v7.version]:C3v7,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
@@ -38,7 +38,7 @@
   let race=null, phase='idle', raf=null, lastTime=0, lastSaved=0, nodes=[], runwayWidth=0;
   let audio=null, sound=soundPref(), lastTick=-1, sprintAnnounced=false, leadersKey='', toastTimer;
   let dialogAction=()=>{}, storageBlocked=false;
-  let eventCursor=0, runeMarkerKey='', skillNodes=[], obstacleNodes=new Map(), obstacleMeets=null, pendingDodges=[], hostLineup=null, obstacleSfxAt=0;
+  let eventCursor=0, runeMarkerKey='', skillNodes=[], obstacleNodes=new Map(), obstacleMeets=null, quizAnswer=null, quizMeets=null, pendingDodges=[], hostLineup=null, obstacleSfxAt=0;
   let visuals=null, racerViews=[], owners=[], currentSample=[], checkpoint=null, runeSpawns=[], lastTimerText='', lastSprintState=false;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   const node=(tag,className,text)=>{const e=document.createElement(tag);if(className)e.className=className;if(text!==undefined)e.textContent=text;return e;};
@@ -97,7 +97,7 @@
     &&(l.targets===undefined||Array.isArray(l.targets)&&l.targets.length===count&&l.targets.every(t=>t===null||duckNo(t,count)||Array.isArray(t)&&t.length>0&&t.every(x=>duckNo(x,count))&&new Set(t).size===t.length))
     &&(l.pilots===undefined||Array.isArray(l.pilots)&&l.pilots.length===count&&l.pilots.every(p=>typeof p==='boolean'))
     &&(l.dodges===undefined||Array.isArray(l.dodges)&&l.dodges.length===count&&l.dodges.every(d=>d===null||Array.isArray(d)&&d.length<=60&&d.every(p=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&p[0]>=0&&(p[1]==='up'||p[1]==='down'))));
-  const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{}),...(l.rule?{rule:l.rule}:{}),...(l.casts?{casts:[...l.casts]}:{}),...(l.targets?{targets:l.targets.map(t=>Array.isArray(t)?[...t]:t)}:{}),...(l.pilots?{pilots:[...l.pilots]}:{}),...(l.dodges?{dodges:l.dodges.map(d=>d&&d.map(p=>[...p]))}:{})});
+  const plainLineup=l=>({skills:[...l.skills],traits:[...l.traits],...(l.luck?{luck:[...l.luck]}:{}),...(l.rule?{rule:l.rule}:{}),...(l.casts?{casts:[...l.casts]}:{}),...(l.targets?{targets:l.targets.map(t=>Array.isArray(t)?[...t]:t)}:{}),...(l.pilots?{pilots:[...l.pilots]}:{}),...(l.dodges?{dodges:l.dodges.map(d=>d&&d.map(p=>[...p]))}:{}),...(l.answers?{answers:l.answers.map(x=>x&&[...x])}:{})});
   // Special rule: a new one each round (days made before rules existed have none).
   const dayRuleOf=id=>C3.dayRules.find(r=>r.id===id);
   const knownRule=id=>!!dayRuleOf(id)||C3.retiredDayRules.some(r=>r.id===id); // retired rules still rebuild races already played
@@ -168,7 +168,7 @@
   function tone(f,d=.12,delay=0){if(!sound||!audio||audio.state!=='running')return;const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime+delay;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.10,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+d+.02);o.onended=()=>{o.disconnect();g.disconnect();};}
   function stop(){if(raf!==null)cancelAnimationFrame(raf);raf=null;}
   function schedule(){raf=requestAnimationFrame(frame);}
-  function clearRace(){stop();cancelSfx();visuals?.destroy();visuals=null;race=null;phase='idle';eventCursor=0;runeMarkerKey='';obstacleNodes.clear();pendingDodges=[];hostLineup=null;document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());skillNodes=[];if($('dodge-pad'))$('dodge-pad').hidden=true;racerViews=[];currentSample=[];checkpoint=null;lastTimerText='';lastSprintState=false;$('river').classList.remove('is-running');$('race-overlay').hidden=true;$('timer').classList.remove('sprint');$('skill-reveal').replaceChildren();$('event-history').replaceChildren();$('event-feed').replaceChildren();}
+  function clearRace(){stop();cancelSfx();visuals?.destroy();visuals=null;race=null;phase='idle';eventCursor=0;runeMarkerKey='';obstacleNodes.clear();pendingDodges=[];quizAnswer=null;['quiz-card','quiz-board'].forEach(id=>{const n=$(id);if(n){n.hidden=true;delete n.dataset.key;}});hostLineup=null;document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());skillNodes=[];if($('dodge-pad'))$('dodge-pad').hidden=true;racerViews=[];currentSample=[];checkpoint=null;lastTimerText='';lastSprintState=false;$('river').classList.remove('is-running');$('race-overlay').hidden=true;$('timer').classList.remove('sprint');$('skill-reveal').replaceChildren();$('event-history').replaceChildren();$('event-feed').replaceChildren();}
 
   function render(){
     if(!current)return;
@@ -450,12 +450,12 @@
   function drawEvents(elapsed){
     if(!race.events)return;
     let changed=false;const fresh=[];
-    while(eventCursor<race.events.length&&race.events[eventCursor].time<=elapsed+1e-8){const event=race.events[eventCursor];if(event.type==='obstacle'){if(phase==='running'&&elapsed-event.time<.3)obstacleFx(event,elapsed);eventCursor++;continue;}$('event-history').append(eventItem(event));if(phase==='running'&&elapsed-event.time<.3){const pre=race.sample(Math.max(0,event.time-.051));startGlides(event,pre);scheduleGain(event);visuals?.event(event,currentSample,elapsed,pre);if(event.type==='skill'||event.type==='hazard')fresh.push(event);}eventCursor++;changed=true;}
+    while(eventCursor<race.events.length&&race.events[eventCursor].time<=elapsed+1e-8){const event=race.events[eventCursor];if(event.type==='obstacle'||event.type==='quiz'){if(phase==='running'&&elapsed-event.time<.3)(event.type==='quiz'?quizFx:obstacleFx)(event,elapsed);eventCursor++;continue;}$('event-history').append(eventItem(event));if(phase==='running'&&elapsed-event.time<.3){const pre=race.sample(Math.max(0,event.time-.051));startGlides(event,pre);scheduleGain(event);visuals?.event(event,currentSample,elapsed,pre);if(event.type==='skill'||event.type==='hazard')fresh.push(event);}eventCursor++;changed=true;}
     if(fresh.length)showBanner(fresh);else if(bannerUntil&&elapsed>=bannerUntil)hideBanner();
-    if(changed){const recent=race.events.slice(0,eventCursor).filter(e=>e.type!=='obstacle').slice(-3);$('event-feed').replaceChildren(...recent.map(e=>node('p','live-event',eventText(e))));}
+    if(changed){const recent=race.events.slice(0,eventCursor).filter(e=>e.type!=='obstacle'&&e.type!=='quiz').slice(-3);$('event-feed').replaceChildren(...recent.map(e=>node('p','live-event',eventText(e))));}
     const visible=runeSpawns.filter(e=>e.time<=elapsed&&elapsed<e.pickupTime),key=visible.map(e=>e.id).join('|');
     if(key!==runeMarkerKey){runeMarkerKey=key;document.querySelectorAll('.rune-marker').forEach(e=>e.remove());for(const rune of visible){const runway=nodes[rune.actorId]?.parentElement;if(!runway)continue;const marker=node('span','rune-marker',rune.icon);marker.title=rune.label;marker.style.left=`${Math.max(0,Math.min(1,rune.progress))*100}%`;marker.style.translate=`0 ${bendAt(rune.progress).toFixed(1)}px`;runway.append(marker);}}
-    renderObstacles(elapsed);flushNarration();
+    renderObstacles(elapsed);renderQuiz(elapsed);flushNarration();
   }
   function measure(){runwayWidth=$('lanes').querySelector('.runway')?.getBoundingClientRect().width||0;visuals?.resize();if(race&&current?.active)draw(race.sample(current.active.elapsed));}
   function start(){
@@ -571,7 +571,7 @@
       if(simulation.results.every((r,i)=>r.id===record.entries[i].duckId)){
         const details=node('details','race-recap'),summary=node('summary','',simulation.racers[0].talent?'Thiên phú, skill & diễn biến lượt này':'Skill & diễn biến lượt này'),roster=node('div','recap-skills');
         for(const racer of simulation.racers){const owner=record.entries.find(e=>e.duckId===racer.id);roster.append(node('p','',`${playerName(owner.playerId)} · ${racer.talent?`${racer.talent.icon} ${racer.talent.name} · `:''}${racer.skill.icon} ${racer.skill.name}${obstacleTally(simulation,racer.id)}`));}
-        const events=node('ol','recap-events');events.append(...simulation.events.filter(e=>e.type!=='obstacle').map(e=>eventItem(e,picks)));details.append(summary,roster,events);$('result-content').append(details);
+        const events=node('ol','recap-events');events.append(...simulation.events.filter(e=>e.type!=='obstacle'&&e.type!=='quiz').map(e=>eventItem(e,picks)));details.append(summary,roster,events);$('result-content').append(details);
       }
     }
     if(advance&&status.status==='tie')$('result-content').append(node('p','tie-note',`${status.tiedIds.map(playerName).join(', ')} đồng điểm. Đua phụ để phân định thứ hạng cuối${isLegacy()?'':' và mức đóng 60k / 40k'}; tổng điểm không đổi.`));
@@ -676,6 +676,7 @@
   function publishRoom(now=false){if(!room||viewer)return;clearTimeout(publishTimer);const send=()=>{Promise.resolve(room?.publish(roomSnapshot())).catch(e=>toast(`Phòng: ${e.message}`));};if(now)send();else publishTimer=setTimeout(send,120);}
   function roomRequest(req){
     if(req?.kind==='dodge'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&(req.race===undefined||req.race===a.id))dodgeFor(duck,req.time,req.key);return;}
+    if(req?.kind==='answer'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&req.race===a.id)answerFor(duck,req.time,req.choice);return;}
     if(req?.kind==='cast'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&(req.race===undefined||req.race===a.id))castFor(duck,typeof req.time==='number'?req.time:a.elapsed,req.targets??req.target);return;}
     if(!current||current.active||current.stage!=='picking'||!req||typeof req.player!=='string')return;
     if(queue().nextPlayerId!==req.player)return; // not their turn (or a stale request)
@@ -735,7 +736,7 @@
   // Who steers (players who picked on their own device; the rest get past on luck), and no key pressed yet.
   function obstacleCrew(){
     const n=participants().length,owner=duck=>Object.keys(current.picks).find(p=>current.picks[p]===duck);
-    return {pilots:Array.from({length:n},(_,duck)=>(current.pilots||[]).includes(owner(duck))),dodges:Array(n).fill(null)};
+    return {pilots:Array.from({length:n},(_,duck)=>(current.pilots||[]).includes(owner(duck))),dodges:Array(n).fill(null),answers:Array(n).fill(null)};
   }
   // Host: a key a player pressed, at their own race time. Like a cast, it only changes the race from then on.
   function dodgeFor(duck,t,key){
@@ -747,14 +748,18 @@
   }
   // Player: the key counts on this page at once (the race swaps in place) and goes to the host, whose race echoes it to
   // every page. Until the host's copy has it, it is merged into what the host sends, so the race never flickers back.
-  function lineupSig(l){return JSON.stringify([l?.casts,l?.targets,l?.dodges]);}
+  function lineupSig(l){return JSON.stringify([l?.casts,l?.targets,l?.dodges,l?.answers]);}
   const PENDING_MS=4000,samePress=(p,q)=>p[0]===q[0]&&p[1]===q[1];
   function withPending(lineup,fromHost){
     const a=current?.active;if(!lineup?.dodges||!a)return lineup;
     const now=performance.now(),has=p=>(lineup.dodges[p.duck]||[]).some(q=>samePress(q,p.press));
     pendingDodges=pendingDodges.filter(p=>p.race===a.id&&now-p.at<PENDING_MS&&!(fromHost&&has(p)));
     const mine=i=>pendingDodges.filter(p=>p.duck===i&&!has(p)).map(p=>p.press);
-    return pendingDodges.length?{...lineup,dodges:lineup.dodges.map((d,i)=>mine(i).length?[...(d||[]),...mine(i)]:d)}:lineup;
+    let out=pendingDodges.length?{...lineup,dodges:lineup.dodges.map((d,i)=>mine(i).length?[...(d||[]),...mine(i)]:d)}:lineup;
+    // A quiz answer waits the same way (the host keeps only the first answer, so its own counts once it has one).
+    if(quizAnswer&&(quizAnswer.race!==a.id||now-quizAnswer.at>=PENDING_MS||fromHost&&lineup.answers?.[quizAnswer.duck]))quizAnswer=null;
+    if(quizAnswer&&out.answers&&!out.answers[quizAnswer.duck])out={...out,answers:out.answers.map((x,i)=>i===quizAnswer.duck?quizAnswer.answer:x)};
+    return out;
   }
   function viewerDodge(key){
     const duck=myDuck(),a=current?.active;
@@ -771,12 +776,90 @@
     if(laneLooks?.race!==race)laneLooks={race,list:(race.obstacles||[]).map((o,k)=>'duck' in o?window.DuckLaneArt.look(kindById(o.kind),pickOf(k)):null)};
     return laneLooks.list[e.line]||window.DuckLaneArt.look(kindById(e.obstacle));
   }
+  // chaos-v8 quizzes (race rooms): each duck's question opens at its own time for race.quizTime s. A player answers
+  // theirs on their own page (click or keys 1–3) and the answer goes to the host like a dodge key; the host's page shows
+  // every open question, then how it went. The question comes from the bank (quiz-bank.js) by the race's pick, its right
+  // answer at the place the race says.
+  const QUIZ_LINGER=2.5;
+  const quizOf=duck=>race?.quizzes?.[duck]||null;
+  function quizText(q){
+    const bank=window.DuckQuizBank?.bank||[];if(!bank.length)return null;
+    const item=bank[q.pick%bank.length],wrong=item.a.slice(1);return {q:item.q,answers:[0,1,2].map(i=>i===q.right?item.a[0]:wrong.shift())};
+  }
+  const answerOf=(duck,q)=>{const a=current?.active?.lineup?.answers?.[duck];return a&&a[0]>=q.at-1e-6&&a[0]<=q.at+race.quizTime+1e-6?a:null;};
+  const quizOpen=(q,elapsed)=>!!q&&elapsed>=q.at&&elapsed<q.at+race.quizTime;
+  function quizSettled(elapsed){
+    if(quizMeets?.race!==race)quizMeets={race,at:new Map(race.events.filter(e=>e.type==='quiz').map(e=>[e.actorId,e]))};
+    return duck=>{const e=quizMeets.at.get(duck);return e&&e.time<=elapsed+1e-8?e:null;};
+  }
+  function quizNode(id,cls,parent){let n=$(id);if(!n){n=node('div',cls);n.id=id;n.hidden=true;parent.append(n);}return n;}
+  function renderQuiz(elapsed){
+    const card=quizNode('quiz-card','quiz-card',document.body),board=quizNode('quiz-board','quiz-board',document.querySelector('.race-water'));
+    if(!race?.quizzes||!current?.active){card.hidden=true;board.hidden=true;return;}
+    const settled=quizSettled(elapsed);
+    if(viewer){renderMyQuiz(card,elapsed,settled);board.hidden=true;}else{card.hidden=true;renderQuizBoard(board,elapsed,settled);}
+  }
+  // The player's own question: three big answers and the seconds left; once answered, right or wrong at once.
+  function renderMyQuiz(card,elapsed,settled){
+    const duck=myDuck(),q=Number.isInteger(duck)?quizOf(duck):null,done=q&&settled(duck),text=q&&quizText(q);
+    const shown=!!text&&(quizOpen(q,elapsed)||!!done&&elapsed<done.time+QUIZ_LINGER);
+    if(card.hidden===shown)card.hidden=!shown;if(!shown)return;
+    const given=answerOf(duck,q),key=`${q.duck}|${q.pick}|${given?given[1]:'-'}|${done?done.outcome:''}`;
+    if(card.dataset.key!==key){
+      card.dataset.key=key;const verdict=done?(done.penalty?`${done.icon} ${done.outcome==='late'?'Hết giờ!':'Sai rồi!'} ${done.label}`:`${done.icon} ${done.label}`):given?(given[1]===q.right?'✅ Đúng rồi! Chờ tăng tốc…':'❌ Sai rồi! Chờ trời phạt…'):'';
+      const buttons=text.answers.map((t,i)=>{const b=node('button','quiz-answer',`${i+1}. ${t}`);b.type='button';b.disabled=!!given||!!done;
+        if(given&&given[1]===i)b.classList.add('chosen');if((given||done)&&i===q.right)b.classList.add('right');b.onclick=()=>answerQuiz(i);return b;});
+      card.replaceChildren(node('div','quiz-head','🧠 Đố vui · chọn đúng để tăng tốc, sai là trời phạt'),node('div','quiz-q',text.q),node('div','quiz-answers'),node('div','quiz-foot'));
+      card.querySelector('.quiz-answers').append(...buttons);card.querySelector('.quiz-foot').append(node('i','quiz-bar'),node('span','quiz-verdict',verdict));
+    }
+    const left=Math.max(0,q.at+race.quizTime-elapsed),bar=card.querySelector('.quiz-bar');bar.style.transform=`scaleX(${(left/race.quizTime).toFixed(3)})`;
+    card.dataset.urgent=String(left>0&&left<2&&!given);
+  }
+  // Everyone's open questions on the host's page (the shared screen), then each one's outcome for a moment.
+  function renderQuizBoard(board,elapsed,settled){
+    const items=race.quizzes.filter(q=>quizOpen(q,elapsed)||settled(q.duck)&&elapsed<settled(q.duck).time+QUIZ_LINGER).map(q=>({q,done:settled(q.duck)}));
+    const list=items;
+    if(board.hidden===!!list.length)board.hidden=!list.length;if(!list.length)return;
+    const key=`${race.seed}|`+list.map(i=>`${i.q.duck}.${i.q.pick}${i.done?i.done.outcome:''}`).join();
+    if(board.dataset.key!==key){board.dataset.key=key;board.replaceChildren(...list.map(({q,done})=>{
+      const who=owners[q.duck]||A.name(q.duck),text=quizText(q),row=node('div',`quiz-row${done?(done.penalty?' bad':' good'):''}`);row.dataset.duck=String(q.duck);
+      if(done)row.append(node('strong','',`${done.icon} ${who}: ${done.label}`));
+      else{row.append(node('strong','',`🧠 ${who} đang giải đố`),node('span','quiz-row-q',text?text.q:''));if(text)row.append(node('span','quiz-row-a',text.answers.map((t,i)=>`${i+1}. ${t}`).join('   ')));row.append(node('i','quiz-bar'));}
+      return row;}));}
+    for(const row of board.querySelectorAll('.quiz-row:not(.good):not(.bad)')){const q=quizOf(Number(row.dataset.duck)),bar=row.querySelector('.quiz-bar');if(q&&bar)bar.style.transform=`scaleX(${(Math.max(0,q.at+race.quizTime-elapsed)/race.quizTime).toFixed(3)})`;}
+  }
+  // Player: the answer counts on this page at once and goes to the host (kept until the host's race has it).
+  function answerQuiz(choice){
+    const duck=myDuck(),a=current?.active,q=quizOf(duck);
+    if(!viewer||!room||phase!=='running'||!q||!a?.lineup?.answers||!Number.isInteger(duck)||!quizOpen(q,a.elapsed)||answerOf(duck,q))return;
+    const t=Math.min(q.at+race.quizTime,Math.max(q.at,Math.round(a.elapsed*100)/100));quizAnswer={race:a.id,duck,answer:[t,choice],at:performance.now()};
+    applyLineup(withPending(hostLineup?.id===a.id?hostLineup.lineup:a.lineup,false));renderQuiz(a.elapsed);
+    Promise.resolve(room.send({kind:'answer',player:meId,race:a.id,time:t,choice})).catch(e=>toast(e.message));
+  }
+  // Host: a player's answer, at their own race time; only the first one, and only while their question is open.
+  function answerFor(duck,t,choice){
+    const a=current?.active,q=quizOf(duck);
+    if(viewer||!a?.lineup?.answers||!q||a.lineup.answers[duck]||![0,1,2].includes(choice)||!Number.isFinite(t)||t<q.at-1e-6||t>q.at+race.quizTime+1e-6)return false;
+    const base=plainLineup(a.lineup),lineup={...base,answers:base.answers.map((x,i)=>i===duck?[t,choice]:x)};
+    let next;try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch(e){toast(e.message);return false;}
+    a.lineup=lineup;swapRace(next);save();publishRoom(true);return true;
+  }
+  // How a quiz went, on the river: the sky's lightning, a wave's splash, or a speed rune's sparkle (the rain cloud rides
+  // the duck on its own). The commentator and the sound are for its owner's page only.
+  function quizFx(e,elapsed){
+    const fx=e.penalty==='lightning'?{...e,type:'skill',skill:'lightning',affectedIds:[e.actorId],targetId:e.actorId,outcome:e.effect==='hit'?'hit':'immune'}
+      :e.penalty==='wave'?{...e,type:'obstacle',key:'up',outcome:'hit',chips:'#e9fbff'}:e.penalty?null:{...e,type:'obstacle',rune:'speed',key:'up',outcome:'grabbed'};
+    if(fx)visuals?.event(fx,currentSample,elapsed,race.sample(Math.max(0,e.time-.051)));
+    if(e.penalty&&e.effect==='hit')flashHits({type:'hazard',outcome:'hit',actorId:e.actorId});
+    if(e.actorId===myDuck()){narrate(window.DuckCommentary?.line(e,id=>owners[id]||A.name(id)),2);sfx({lightning:'thunder',cloud:'rain',wave:'wave'}[e.penalty]||(e.outcome==='right'?'ding':'sparkle'));}
+  }
   // The player's pad: the next thing in their lane and its key, then how it went for a moment.
   function renderDodge(){
     const pad=$('dodge-pad'),a=current?.active,duck=myDuck();if(!pad)return;
     const shown=!!(viewer&&a?.lineup?.dodges&&race?.obstacles&&Number.isInteger(duck)&&race.racers[duck]);
     if(pad.hidden===shown)pad.hidden=!shown;if(!shown)return;
-    const now=a.elapsed,meets=race.events.filter(e=>e.type==='obstacle'&&e.actorId===duck);
+    const now=a.elapsed,meets=race.events.filter(e=>e.type==='obstacle'&&e.actorId===duck),quiz=quizOf(duck);
+    if(quiz&&quizOpen(quiz,now)){if(pad.dataset.state!=='idle')pad.dataset.state='idle';const status=$('dodge-status'),t='🧠 Đang giải đố · bấm 1, 2 hoặc 3';if(status.textContent!==t)status.textContent=t;return;}
     const done=meets.findLast(e=>e.time<=now&&now-e.time<1.2),next=meets.find(e=>e.time>now);
     let state,text,chosen='';
     if(done){const k=thingOf(done),bad=done.outcome==='hit'||done.outcome==='missed';state=bad?'hit':'pass';
@@ -1000,6 +1083,7 @@
   document.addEventListener('keydown',e=>{if(!viewer||$('cast').hidden||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,select,a,button:not(.cast-target):not(#cast):not(.dodge-key)')||document.querySelector('dialog[open]'))return;
     if(e.code==='Space'){e.preventDefault();if(!e.repeat)viewerCast();return;}const step={ArrowLeft:-1,ArrowRight:1}[e.key];if(step&&!$('cast-targets').hidden){e.preventDefault();aimStep(step);}});
   // Race room (chaos-v4): ↑ jumps, ↓ dives over the next obstacle.
+  document.addEventListener('keydown',e=>{if(!viewer||e.repeat||e.ctrlKey||e.altKey||e.metaKey||!['1','2','3'].includes(e.key)||$('quiz-card')?.hidden!==false||e.target.closest('input,textarea,select')||document.querySelector('dialog[open]'))return;e.preventDefault();answerQuiz(Number(e.key)-1);});
   document.addEventListener('keydown',e=>{if(!viewer||e.repeat||e.ctrlKey||e.altKey||e.metaKey||$('dodge-pad').hidden||!['ArrowUp','ArrowDown'].includes(e.key)||e.target.closest('input,textarea,select')||document.querySelector('dialog[open]'))return;e.preventDefault();viewerDodge(e.key==='ArrowUp'?'up':'down');});
   document.addEventListener('keydown',e=>{if(e.code!=='Space'||e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,button,a,select')||document.querySelector('dialog[open]')||viewer)return;e.preventDefault();if(current?.active)pause();else if(current?.stage==='picking')start();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&current?.active)save();});window.addEventListener('pagehide',()=>{if(current)save();});
