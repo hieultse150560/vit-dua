@@ -104,6 +104,23 @@
     'quiz:lightning': ['Trời phạt! Sét đánh {a} lật thuyền!', 'Ông trời không tha, {a} bị sét đánh!'],
     'quiz:cloud': ['Trời phạt! Mây đen kéo tới mưa xối xả lên đầu {a}!', 'Mưa trút xuống {a}, bơi lóp ngóp!'],
     'quiz:wave': ['Trời phạt! Sóng lớn đẩy {a} lùi lại!', 'Một con sóng ập tới, {a} quay mòng mòng!'],
+    // chaos-v9 skills.
+    'traps:hit': ['{a} giăng bẫy liên hoàn trước mũi {b}! Né đủ ba cái đi!', 'Bẫy giăng chi chít trong làn {b}, quà của {a} đấy!'],
+    'traps:reflected': ['{a} rải bẫy vào làn {b} nhưng gương dội ngược, bẫy chạy về làn {a}!'],
+    'riddle:riddle': ['{a} ra câu đố mẹo bắt {b} giải gấp! Bốn giây thôi đấy!', 'Đố vui có thưởng! {a} hỏi khó {b}, mà {b} trả lời đúng thì {a} lãnh đòn!'],
+    'riddle:reflected': ['{a} ra đố {b} nhưng gương dội ngược, {a} phải tự giải!'],
+    'riddle:none': ['{a} định ra câu đố nhưng cả sông đang bận giải đố, đành lướt lên một đoạn!'],
+    'camera:camera': ['{a} dựng camera phạt nguội! Ai tung skill lúc này coi chừng bị tịch thu!', 'Camera của {a} đã bật, cả sông nín thở không dám tung chiêu!'],
+    confiscated: ['Camera phạt nguội! {a} mất trắng skill, tiền phạt chảy về túi {b}!', 'Tịch thu! {a} tung chiêu đúng lúc camera của {b} đang quay!'],
+    'pickpocket:purse': ['{a} móc túi hụt, chỉ vớ được cái ví, lướt lên một đoạn!'],
+    'toll:toll': ['{a} dựng trạm BOT giữa sông! Muốn qua thì trả phí!', 'Trạm thu phí của {a} mọc lên, đoàn phía sau chuẩn bị móc ví!'],
+    'toll:paid': ['{b} qua trạm BOT của {a}, mất phí rồi!', 'Ting ting! {b} trả phí qua trạm cho {a}!'],
+    'toll:free': ['{b} bay vèo qua trạm BOT của {a}, khỏi trả phí!'],
+    'upside:upside': ['Thế giới đảo ngược! {a} khiến con chót bơi nhanh nhất, con đầu ì ạch!', 'Lộn tùng phèo! Phép của {a} làm cả sông chạy ngược luật!'],
+    'riddle:right': ['{a} trả lời đúng! Đòn dội ngược, {b} lãnh đủ!', 'Đố không nổi {a}! Câu đố quay lại trúng {b}!'],
+    'riddle:lucky': ['{a} đoán bừa mà trúng, {b} tự ăn đòn!'],
+    'riddle:wrong': ['{a} trả lời sai câu đố của {b}, trời phạt liền!'],
+    'riddle:late': ['Hết giờ! {a} không kịp giải câu đố của {b}, trời phạt!'],
     // Race room: an area skill its owner aimed past the leaders ({c} = the ducks it struck).
     aimed: ['{a} chỉ mặt điểm tên, {c} lãnh trọn!', '{a} bỏ qua tốp đầu, nhắm thẳng {c}!', 'Có thù riêng chăng? {a} nhắm đúng {c}!']
   };
@@ -136,10 +153,17 @@
     const id = event.skill || event.hazard, a = nameOf(event.actorId);
     if (event.type === 'obstacle') return laneLine(event, a);
     if (event.type === 'quiz') return quizLine(event, a);
+    // chaos-v9: a riddle settled ({a} answered it, {b} threw it), a toll paid ({a} owns the gate, {b} paid).
+    if (event.type === 'riddle' || event.type === 'toll') {
+      const pool = LINES[`${event.type}:${event.outcome}`] || [`${a} ${event.label || ''}`.trim()], b = nameOf(event.type === 'riddle' ? event.byId : event.targetId);
+      return pool[hash(`${event.id}|${event.time}`) % pool.length].replaceAll('{a}', a).replaceAll('{b}', b);
+    }
     const hasTarget = Number.isInteger(event.targetId) && event.targetId !== event.actorId;
     const fits = list => (list || []).filter(text => text.includes('{b}') === hasTarget);
     // Copycat: credit the thief, then call the move it copied.
     if (event.skill === 'copycat' && event.copied) return `${a} học lỏm chiêu ${event.copiedName}! ${line({ ...event, skill: event.copied }, nameOf)}`;
+    // Pickpocket (chaos-v9): name the robbed duck, then call the move it stole.
+    if (event.skill === 'pickpocket' && event.stolen) return `${a} móc túi ${nameOf(event.victimId)}, cuỗm luôn ${event.stolenName}! ${line({ ...event, skill: event.stolen }, nameOf)}`;
     const guardLines = { ghost: LINES['ghost-pass'], dodge: LINES['dodge-pass'], lucky: LINES['lucky-pass'] };
     const lists = [event.finale && LINES['rock:finale'], guardLines[event.guard], event.aimed && LINES.aimed, LINES[`${id}:${event.outcome}`], LINES[event.outcome], LINES.default].map(fits);
     const at = lists.findIndex(list => list.length), pool = lists[at] || [`${a} ${event.label || ''}`.trim()];

@@ -424,6 +424,36 @@
   const QUIZ_PENALTIES = freeze(['lightning', 'cloud', 'wave']);
   const QUIZ_LABEL = { right: 'TRẢ LỜI ĐÚNG!', lucky: 'ĐOÁN BỪA MÀ TRÚNG!', lightning: 'TRỜI PHẠT: SÉT ĐÁNH!', cloud: 'TRỜI PHẠT: MÂY MƯA!', wave: 'TRỜI PHẠT: SÓNG ĐẨY LÙI!' };
   const QUIZ_ICON = { right: '✅', lucky: '🍀', lightning: '⚡', cloud: '🌧️', wave: '🌊' };
+  // chaos-v9: chaos-v8 with six skills that bring new rules (traps in a rival's lane, a riddle that can backfire, a speed
+  // camera, a pickpocket, a toll gate, an upside-down world), and ducks nobody steers get past lane things and quizzes
+  // more often (`luck`), so a player who is not in the room is not left far behind.
+  const v9Skills = freeze([
+    { id: 'traps', name: 'Bẫy liên hoàn', icon: '🚧', description: 'Thả liền 3 chướng ngại vào làn con dẫn đầu, xen kẽ cao thấp: chủ vịt phải bấm né đủ cả 3, trượt cái nào vấp cái đó.' },
+    { id: 'riddle', name: 'Đố mẹo', icon: '❓', description: 'Bắt con dẫn đầu giải gấp một câu đố trong 4 giây: sai hoặc hết giờ thì nó bị trời phạt; trả lời đúng thì đòn dội ngược vào mình.' },
+    { id: 'camera', name: 'Camera phạt nguội', icon: '📸', description: 'Dựng camera 8 giây: con nào tung skill lúc đó bị tịch thu skill và phạt khựng 1 giây; tiền phạt đẩy mình lên.' },
+    { id: 'pickpocket', name: 'Móc túi', icon: '🦹', description: 'Móc skill chưa dùng của con gần nhất phía trên mình và tung luôn cho mình; con đó mất skill. Không ai còn skill thì móc ví, lướt lên một đoạn.' },
+    { id: 'toll', name: 'Trạm BOT', icon: '🚏', description: 'Dựng trạm thu phí ngay chỗ mình trong 6 giây: con nào phía sau bơi qua trạm bị thu 0,7% đường đua, tiền phí đẩy mình lên.' },
+    { id: 'upside', name: 'Thế giới đảo ngược', icon: '🙃', description: 'Đảo ngược 4 giây: hạng càng thấp bơi càng nhanh, con chót nhanh hơn 60%, con dẫn đầu chậm đi 30%.' }
+  ]);
+  const V9_TIER = { traps: 'A', riddle: 'B', camera: 'B', pickpocket: 'A', toll: 'B', upside: 'A' };
+  const TUNING_V9 = freeze(merged(TUNING_V8, {
+    lane: { luck: 0.75 }, quiz: { luck: 0.75 },
+    // `count` things in the target's lane, keys alternating, `every` s apart, the first met `first` s after the cast; harder
+    // than the lane's own (`luck` for a duck nobody steers). Each trip pushes back `knock`% and spins `spin` s, stunned or
+    // not, so every one missed costs ground
+    traps: { count: 3, first: 3, every: 1.5, luck: 0.4, knock: 1.3, spin: 0.5 },
+    // `time` s to answer; a duck nobody steers is right at `luck` (and the riddle backfires); punished as by a quiz
+    riddle: { time: 4, luck: 0.4 },
+    // for `time` s a skill cast by another duck is taken and its owner stopped `stun` s; each fine pushes the owner `fine`%
+    camera: { time: 8, stun: 1, fine: 1.5 },
+    // nothing left to steal: the purse, a `purse`% surge
+    pickpocket: { purse: 2 },
+    // for `time` s each duck that swims past pays `fee`% of the course, which pushes the owner on
+    toll: { time: 6, fee: 0.7 },
+    // for `time` s the last duck `fast` faster and the leader `slow` slower, the others in between by rank
+    upside: { time: 4, fast: 0.6, slow: 0.3 }
+  }));
+  const V9_RULES = freeze({ ...V8_RULES, skills: freeze([...V8_RULES.skills, ...v9Skills.map(s => ({ ...s, tier: V9_TIER[s.id] }))]), tuning: TUNING_V9 });
   // Skills and traits for each duck, dealt before the picks (chaos-v3); the same seed always deals the same lineup.
   function dealLineup(rules, count, seed) {
     const deckOf = (list, salt) => shuffled(Array.from({ length: Math.ceil(count / list.length) }, () => list).flat(), randomFor(seed, salt)).slice(0, count);
@@ -462,7 +492,12 @@
     if (answers !== null && (!Array.isArray(answers) || answers.length !== count || answers.some(a => a !== null && (!Array.isArray(a) || a.length !== 2
       || typeof a[0] !== 'number' || !Number.isFinite(a[0]) || a[0] < 0 || ![0, 1, 2].includes(a[1])))))
       throw new RangeError('Câu trả lời đố vui không hợp lệ.');
-    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule, casts, targets, pilots, dodges, answers };
+    // Race room (chaos-v9): each duck's answers to the riddles thrown at it, [race time, choice 0–2] each (null = none yet).
+    const riddles = lineup.riddles === undefined ? null : lineup.riddles;
+    if (riddles !== null && (!Array.isArray(riddles) || riddles.length !== count || riddles.some(list => list !== null && (!Array.isArray(list) || list.length > 12
+      || list.some(a => !Array.isArray(a) || a.length !== 2 || typeof a[0] !== 'number' || !Number.isFinite(a[0]) || a[0] < 0 || ![0, 1, 2].includes(a[1]))))))
+      throw new RangeError('Câu trả lời đố mẹo không hợp lệ.');
+    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule, casts, targets, pilots, dodges, answers, riddles };
   }
   // Race room: the first moment from `earliest` that keeps `gap` from every busy moment. When the race is too full for
   // that before `limit`, the moment farthest from any of them (never before `earliest`, unless limit is earlier still).
@@ -572,13 +607,14 @@
     // Race room (chaos-v8): one quiz per duck at its own moment, spread out so they open one after another. `pick` chooses
     // the question (the app's bank), `right` where its right answer sits among the three. Its own stream: nothing shifts.
     // Every quiz settles before the calm finish (short races squeeze the window; none at all if nothing fits).
-    const quizzes = [], QZ = tuning.quiz, quizTo = QZ ? Math.min(QZ.to, (calmFrom - QZ.time - .5) / duration) : 0;
+    const quizzes = [], riddles = [], QZ = tuning.quiz, quizTo = QZ ? Math.min(QZ.to, (calmFrom - QZ.time - .5) / duration) : 0;
     if (lanes && rules.quiz && quizTo > QZ.from) {
       const quizRng = randomFor(seed, 0x5155495a), order = shuffled(ids, quizRng);
       order.forEach((id, k) => { quizzes[id] = { duck: id, at: tick(duration * (QZ.from + (quizTo - QZ.from) * (k + .2 + quizRng.unit() * .6) / count)) / HZ,
         pick: quizRng.integer(1 << 30), right: quizRng.integer(3), luck: quizRng.unit() < QZ.luck, penalty: QUIZ_PENALTIES[quizRng.integer(3)], done: false }; });
     }
-    const quizzing = id => quizzes.length > 0 && now >= quizzes[id].at - QZ.quiet - 1e-9 && now <= quizzes[id].at + QZ.time + .5 + 1e-9;
+    const quizzing = id => quizzes.length > 0 && now >= quizzes[id].at - QZ.quiet - 1e-9 && now <= quizzes[id].at + QZ.time + .5 + 1e-9
+      || riddles.some(q => q.duck === id && now >= q.at - 1e-9 && now <= q.at + tuning.riddle.time + .5 + 1e-9);
     const runeCount = lanes ? 0 : Math.max(3, Math.ceil(count / 3)) * (R.runeScale || 1);
     for (let i = 0; i < runeCount; i++) {
       // chaos-v3: lucky ducks find runes more often (all weights 1 without luck: the same draw as before).
@@ -710,6 +746,44 @@
       return { outcome: 'reflected', label: LABEL.reflected };
     }
     const traps = [];
+    // chaos-v9: open speed cameras and toll gates.
+    const cameras = [], tolls = [];
+    // chaos-v9 traps: `count` lane things in a duck's lane, keys alternating, met `first`, `first + every`, … s from now at
+    // its speed of the moment (a duck slowed or pushed meets them later, so it only gets longer to press).
+    function layTraps(duck, owner) {
+      const TR = tuning.traps, speed = duck.speeds[Math.min(segmentCount - 1, Math.floor(now / segmentLength))], up = effectRng.unit() < .5;
+      for (let k = 0; k < TR.count; k++) {
+        const key = (k % 2 === 0) === up ? 'up' : 'down', choices = OBSTACLES.filter(o => o.key === key);
+        items.push({ duck: duck.id, kind: choices[effectRng.integer(choices.length)], luck: effectRng.unit() < TR.luck, met: false,
+          at: duck.distance + speed * (TR.first + k * TR.every), trap: owner.id, from: now });
+      }
+    }
+    // chaos-v9: a skill cast while another duck's speed camera is up is taken; its owner is stopped and fined.
+    function confiscate(actor, camera) {
+      const CM = tuning.camera, ranks = ranksNow(), before = snapshot([actor, camera.owner]);
+      actor.skillUsed = true; actor.confiscated = true;
+      const effect = impair(actor, 'startled', CM.stun);
+      surge(camera.owner, pct(CM.fine), 1);
+      emit({ type: 'skill', actorId: actor.id, skill: actor.skill.id, icon: actor.skill.icon, ranksBefore: ranks, activation: true, scheduled: true, outcome: 'confiscated', effect,
+        cameraId: camera.owner.id, targetId: camera.owner.id, label: 'CAMERA PHẠT NGUỘI: TỊCH THU SKILL!', before, after: snapshot([actor, camera.owner]) });
+      flush();
+    }
+    // chaos-v9 toll gates: a duck that was behind one when it opened pays once as it swims past (flying or ghosted: free).
+    function tickTolls() {
+      const TL = tuning.toll;
+      for (const gate of [...tolls]) {
+        if (now >= gate.until - 1e-9 || now > calmFrom + 1e-9) { tolls.splice(tolls.indexOf(gate), 1); continue; }
+        for (const id of [...gate.behind]) {
+          const r = racers[id];
+          if (r.distance < gate.at) continue;
+          gate.behind.delete(id);
+          const ranks = ranksNow(), before = snapshot([r, gate.owner]), free = now < r.flyUntil || now < r.ghostUntil;
+          if (!free) { jump(r, r.distance - pct(TL.fee)); surge(gate.owner, pct(TL.fee), 1); }
+          emit({ type: 'toll', actorId: gate.owner.id, targetId: id, outcome: free ? 'free' : 'paid', icon: '🚏', label: free ? 'BAY QUA TRẠM, KHỎI TRẢ PHÍ!' : 'QUA TRẠM BOT, MẤT PHÍ!',
+            ranksBefore: ranks, before, after: snapshot([r, gate.owner]) });
+        }
+      }
+    }
     function slip(trap) {
       const { owner, victim } = trap;
       const result = strike(owner, victim,
@@ -1199,6 +1273,59 @@
         jump(actor, pass ? landAhead(rank - pass, X.lead) : actor.distance + pct(X.leaderHop));
         return { outcome: 'ride', label: pass ? `XE ÔM CHỞ VƯỢT ${pass} CON!` : 'XE ÔM CHỞ VỌT LÊN!', before, after: snapshot([actor]) };
       },
+      // ---- chaos-v9 ----
+      traps(actor) {
+        const [target] = topRivals(actor, 1);
+        const result = strike(actor, target, () => { layTraps(target, actor); return { outcome: 'hit', label: 'BẪY LIÊN HOÀN CHẶN ĐƯỜNG!' }; },
+          () => { layTraps(actor, actor); return 'hit'; });
+        return { targetId: target.id, ...result };
+      },
+      riddle(actor) {
+        // Never a duck answering already, or whose own quiz opens before this one would be over.
+        const RD = tuning.riddle, busy = r => quizzing(r.id) || !!quizzes[r.id] && now >= quizzes[r.id].at - RD.time - .5 - 1e-9 && now <= quizzes[r.id].at + QZ.time + .5;
+        const late = now + RD.time + .5 > calmFrom; // it would settle in the calm finish, where nothing knocks a duck back
+        const target = late ? null : aimedFirst(actor, ranked().filter(r => r !== actor), count).find(r => !busy(r));
+        if (!target) { const before = snapshot([actor]); surge(actor, pct(tuning.pickpocket.purse), 1); return { outcome: 'none', label: 'CẢ SÔNG ĐANG BẬN GIẢI ĐỐ!', before, after: snapshot([actor]) }; }
+        const defense = defend(target, actor, true);
+        if (defense?.outcome === 'blocked') return { targetId: target.id, outcome: 'blocked', guard: defense.guard, label: LABEL.blocked(defense.guard) };
+        const reflected = defense?.outcome === 'reflected', solver = reflected ? actor : target;
+        if (reflected) reflect(target, actor, 'riddle');
+        if (reflected && busy(actor)) return { targetId: target.id, outcome: 'reflected', label: LABEL.reflected }; // the thrower is answering already: it fizzles
+        riddles.push({ duck: solver.id, by: reflected ? target.id : actor.id, at: now, pick: effectRng.integer(1 << 30), right: effectRng.integer(3),
+          luck: effectRng.unit() < RD.luck, penalty: QUIZ_PENALTIES[effectRng.integer(3)], done: false });
+        return { targetId: target.id, solverId: solver.id, outcome: reflected ? 'reflected' : 'riddle', label: reflected ? LABEL.reflected : 'ĐỐ MẸO: 4 GIÂY ĐỂ TRẢ LỜI!' };
+      },
+      camera(actor) {
+        const until = tick(now + tuning.camera.time) / HZ;
+        cameras.push({ owner: actor, until });
+        return { outcome: 'camera', until, label: 'CAMERA PHẠT NGUỘI ĐÃ BẬT!' };
+      },
+      pickpocket(actor, ranks) {
+        // The aimed rival, else the nearest duck above, else the nearest below, that still holds an active skill.
+        const order = ranked(), rank = ranks[actor.id], above = order.slice(0, rank - 1).reverse(), below = order.slice(rank);
+        const holds = r => r !== actor && !r.skillUsed && !r.stolen && !PASSIVE.has(r.skill.id) && r.skill.id !== 'pickpocket';
+        const victim = aimedFirst(actor, [...above, ...below], count).find(holds);
+        if (!victim) { const before = snapshot([actor]); surge(actor, pct(tuning.pickpocket.purse), 1); return { outcome: 'purse', label: 'MÓC VÍ, LƯỚT LÊN!', before, after: snapshot([actor]) }; }
+        victim.stolen = true; victim.skillUsed = true;
+        const skill = victim.skill, effect = skillEffects[skill.id](actor, ranksNow());
+        return { ...effect, victimId: victim.id, stolen: skill.id, stolenName: skill.name, stolenIcon: skill.icon, label: `MÓC TÚI ${skill.name.toUpperCase()}: ${effect.label}` };
+      },
+      toll(actor) {
+        const until = tick(now + tuning.toll.time) / HZ;
+        tolls.push({ owner: actor, at: actor.distance, until, behind: new Set(racers.filter(r => r !== actor && r.distance < actor.distance).map(r => r.id)) });
+        return { outcome: 'toll', until, tollAt: actor.distance, label: 'TRẠM BOT MỌC GIỮA SÔNG!' };
+      },
+      upside(actor, ranks) {
+        const U = tuning.upside, until = tick(now + U.time) / HZ, outcomes = {}, protectedIds = [];
+        for (const r of racers) {
+          const extra = -U.slow + (U.fast + U.slow) * (count > 1 ? (ranks[r.id] - 1) / (count - 1) : 1);
+          if (extra >= 0) { if (extra > 0) r.speedUps.push({ from: now, until, extra }); outcomes[r.id] = 'faster'; }
+          else if (r !== actor && shielded(r)) { outcomes[r.id] = 'protected'; protectedIds.push(r.id); }
+          else if (now < r.awakeUntil || r.trait?.id === 'shell') outcomes[r.id] = 'immune';
+          else { r.slowMods.push({ from: now, until, factor: 1 + extra }); outcomes[r.id] = 'slower'; }
+        }
+        return { affectedIds: racers.filter(r => r !== actor).map(r => r.id), protectedIds, outcomes, until, outcome: 'upside', label: 'THẾ GIỚI ĐẢO NGƯỢC: CON CHÓT BƠI NHANH NHẤT!' };
+      },
       buoy(actor) {
         if (actor.guard === 'buoy') actor.guard = null;
         return { outcome: 'fallback', label: rules.epic ? 'PHAO NẢY TƯNG TƯNG!' : 'PHAO BƠM HƠI BẬT LÊN!', ...(rules.epic ? bounce(actor, tuning.buoyV3.fallbackPass) : bounce(actor)) };
@@ -1206,6 +1333,9 @@
     };
     function applySkill(actor) {
       if (actor.skillUsed && PASSIVE.has(actor.skill.id)) return; // a passive skill already reacted earlier (active ones may fire twice on a "double" day)
+      if (actor.stolen || actor.confiscated) return; // chaos-v9: a pickpocket took it before it fired, or a speed camera did
+      const camera = PASSIVE.has(actor.skill.id) ? null : cameras.find(c => now < c.until - 1e-9 && c.owner !== actor);
+      if (camera) { confiscate(actor, camera); return; }
       const ranks = ranksNow();
       const effect = skillEffects[actor.skill.id](actor, ranks);
       actor.skillUsed = true;
@@ -1372,12 +1502,31 @@
       } else {
         outcome = now < racer.flyUntil || now < racer.ghostUntil ? 'over' : now < racer.giantUntil ? 'smashed' : press?.[1] === kind.key ? 'dodged' : lucky ? 'lucky' : null;
         if (outcome) { if (outcome === 'dodged' || outcome === 'lucky') { racer.dodgeUntil = tick(now + O.hop) / HZ; racer.dodgeKey = kind.key; } }
+        else if (item.trap !== undefined) { jump(racer, racer.distance - pct(tuning.traps.knock)); impair(racer, 'spinning', tuning.traps.spin); outcome = 'hit'; }
         else outcome = impair(racer, kind.key === 'up' ? 'capsized' : 'spinning', O.stun) === 'hit' ? 'hit' : 'immune';
       }
-      emit({ type: 'obstacle', ...(kind.rune ? { rune: kind.rune } : {}), actorId: racer.id, obstacle: kind.id, icon: kind.icon, key: kind.key, line: index, outcome,
+      emit({ type: 'obstacle', ...(kind.rune ? { rune: kind.rune } : {}), ...(item.trap !== undefined ? { trap: item.trap } : {}), actorId: racer.id, obstacle: kind.id, icon: kind.icon, key: kind.key, line: index, outcome,
         pressed: press ? press[1] : null, label: OBSTACLE_LABEL[kind.rune && outcome === 'lucky' ? 'luckyRune' : outcome], ranksBefore: ranks });
     }
     // chaos-v8: when its time is up, a quiz counts the answer given in time (else luck, for a duck nobody steers).
+    // A quiz's (or riddle's) punishment from the sky: lightning, a rain cloud or a wave.
+    function skyPunish(racer, penalty) {
+      if (penalty === 'lightning') return impair(racer, 'capsized', QZ.stun);
+      if (penalty === 'cloud') { const effect = now < racer.awakeUntil ? 'immune' : 'hit'; if (effect === 'hit') racer.slowMods.push({ from: now, until: tick(now + QZ.slowTime) / HZ, factor: 1 - QZ.slow }); return effect; }
+      jump(racer, racer.distance - pct(QZ.knock)); return impair(racer, 'spinning', QZ.spin);
+    }
+    // chaos-v9: a riddle counts the earliest answer given while it was open. Right (or lucky, for a duck nobody steers): it
+    // backfires on whoever threw it. Wrong or too late: the sky punishes the duck that had to answer.
+    function settleRiddle(q) {
+      const solver = racers[q.duck], thrower = racers[q.by], ranks = ranksNow(), T = tuning.riddle.time;
+      const answer = (dealt?.riddles?.[q.duck] || []).filter(a => a[0] >= q.at - 1e-9 && a[0] <= q.at + T + 1e-9).sort((a, b) => a[0] - b[0])[0] || null;
+      const outcome = answer ? (answer[1] === q.right ? 'right' : 'wrong') : !dealt?.pilots?.[q.duck] && q.luck ? 'lucky' : 'late';
+      const good = outcome === 'right' || outcome === 'lucky', victim = good ? thrower : solver, before = snapshot([victim]);
+      const effect = skyPunish(victim, q.penalty);
+      emit({ type: 'riddle', actorId: q.duck, byId: q.by, victimId: victim.id, outcome, penalty: q.penalty, effect, choice: answer ? answer[1] : null, right: q.right,
+        icon: good ? '🔁' : QUIZ_ICON[q.penalty], label: good ? `${QUIZ_LABEL[outcome]} ĐÒN DỘI NGƯỢC!` : QUIZ_LABEL[q.penalty], ranksBefore: ranks, before, after: snapshot([victim]) });
+      flush();
+    }
     function settleQuiz(q) {
       const racer = racers[q.duck], ranks = ranksNow(), before = snapshot([racer]), a = dealt.answers?.[q.duck];
       const answer = a && a[0] >= q.at - 1e-9 && a[0] <= q.at + QZ.time + 1e-9 ? a : null;
@@ -1385,9 +1534,7 @@
       const good = outcome === 'right' || outcome === 'lucky', penalty = good ? null : q.penalty;
       let effect = null;
       if (good) racer.runeUntil = Math.max(racer.runeUntil, tick(now + tuning.rune.time) / HZ);
-      else if (penalty === 'lightning') effect = impair(racer, 'capsized', QZ.stun);
-      else if (penalty === 'cloud') { effect = now < racer.awakeUntil ? 'immune' : 'hit'; if (effect === 'hit') racer.slowMods.push({ from: now, until: tick(now + QZ.slowTime) / HZ, factor: 1 - QZ.slow }); }
-      else { jump(racer, racer.distance - pct(QZ.knock)); effect = impair(racer, 'spinning', QZ.spin); }
+      else effect = skyPunish(racer, penalty);
       emit({ type: 'quiz', actorId: q.duck, outcome, penalty, effect, choice: answer ? answer[1] : null, right: q.right, icon: QUIZ_ICON[penalty || outcome],
         label: QUIZ_LABEL[penalty || outcome], ranksBefore: ranks, before, after: snapshot([racer]) });
       flush();
@@ -1462,12 +1609,14 @@
       currentStep = step; now = end;
       for (const trap of [...traps]) if (trap.victim.distance >= trap.at) { traps.splice(traps.indexOf(trap), 1); slip(trap); }
       if (bombs.length) tickBombs();
+      if (tolls.length) tickTolls();
       for (const timer of [...timers]) if (now >= timer.at - 1e-9) { timers.splice(timers.indexOf(timer), 1); timer.run(); }
       for (const r of racers) lines.forEach((line, i) => { if (!line.met[r.id] && r.distance >= line.at) { line.met[r.id] = true; crossObstacle(r, i); } });
       // A duck that only gets to its next one in the calm finish just swims past it (nothing happens then).
       // ... and so does one that gets to it around its quiz (chaos-v8).
       items.forEach((item, i) => { if (!item.met && racers[item.duck].distance >= item.at) { item.met = true; if (now <= calmFrom + 1e-9 && !quizzing(item.duck)) crossLane(racers[item.duck], i); } });
       for (const q of quizzes) if (!q.done && now >= q.at + QZ.time - 1e-9) { q.done = true; settleQuiz(q); }
+      for (const q of riddles) if (!q.done && now >= q.at + tuning.riddle.time - 1e-9) { q.done = true; settleRiddle(q); }
       while (cursor < schedule.length && schedule[cursor].tick === step) apply(schedule[cursor++]);
       record(step);
     }
@@ -1483,24 +1632,28 @@
       const presses = (dealt.dodges || []).flatMap((list, id) => (list || []).map(press => ({ time: press[0], id, press })));
       // An answer only acts when its quiz settles, so its leg starts then.
       const answered = (dealt.answers || []).flatMap((a, id) => (a ? [{ time: quizzes[id] ? quizzes[id].at + QZ.time : a[0], id, answer: a }] : []));
+      // ... and a riddle's answer when its riddle settles (chaos-v9).
+      const settles = (id, a) => { const q = riddles.find(x => x.duck === id && a[0] >= x.at - 1e-9 && a[0] <= x.at + tuning.riddle.time + 1e-9); return q ? q.at + tuning.riddle.time : a[0]; };
+      const riddled = (dealt.riddles || []).flatMap((list, id) => (list || []).map(a => ({ time: settles(id, a), id, riddle: a })));
       const timed = [...dealt.casts.map((time, id) => ({ time, id })).filter(c => c.time !== null && c.time < duration && !PASSIVE.has(racers[c.id].skill.id)),
-        ...presses.filter(p => p.time < duration), ...answered.filter(a => a.time < duration)]
-        .sort((a, b) => a.time - b.time || a.id - b.id || !!a.press - !!b.press || !!a.answer - !!b.answer);
+        ...presses.filter(p => p.time < duration), ...answered.filter(a => a.time < duration), ...riddled.filter(a => a.time < duration)]
+        .sort((a, b) => a.time - b.time || a.id - b.id || !!a.press - !!b.press || !!a.answer - !!b.answer || !!a.riddle - !!b.riddle);
       const finishWith = k => {
         if (k === timed.length) return finishDistance;
-        const first = timed.slice(0, k), cast = new Set(first.filter(c => !c.press && !c.answer).map(c => c.id)), pressed = new Set(first.filter(c => c.press).map(c => c.press));
-        const told = new Set(first.filter(c => c.answer).map(c => c.id));
+        const first = timed.slice(0, k), cast = new Set(first.filter(c => !c.press && !c.answer && !c.riddle).map(c => c.id)), pressed = new Set(first.filter(c => c.press).map(c => c.press));
+        const told = new Set(first.filter(c => c.answer).map(c => c.id)), solved = new Set(first.filter(c => c.riddle).map(c => c.riddle));
         const partial = { ...lineup, casts: lineup.casts.map((time, id) => (cast.has(id) ? time : null)),
           ...(lineup.dodges ? { dodges: lineup.dodges.map(list => list && list.filter(p => pressed.has(p))) } : {}),
-          ...(lineup.answers ? { answers: lineup.answers.map((a, id) => (told.has(id) ? a : null)) } : {}) };
+          ...(lineup.answers ? { answers: lineup.answers.map((a, id) => (told.has(id) ? a : null)) } : {}),
+          ...(lineup.riddles ? { riddles: lineup.riddles.map(list => list && list.filter(a => solved.has(a))) } : {}) };
         return remember(JSON.stringify([version, names, duration, seed, partial]), () => createRaceFor(version, rules, names, duration, seed, partial, false).results[0].finalDistance);
       };
       // The race being built is the next build's newest prefix: cache its finish now (only when every input of it is a leg,
       // so that prefix is exactly this race).
-      if (dealt.casts.every((time, id) => time === null || timed.some(c => !c.press && !c.answer && c.id === id)) && (dealt.dodges || []).every(list => !list || list.every(p => p[0] < duration))
-        && (dealt.answers || []).every(a => !a || a[0] < duration))
+      if (dealt.casts.every((time, id) => time === null || timed.some(c => !c.press && !c.answer && !c.riddle && c.id === id)) && (dealt.dodges || []).every(list => !list || list.every(p => p[0] < duration))
+        && (dealt.answers || []).every(a => !a || a[0] < duration) && (dealt.riddles || []).every(list => !list || list.every(a => a[0] < duration)))
         remember(JSON.stringify([version, names, duration, seed, { ...lineup, casts: [...lineup.casts], ...(lineup.dodges ? { dodges: lineup.dodges.map(list => list && [...list]) } : {}),
-          ...(lineup.answers ? { answers: lineup.answers.map(a => a && [...a]) } : {}) }]), () => finishDistance);
+          ...(lineup.answers ? { answers: lineup.answers.map(a => a && [...a]) } : {}), ...(lineup.riddles ? { riddles: lineup.riddles.map(list => list && list.map(a => [...a])) } : {}) }]), () => finishDistance);
       const legs = [];
       let from = finishWith(0);
       timed.forEach((c, k) => { const to = finishWith(k + 1), next = timed[k + 1]?.time ?? duration; legs.push({ at: c.time, from, to }); from += (to - from) * (next - c.time) / (duration - c.time); });
@@ -1510,6 +1663,7 @@
     events.forEach(event => {
       if (event.type === 'rune-spawn') event.progress = distances[tick(event.pickupTime) * count + event.actorId] / scaleAt(event.pickupTime);
       if (event.type === 'obstacle') event.progress = (rules.lanes ? items : lines)[event.line].at / scaleAt(event.time);
+      if (event.tollAt !== undefined) event.gate = event.tollAt / scaleAt(event.time); // chaos-v9: where the toll gate stands
     });
     const publicRacer = racer => ({ id: racer.id, name: racer.name, skill: racer.skill, ...(racer.trait ? { trait: racer.trait } : {}), ...(racer.luck ? { luck: racer.luck } : {}) });
     const publicRacers = freeze(racers.map(publicRacer));
@@ -1522,9 +1676,12 @@
       ...(lines.length ? { obstacles: freeze(lines.map(l => ({ at: l.at / courseDistance, kinds: l.kinds.map(k => k.id) }))) } : {}),
       // chaos-v5 race rooms: what lies in each lane (obstacles and runes) and where; an obstacle event's `line` is its index
       // here. From `calmFrom` s on nothing happens any more.
-      ...(items.length ? { obstacles: freeze(items.map(it => freeze({ duck: it.duck, at: it.at / courseDistance, kind: it.kind.id }))), calmFrom } : {}),
+      // chaos-v9: a trap also says who laid it and from when it is in the lane.
+      ...(items.length ? { obstacles: freeze(items.map(it => freeze({ duck: it.duck, at: it.at / courseDistance, kind: it.kind.id, ...(it.trap !== undefined ? { trap: it.trap, from: it.from } : {}) }))), calmFrom } : {}),
       // chaos-v8 race rooms: each duck's quiz (when it opens, the question pick, where the right answer sits) and its time.
       ...(quizzes.length ? { quizzes: freeze(quizzes.map(q => freeze({ duck: q.duck, at: q.at, pick: q.pick, right: q.right }))), quizTime: QZ.time } : {}),
+      // chaos-v9: each riddle thrown (who answers it, who threw it, when it opens, the question pick, where the right answer sits).
+      ...(riddles.length ? { riddles: freeze(riddles.map(q => freeze({ duck: q.duck, by: q.by, at: q.at, pick: q.pick, right: q.right }))), riddleTime: tuning.riddle.time } : {}),
       sample(elapsedSeconds) {
         if (!Number.isFinite(elapsedSeconds)) throw new TypeError('Thời gian đã chạy phải hữu hạn.');
         const time = Math.max(0, Math.min(duration, elapsedSeconds));
@@ -1569,6 +1726,7 @@
   const AIMS = freeze({ lightning: 2, reverse: 2, bees: 2, kraken: tuning.kraken.targets, wave: 3, tornado: 3 });
   const TARGETED_V4 = freeze([...TARGETED, 'cash', 'net', 'cloud']);
   const AIMS_V4 = freeze({ ...AIMS, cash: 2 });
+  const TARGETED_V9 = freeze([...TARGETED_V4, 'traps', 'riddle', 'pickpocket']);
   const v3 = Object.freeze({ version: 'chaos-v3', passive: freeze([...PASSIVE]), targeted: TARGETED, aims: AIMS, freeSlot, skills: V3_RULES.skills, hazards: V3_RULES.hazards, traits, runeTypes, tuning, weathers, maps, dayRules, retiredDayRules: retiredRules,
     // lineup: { skills: [id per duck], traits: [id per duck] } as shown before the picks; omitted = dealt from the seed.
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v3', V3_RULES, names, duration, seed, lineup),
@@ -1606,14 +1764,22 @@
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V7_RULES, count, seed);
     } });
-  // chaos-v8: what new races use. chaos-v7 with a quiz for every duck in race rooms (lineup.answers).
+  // chaos-v8: chaos-v7 with a quiz for every duck in race rooms (lineup.answers).
   const v8 = Object.freeze({ ...v7, version: 'chaos-v8', tuning: TUNING_V8,
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v8', V8_RULES, names, duration, seed, lineup),
     deal: (count, seed = newSeed()) => {
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V8_RULES, count, seed);
     } });
-  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5, v6, v7, v8,
+  // chaos-v9: what new races use. chaos-v8 with six skills that bring new rules (lineup.riddles: answers to riddles) and
+  // luckier ducks nobody steers.
+  const v9 = Object.freeze({ ...v8, version: 'chaos-v9', targeted: TARGETED_V9, skills: V9_RULES.skills, tuning: TUNING_V9,
+    createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v9', V9_RULES, names, duration, seed, lineup),
+    deal: (count, seed = newSeed()) => {
+      if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
+      return dealLineup(V9_RULES, count, seed);
+    } });
+  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5, v6, v7, v8, v9,
     createRace: (names, duration, seed) => createRaceFor(VERSION, V2_RULES, names, duration, seed) });
   root.DuckChaosEngineV2 = api;
   root.DuckChaosEngineV3 = v3;
@@ -1622,5 +1788,6 @@
   root.DuckChaosEngineV6 = v6;
   root.DuckChaosEngineV7 = v7;
   root.DuckChaosEngineV8 = v8;
+  root.DuckChaosEngineV9 = v9;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

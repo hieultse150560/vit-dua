@@ -17,7 +17,8 @@
     kraken: ['🐙', '#c08cff'], dragon: ['🐉', '#5ff0d8'], meteor: ['☄️', '#ff9d3c'], whale: ['🐋', '#8fd3ff'], ufo: ['🛸', '#b6ff9e'],
     pirate: ['🏴‍☠️', '#ffcf6b'], wheel: ['🎡', '#ffd84d'], anchor: ['⚓', '#c3ccd6'], volcano: ['🌋', '#ff5a2a'], fireworks: ['🎆', '#ff7ad9'],
     pho: ['🍜', '#ffd59a'], coffee: ['☕', '#d39a63'], cash: ['💸', '#7fd88a'], net: ['🕸️', '#eef4ff'], kite: ['🪁', '#7fd3ff'],
-    cloud: ['⛈️', '#9aa6bd'], hourglass: ['⏳', '#ffd27a'], loudspeaker: ['📣', '#ff9a5c'], portal: ['🌀', '#b98bff'], xeom: ['🛵', '#ff6f91']
+    cloud: ['⛈️', '#9aa6bd'], hourglass: ['⏳', '#ffd27a'], loudspeaker: ['📣', '#ff9a5c'], portal: ['🌀', '#b98bff'], xeom: ['🛵', '#ff6f91'],
+    traps: ['🚧', '#ff9a3d'], riddle: ['❓', '#b79cff'], camera: ['📸', '#ffffff'], pickpocket: ['🦹', '#b98bff'], toll: ['🚏', '#7fd88a'], upside: ['🙃', '#ffd166']
   };
   const V2_KIND = { swap: 'swap', wings: 'fly', torpedo: 'torpedo', wave: 'wave', rocket: 'rocket', mirror: 'mirror', hook: 'hook', tornado: 'tornado', banana: 'banana', buoy: 'guard',
     rock: 'rock', croc: 'croc', wind: 'wind', whirlpool: 'whirlpool', dolphin: 'dolphin',
@@ -25,7 +26,8 @@
     magnet: 'magnet', lightning: 'lightning', flip: 'flip', rewind: 'rewind', reverse: 'reverse', freeze: 'freeze',
     bomb: 'timebomb', dice: 'dice', lullaby: 'lullaby', hex: 'hex', giant: 'giant',
     kraken: 'kraken', dragon: 'dragon', meteor: 'meteor', whale: 'whale', ufo: 'ufo', pirate: 'pirate', wheel: 'wheel', anchor: 'anchor', volcano: 'volcano', fireworks: 'fireworks',
-    pho: 'pho', coffee: 'coffee', cash: 'cash', net: 'net', kite: 'kite', cloud: 'cloud', hourglass: 'hourglass', loudspeaker: 'loudspeaker', portal: 'portal', xeom: 'xeom' }; // 'bomb' is the chaos-v1 burst kind
+    pho: 'pho', coffee: 'coffee', cash: 'cash', net: 'net', kite: 'kite', cloud: 'cloud', hourglass: 'hourglass', loudspeaker: 'loudspeaker', portal: 'portal', xeom: 'xeom',
+    traps: 'traps', riddle: 'riddle', camera: 'camera', pickpocket: 'pickpocket', toll: 'toll', upside: 'upside' }; // 'bomb' is the chaos-v1 burst kind
   // Race seconds. TWIST_MAIN matches the app's slow-motion window (0.27 race-s, played over 1.8 s or 3 s),
   // so each twist's main action plays in slow motion; the rest is a slow fade.
   const BURST_LIFE = .85, TWIST_LIFE = 1.7, TWIST_MAIN = .27;
@@ -34,6 +36,8 @@
   const THROWN = new Set(['torpedo', 'hook']), SPREAD = new Set(['wave', 'tornado']), AT_ACTOR = new Set(['fly', 'rocket', 'boom', 'guard']);
   function kindOf(event) {
     if (event.skill === 'copycat' && event.copied) return kindOf({ ...event, skill: event.copied }); // draws what it copied
+    if (event.skill === 'pickpocket' && event.stolen) return kindOf({ ...event, skill: event.stolen }); // chaos-v9: draws what it stole
+    if (event.outcome === 'confiscated') return 'camera'; // chaos-v9: a speed camera's flash on the duck it caught
     const v2 = V2_KIND[event.skill || event.hazard];
     if (v2) return event.skill === 'rocket' && event.outcome === 'exploded' ? 'boom' : v2;
     return event.type === 'obstacle' ? 'obstacle' : event.skill === 'bomb' ? 'bomb' : event.type === 'rune-pickup' ? 'rune' : event.outcome === 'shield' ? 'shield' : 'boost';
@@ -642,6 +646,47 @@
           emoji('🤑', p.x + 4, p.y - 64, 26, f.alpha * clamp01(fall * 3));
         });
         pop(f.icon, b.pre.origin, f.m, f.alpha, 46);
+      },
+      // ---- chaos-v9 ----
+      // Bẫy liên hoàn: three road barriers arc from the caster into the lane just ahead of its target and plant there.
+      traps(b, f) {
+        const src = b.reflected ? b.pre.target : b.pre.origin, T = b.reflected ? b.pre.origin : b.pre.target;
+        for (let k = 0; k < 3; k++) {
+          const t = clamp01((f.m - k * .12) / .5), spot = { x: T.x + 70 + k * 46, y: T.y - 6 };
+          if (t <= 0) continue;
+          if (t < 1) { const q = flight({ x: src.x + 20, y: src.y - 40 }, spot, t, 70); emoji('🚧', q.x, q.y, 24, f.alpha); continue; }
+          emoji('🚧', spot.x, spot.y, 26, f.alpha); ripples(spot, clamp01(f.m - k * .12 - .5) + f.fade, f.alpha * .7);
+        }
+        pop(f.icon, src, f.m, f.alpha, 40);
+      },
+      // Đố mẹo: question marks circle the duck that has to answer, a big one pops over it.
+      riddle(b, f) {
+        const T = b.reflected ? b.pre.origin : b.pre.target;
+        for (let k = 0; k < 6; k++) { const a = f.age * 3 + k / 6 * TAU; emoji('❔', T.x + Math.cos(a) * 34, T.y - 40 + Math.sin(a) * 14, 16, f.alpha * .9); }
+        pop('❓', { x: T.x, y: T.y - 10 }, f.m, f.alpha, 54);
+        pop(f.icon, b.pre.origin, f.m, f.alpha * .6, 34);
+      },
+      // Camera phạt nguội: a white flash over the river and a ring of light around the camera (or the duck it caught).
+      camera(b, f) {
+        if (f.m < .25) { ctx.globalAlpha = (1 - f.m / .25) * .45; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height); }
+        ring(b.pre.origin.x, b.pre.origin.y - 20, 30 + f.m * 60, 20 + f.m * 40, '#ffffff', f.alpha * .8, 3);
+        pop('📸', b.pre.origin, f.m, f.alpha, 50);
+      },
+      // Móc túi with nothing left to steal: a purse and a shower of coins.
+      pickpocket(b, f) {
+        particles(b.origin, f.m, '#ffd84d', 12, 44, b.id);
+        emoji('👛', b.origin.x + 30, b.origin.y - 50, 24, f.alpha);
+        pop(f.icon, b.pre.origin, f.m, f.alpha, 44);
+      },
+      // Trạm BOT: the booth pops up where its owner stands (the app draws the barrier across the lanes).
+      toll(b, f) {
+        ring(b.pre.origin.x, b.pre.origin.y - 10, 24 + f.m * 40, 40 + f.m * 60, '#7fd88a', f.alpha * .7, 3);
+        pop(f.icon, b.pre.origin, f.m, f.alpha, 50);
+      },
+      // Thế giới đảo ngược: upside-down faces bob over every duck.
+      upside(b, f) {
+        b.pre.affected.forEach((p, i) => emoji(i % 2 ? '🔃' : '🙃', p.x, p.y - 46 - Math.sin(f.m * Math.PI) * 10, 22, f.alpha * clamp01(f.m * 3 - i * .1)));
+        pop(f.icon, b.pre.origin, f.m, f.alpha, 52);
       },
       // Lưới: a round fishing net spins open in the air and drops over the leader, its lead weights splashing; the rope
       // stays taut to the caster, who is pulled ahead.
