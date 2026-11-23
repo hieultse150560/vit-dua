@@ -13,7 +13,7 @@ export function loadGame(saved = {}, options = {}) {
   window.addEventListener('error', event => { errors.push(event.error || event.message); event.preventDefault(); });
   for (const [key, value] of Object.entries(saved)) window.localStorage.setItem(key, value);
   const sourceHtml = options.html ?? readFileSync(resolve(site, 'index.html'), 'utf8');
-  const scripts = [...sourceHtml.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>[\s\S]*?<\/script>/gi)].map(match => match[1]);
+  const scripts = [...sourceHtml.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>[\s\S]*?<\/script>/gi)].map(match => match[1].split('?')[0]); // ?v=<build> only busts browser caches
   const html = sourceHtml.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<link\b[^>]*>/gi, '');
   window.document.write(html);
   window.document.close();

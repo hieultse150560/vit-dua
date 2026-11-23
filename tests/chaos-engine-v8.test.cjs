@@ -89,10 +89,11 @@ test('answers are validated', () => {
     assert.throws(() => V8.createRace(names(4), D, 1, room(4, 1, { answers })), /đố vui/);
 });
 
-test('the quiz bank: 90 short questions, 30 per topic, three distinct answers each (the first is right)', () => {
+test('the quiz bank: 240 short questions, 30 per old topic and 25 per new one, three distinct answers each (the first is right)', () => {
   const bank = Bank.bank;
-  assert.equal(bank.length, 90);
+  assert.equal(bank.length, 240);
   for (const topic of ['chinh-ta', 'thanh-ngu', 'kien-thuc']) assert.equal(bank.filter(x => x.topic === topic).length, 30);
+  for (const topic of ['do-meo', 'dong-vat', 'am-thuc', 'khoa-hoc', 'the-gioi', 'tieng-anh']) assert.equal(bank.filter(x => x.topic === topic).length, 25, topic);
   for (const x of bank) {
     assert.ok(x.q.length > 0 && x.q.length <= 60, x.q);
     assert.equal(x.a.length, 3);

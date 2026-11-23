@@ -435,3 +435,89 @@ test("a player answers their own quiz from their page; the host gets the answer 
     assert.deepEqual([...host.errors, ...viewer.errors].map(String), []);
   } finally { await host.close(); await viewer?.close(); }
 });
+
+// Keys on their way: a player page drops what the host never took, and follows every change of the host's race.
+// `lost` makes the page's channel lose what it sends (requests) or what it gets (the host's snapshots).
+const lossy = { beforeScripts(window) {
+  window.BroadcastChannel = class extends Channel {
+    postMessage(data) { if (window.lost?.requests && data?.kind === 'request') return; super.postMessage(data); }
+    set onmessage(fn) { super.onmessage = fn && (event => { if (window.lost?.states && event.data?.kind === 'state') return; fn(event); }); }
+    get onmessage() { return super.onmessage; }
+  };
+} };
+async function roomRace(viewerOptions, deal = withChannel) {
+  const host = loadGame({}, deal);
+  host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-23'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
+  submit(host, 'setup-form'); await settle();
+  const code = host.storage()['vit-dua-room'];
+  host.click('room-close'); host.click('skills-close');
+  const viewer = loadGame({}, { ...viewerOptions, ...(deal.scripts ? { scripts: deal.scripts } : {}), url: `http://localhost/?phong=${code}&ten=An` });
+  await sync(host, viewer);
+  duck(host, 0).click(); await sync(host, viewer);
+  duck(viewer, 1).click(); await sync(host, viewer);
+  host.click('random-picks'); await sync(host, viewer);
+  host.click('start'); await sync(host, viewer);
+  return { host, viewer };
+}
+
+test("a player's page keeps the host's race: a key the host echoed stays, a key that never got there leaves after its wait", async () => {
+  const { host, viewer } = await roomRace(lossy);
+  try {
+    const shown = () => JSON.parse(viewer.$('river').dataset.lineup)[2][1], hostKeys = () => current(host).active.lineup.dodges[1];
+    for (let i = 0; i < 20; i++) await sync(host, viewer, 200);
+    key(viewer, 'ArrowUp'); await sync(host, viewer, 100);
+    assert.equal(hostKeys()?.length, 1, 'the host has the first key');
+    for (let i = 0; i < 30; i++) await sync(host, viewer, 200); // longer than a key waits for the host
+    viewer.window.lost = { requests: true };
+    key(viewer, 'ArrowDown'); await sync(host, viewer, 100);
+    assert.equal(hostKeys().length, 1, 'the second key never got to the host');
+    assert.deepEqual(shown().map(p => p[1]), ['up', 'down'], "the player's race keeps the key the host echoed and adds the one on its way");
+    for (let i = 0; i < 30; i++) await sync(host, viewer, 200);
+    assert.deepEqual(shown(), hostKeys(), "once its wait is over the lost key leaves: the page shows exactly the host's race");
+    assert.deepEqual([...host.errors, ...viewer.errors].map(String), []);
+  } finally { await host.close(); await viewer.close(); }
+});
+
+test("the host's result decides: a player page that missed the host's casts shows the host's order, even when the host's record came first", async () => {
+  // Rooms until one where the casts the page missed change the order (blackholes: a leader drops to the back).
+  let decisive = false;
+  for (let attempt = 0; attempt < 10 && !decisive; attempt++) {
+    const { host, viewer } = await roomRace(lossy, dealing('blackhole'));
+    try {
+      viewer.window.lost = { states: true }; // from here the page hears nothing from the host until the end
+      for (let i = 0; i < 40 && host.window.document.querySelector('#skill-reveal [data-duck-id="0"]')?.dataset.cast !== 'ready'; i++) await sync(host, viewer, 500);
+      host.click('#skill-reveal [data-duck-id="0"]'); host.click('#skill-reveal [data-duck-id="2"]'); await sync(host, viewer);
+      const a = current(host).active, E = host.window.DuckChaosEngineV8, run = lineup => E.createRace(['a', 'b', 'c'], 55, a.seed, lineup).results.map(r => r.id).join();
+      assert.ok([0, 2].every(d => Number.isFinite(a.lineup.casts[d])), 'the host cast for Phú and Bình');
+      decisive = run(a.lineup) !== run({ ...a.lineup, casts: a.lineup.casts.map(() => null) });
+      if (!decisive) continue;
+      for (let i = 0; i < 30; i++) await sync(host, viewer, 1000);
+      viewer.window.lost = null;
+      for (let i = 0; i < 60 && !host.$('result-dialog').open; i++) { host.advance(2000, 50); await settle(); } // the host ends first
+      assert.equal(host.$('result-dialog').open, true, 'the host ended');
+      for (let i = 0; i < 60 && !viewer.$('result-dialog').open; i++) { viewer.advance(2000, 50); await settle(); }
+      await sync(host, viewer);
+      assert.equal(viewer.$('result-dialog').open, true, 'the player page ended');
+      assert.deepEqual(order(viewer), order(host), "the player sees the host's order");
+      assert.deepEqual([...host.errors, ...viewer.errors].map(String), []);
+    } finally { await host.close(); await viewer.close(); }
+  }
+  assert.ok(decisive, 'found a room where the missed casts change the order');
+});
+
+test('every page of a room runs one build: index.html stamps it on each file; a player page on an older build reloads once', async () => {
+  const html = readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8'), app = readFileSync(new URL('../dist/app.js', import.meta.url), 'utf8');
+  const build = /const BUILD='([^']+)'/.exec(app)[1];
+  const files = [...html.matchAll(/(?:src|href)="([a-z0-9.-]+\.(?:js|css))(\?v=[^"]*)?"/g)];
+  assert.ok(files.length >= 16, `${files.length} files`);
+  for (const [, file, stamp] of files) assert.equal(stamp, `?v=${build}`, file);
+  const old = app.replace(`const BUILD='${build}'`, "const BUILD='20000101-01'");
+  const page = { beforeScripts(window) { withChannel.beforeScripts(window); window.location.replace = url => { window.reloadedTo = url; }; }, scripts: { 'app.js': old } };
+  const { host, viewer } = await roomRace(page).catch(e => { throw e; });
+  try {
+    const to = new URL(viewer.window.reloadedTo);
+    assert.equal(to.searchParams.get('v'), build, 'it reloads at a new address, so the browser fetches the new files');
+    assert.equal(to.searchParams.get('ten'), 'An', 'back into the same room');
+    assert.equal(viewer.window.sessionStorage.getItem('vit-dua-reload'), build, 'once: a page still on the old build after that says so instead');
+  } finally { await host.close(); await viewer.close(); }
+});
