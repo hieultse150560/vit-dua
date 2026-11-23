@@ -3,6 +3,10 @@
   const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV8, C3old=DuckChaosEngineV3, C3v4=DuckChaosEngineV4, C3v5=DuckChaosEngineV5, C3v6=DuckChaosEngineV6, C3v7=DuckChaosEngineV7, SOUND_KEY='vit-dua-sound';
   // Saved races replay with the engine version they were started on. New races run chaos-v4 (C3: it keeps every chaos-v3 skill).
   const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3v4.version]:C3v4,[C3v5.version]:C3v5,[C3v6.version]:C3v6,[C3v7.version]:C3v7,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
+  // Every page of a room must run the same code. BUILD matches the ?v= on index.html's scripts and styles (a test keeps
+  // them equal), so a fresh index.html skips every cached file. The host's build rides in each snapshot: a player page on
+  // an older one reloads once to fetch the new files.
+  const BUILD='20261123-01',newerBuild=b=>typeof b==='string'&&b>BUILD;let buildWarned=false;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
@@ -232,7 +236,7 @@
   function focusDuck(id){const target=id===undefined?null:$('duck-grid').querySelector(`[data-duck-id="${id}"]:not(:disabled)`);(target||$('duck-grid').querySelector('button:not(:disabled)'))?.focus({preventScroll:true});}
   // own: the player picked on their own device, so they steer their duck through the obstacles.
   function pick(duck,own=false){if(viewer){viewerPick(duck);return;}if(!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const players=participants(),nextId=queue().nextPlayerId;if(!nextId||!Number.isInteger(duck)||duck<0||duck>=players.length||Object.values(current.picks).includes(duck))return;current.picks[nextId]=duck;current.pilots=[...(current.pilots||[]).filter(p=>p!==nextId),...(own?[nextId]:[])];if((starArmed||T.starForced(current.session,nextId))&&current.type==='regular'&&T.starAvailable(current.session,nextId))current.stars=[...starsOf(),nextId];starArmed=false;save();render();if(Object.keys(current.picks).length===players.length)$('start').focus({preventScroll:true});else focusDuck();}
-  function viewerPick(duck){if(!room||!current||current.active||current.stage!=='picking')return;if(!meId||queue().nextPlayerId!==meId){toast('Chưa tới lượt bạn chọn.');return;}if(Object.values(current.picks).includes(duck))return;const star=starArmed;starArmed=false;Promise.resolve(room.send({player:meId,duck,star})).then(()=>toast('Đã gửi lựa chọn, chờ máy chủ phòng xác nhận…',2500)).catch(e=>toast(e.message));}
+  function viewerPick(duck){if(!room||!current||current.active||current.stage!=='picking')return;if(!meId||queue().nextPlayerId!==meId){toast('Chưa tới lượt bạn chọn.');return;}if(Object.values(current.picks).includes(duck))return;const star=starArmed;starArmed=false;Promise.resolve(room.send({player:meId,duck,star,build:BUILD})).then(()=>toast('Đã gửi lựa chọn, chờ máy chủ phòng xác nhận…',2500)).catch(e=>toast(e.message));}
   function undoPick(){if(viewer||!current||current.active||current.stage!=='picking'||currentSeason()?.closedAt)return;const last=queue().order.filter(id=>current.picks[id]!==undefined).at(-1);if(!last)return;const duck=current.picks[last];delete current.picks[last];current.pilots=(current.pilots||[]).filter(id=>id!==last);current.stars=starsOf().filter(id=>id!==last);starArmed=false;save();render();focusDuck(duck);}
   function randomPicks(){
     if(viewer||!current||current.active||current.stage!=='picking')return;
@@ -529,7 +533,7 @@
       if(a.elapsed>=race.duration){finish();return;}
     }
     if(now-lastSaved>=500){saveCheckpoint();lastSaved=now;}
-    renderCasts();renderDodge();schedule();
+    if(viewer)expirePending();renderCasts();renderDodge();schedule();
   }
   function pause(){
     if(!current?.active)return;
@@ -670,11 +674,12 @@
   // Player (?phong=CODE&ten=NAME): follows the snapshot, picks on their turn, plays each race on their own screen.
   function roomSnapshot(){
     if(!current||isLegacy())return null;const a=current.active;
-    return {v:1,fx:slowFx,day:`${currentSeason()?.name||'Vịt Đua'} · Ngày ${dateLabel(current.session.date)}`,session:current.session,type:current.type,stage:current.stage,picks:current.picks,stars:starsOf(),
+    return {v:1,build:BUILD,fx:slowFx,day:`${currentSeason()?.name||'Vịt Đua'} · Ngày ${dateLabel(current.session.date)}`,session:current.session,type:current.type,stage:current.stage,picks:current.picks,stars:starsOf(),
       lineup:current.lineup||null,rule:current.rule||null,pickDeadline,raceReplays:current.raceReplays||[],active:a&&a.engine?{id:a.id,seed:a.seed,engine:a.engine,lineup:a.lineup,startAt:a.startAt||0,pausedMs:a.pausedMs||0,paused:phase==='paused'}:null};
   }
   function publishRoom(now=false){if(!room||viewer)return;clearTimeout(publishTimer);const send=()=>{Promise.resolve(room?.publish(roomSnapshot())).catch(e=>toast(`Phòng: ${e.message}`));};if(now)send();else publishTimer=setTimeout(send,120);}
   function roomRequest(req){
+    if(newerBuild(req?.build))warnNewBuild();
     if(req?.kind==='dodge'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&(req.race===undefined||req.race===a.id))dodgeFor(duck,req.time,req.key);return;}
     if(req?.kind==='answer'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&req.race===a.id)answerFor(duck,req.time,req.choice);return;}
     if(req?.kind==='cast'){const a=current?.active,duck=a?current.picks[req.player]:undefined;if(Number.isInteger(duck)&&(req.race===undefined||req.race===a.id))castFor(duck,typeof req.time==='number'?req.time:a.elapsed,req.targets??req.target);return;}
@@ -749,7 +754,7 @@
   // Player: the key counts on this page at once (the race swaps in place) and goes to the host, whose race echoes it to
   // every page. Until the host's copy has it, it is merged into what the host sends, so the race never flickers back.
   function lineupSig(l){return JSON.stringify([l?.casts,l?.targets,l?.dodges,l?.answers]);}
-  const PENDING_MS=4000,samePress=(p,q)=>p[0]===q[0]&&p[1]===q[1];
+  const PENDING_MS=6000,samePress=(p,q)=>p[0]===q[0]&&p[1]===q[1];
   function withPending(lineup,fromHost){
     const a=current?.active;if(!lineup?.dodges||!a)return lineup;
     const now=performance.now(),has=p=>(lineup.dodges[p.duck]||[]).some(q=>samePress(q,p.press));
@@ -761,10 +766,16 @@
     if(quizAnswer&&out.answers&&!out.answers[quizAnswer.duck])out={...out,answers:out.answers.map((x,i)=>i===quizAnswer.duck?quizAnswer.answer:x)};
     return out;
   }
+  // A key or an answer the host never took (lost on the way, or refused) leaves this page's race once its wait is over,
+  // so the page goes back to exactly the host's race.
+  function expirePending(){
+    const a=current?.active,now=performance.now();if(!a||hostLineup?.id!==a.id)return;
+    if(pendingDodges.some(p=>now-p.at>=PENDING_MS)||quizAnswer&&now-quizAnswer.at>=PENDING_MS)applyLineup(withPending(hostLineup.lineup,false));
+  }
   function viewerDodge(key){
     const duck=myDuck(),a=current?.active;
     if(!viewer||!room||phase!=='running'||!a?.lineup?.dodges||!Number.isInteger(duck)||!race?.racers[duck]||(a.lineup.dodges[duck]||[]).length>=60)return;
-    const t=Math.round(a.elapsed*100)/100;
+    const t=Math.round(a.elapsed*100)/100;if((a.lineup.dodges[duck]||[]).some(p=>p[0]===t&&p[1]===key))return; // the host keeps one of the same
     pendingDodges=[...pendingDodges,{race:a.id,duck,press:[t,key],at:performance.now()}];applyLineup(withPending(hostLineup?.id===a.id?hostLineup.lineup:a.lineup,false));renderDodge();
     Promise.resolve(room.send({kind:'dodge',player:meId,race:a.id,time:t,key})).catch(e=>toast(e.message));
   }
@@ -917,7 +928,7 @@
   function applyLineup(lineup){
     const a=current.active;if(!lineupOk(lineup,participants().length)||a.lineup&&lineupSig(lineup)===lineupSig(a.lineup))return;
     let next;try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch{return;}
-    a.lineup=lineup;swapRace(next);
+    a.lineup=lineup;swapRace(next);$('river').dataset.lineup=lineupSig(lineup); // what this page's race holds (QA checks it against the host's)
   }
   const myDuck=()=>viewer&&meId?current?.picks[meId]:undefined;
   // The rivals to aim at, live leaders first. The top ones (as many as the skill strikes) are suggested until the player
@@ -978,7 +989,7 @@
   }
   async function openRoom(code){
     if(viewer||!window.DuckRoom)return;code??=DuckRoom.newCode();
-    try{room=await DuckRoom.host(code,{onRequest:roomRequest});roomCode=code;try{localStorage.setItem(ROOM_KEY,code);}catch{}publishRoom();armPickTimer();}
+    try{room=await DuckRoom.host(code,{onRequest:roomRequest});roomCode=code;try{localStorage.setItem(ROOM_KEY,code);}catch{}publishRoom();armPickTimer();checkBuild();}
     catch(e){room=null;roomCode=null;toast(`Không mở được phòng: ${e.message}`);}
     renderRoom();
   }
@@ -1006,6 +1017,20 @@
     }
     box.replaceChildren(f);
   }
+  // A player page on another build than the host's: an older one reloads once (a new URL fetches index.html afresh);
+  // otherwise it says who should reload. True when the page is going away.
+  function buildMismatch(build){
+    if(newerBuild(build)){let tried=null;try{tried=sessionStorage.getItem('vit-dua-reload');}catch{}
+      if(tried!==build){try{sessionStorage.setItem('vit-dua-reload',build);}catch{}const u=new URL(location.href);u.searchParams.set('v',build);location.replace(u.href);return true;}}
+    if(!buildWarned){buildWarned=true;toast(newerBuild(build)?'Máy bạn chưa tải được bản mới của game: bấm Ctrl+F5 (điện thoại: tải lại trang).':'Máy chủ phòng đang chạy bản cũ: nhờ chủ phòng bấm Ctrl+F5 giữa hai vòng.',12000);}
+    return false;
+  }
+  function warnNewBuild(){if(buildWarned)return;buildWarned=true;toast('Có bản mới của game: bấm Ctrl+F5 giữa hai vòng để mọi máy chạy cùng bản.',12000);}
+  // The host: is index.html on the site newer than this page? (Not on a local server.)
+  function checkBuild(){
+    if(!/^https?:$/.test(location.protocol)||['localhost','127.0.0.1'].includes(location.hostname))return;
+    fetch(`index.html?check=${Date.now()}`,{cache:'no-store'}).then(r=>r.ok?r.text():'').then(html=>{if(newerBuild(/app\.js\?v=([\w.-]+)/.exec(html)?.[1]))warnNewBuild();}).catch(()=>{});
+  }
   function renderViewer(){
     const pill=$('viewer-pill');if(!pill)return;pill.hidden=false;
     const me=current?.session.players.find(p=>p.id===meId),turn=!!current&&current.stage==='picking'&&!current.active&&!!meId&&queue().nextPlayerId===meId;
@@ -1019,7 +1044,8 @@
   function viewerState(state){
     if(state&&typeof state.fx==='boolean'&&state.fx!==slowFx){slowFx=state.fx;setSlowFx();} // the host's effect speed keeps every race clock together
     if(!state){if(!current?.active){$('viewer-pill').hidden=false;$('viewer-pill').textContent=`📡 Phòng ${viewerCode} chưa mở hoặc đã đóng.`;}return;}
-    if(current?.active){latestState=state;const a=state.active;if(a&&a.id===current.active.id)current.active.pausedMs=Number(a.pausedMs)||0;if(a&&a.id===current.active.id&&a.lineup?.casts&&lineupSig(a.lineup)!==lineupSig(current.active.lineup))viewerCasts(a.lineup);if(a&&a.id===current.active.id&&a.paused!==(phase==='paused')&&['running','paused'].includes(phase))pause();return;}
+    if(state.build!==undefined&&state.build!==BUILD&&!current?.active&&buildMismatch(state.build))return;
+    if(current?.active){latestState=state;const a=state.active;if(a&&a.id===current.active.id)current.active.pausedMs=Number(a.pausedMs)||0;if(a&&a.id===current.active.id&&a.lineup?.casts&&lineupSig(a.lineup)!==lineupSig(hostLineup?.id===a.id?hostLineup.lineup:null))viewerCasts(a.lineup);if(a&&a.id===current.active.id&&a.paused!==(phase==='paused')&&['running','paused'].includes(phase))pause();return;}
     let session;try{session=T.validateSession(state.session);}catch{return;}
     meId=session.players.find(p=>DuckRoom.sameName(p.name,viewerName))?.id||null;pickDeadline=Number(state.pickDeadline)||0;const was=current?.stage;
     const replays=Array.isArray(state.raceReplays)?state.raceReplays.filter(r=>r&&engineFor(r.engine)):[];
@@ -1035,7 +1061,7 @@
     render();
     // This page recorded the round from its own race; the host's record decides (a key that reached the host late).
     const hostRound=shownRound&&[...session.rounds,...session.tiebreaks].find(r=>r.id===shownRound.id);
-    if(hostRound&&$('result-dialog').open&&orderOf(hostRound)!==shownRound.order){shownRound={...shownRound,order:orderOf(hostRound)};showRound(hostRound,shownRound.type,false);}
+    if(hostRound&&state.stage==='result'&&orderOf(hostRound)!==shownRound.order){shownRound={...shownRound,order:orderOf(hostRound)};showRound(hostRound,shownRound.type,false);toast('Kết quả đã cập nhật theo máy chủ phòng.');}
     if(state.stage==='complete'&&was!=='complete')showFinal();
   }
   function startViewerRace(a,lead){
@@ -1051,9 +1077,10 @@
     endAmbience();
     finishTalk(race.results);
     current.active=null;current.stage='result';clearRace();sfx('cheer');
-    // A snapshot from during this race (a pause) is older than the result just recorded: wait for the host's next one.
-    const s=latestState;latestState=null;if(s&&s.active?.id!==a.id)viewerState(s);else render();
     if(record){shownRound={id:record.id,type,order:orderOf(record)};showRound(record,type,false);}
+    // Then the host's word: a snapshot that came in during the last moments may already hold its record of this round,
+    // which replaces this page's own. One from during the race (a pause) is older: wait for the host's next one.
+    const s=latestState;latestState=null;if(s&&s.active?.id!==a.id)viewerState(s);else render();
   }
   function restoreCurrent(){
     clearRace();if(!current)return;selected=participants()[0]?.id;
