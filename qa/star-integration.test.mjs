@@ -104,7 +104,7 @@ test('v3 day in progress: new-engine races, no star toggle', async () => {
   try {
     pickRest(game, () => assert.equal(toggle(game).hidden, true));
     game.click('start');
-    assert.equal(current(game).active.engine, 'chaos-v8');
+    assert.equal(current(game).active.engine, 'chaos-v9');
     noErrors(game);
   } finally { await game.close(); }
 });

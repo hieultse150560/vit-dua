@@ -8,7 +8,8 @@
     missile: 'missile', bees: 'buzz', blackhole: 'void', ghost: 'ghost', balloon: 'balloon',
     bomb: 'fuse', dice: 'rattle', lullaby: 'lull', hex: 'magic', giant: 'grow',
     kraken: 'kraken', dragon: 'roar', meteor: 'meteor', whale: 'spout', ufo: 'ufo', pirate: 'horn', wheel: 'wheel', anchor: 'clank', volcano: 'eruption', fireworks: 'fireworks',
-    pho: 'slurp', coffee: 'coffee', cash: 'cash', net: 'toss', kite: 'kite', cloud: 'rain', hourglass: 'timestop', loudspeaker: 'speaker', portal: 'portal', xeom: 'xeom' };
+    pho: 'slurp', coffee: 'coffee', cash: 'cash', net: 'toss', kite: 'kite', cloud: 'rain', hourglass: 'timestop', loudspeaker: 'speaker', portal: 'portal', xeom: 'xeom',
+    traps: 'clank', riddle: 'magic', camera: 'zap', pickpocket: 'zip', toll: 'cash', upside: 'flip' };
   const BY_HAZARD = { rock: ['splash', .3], croc: ['chomp', .35], wind: ['whoosh', 0], whirlpool: ['swirl', 0], dolphin: ['chirp', 0], hippo: ['splash', .3], log: ['thud', .6], frog: ['ribbit', 0] };
   const V2_SKILLS = new Set([...Object.keys(BY_SKILL), 'copycat']); // chaos-v2 + chaos-v3 skills
   // One sound per duck a multi-hit twist lands on, staggered like its painter (hitOnly: guarded ducks stay quiet).
@@ -38,7 +39,9 @@
     if (event.type === 'obstacle') return event.rune ? (event.outcome === 'missed' ? [] : [['sparkle', 0]]) : [[OBSTACLE[event.outcome] || (event.key === 'down' ? 'dive' : 'hop'), 0]];
     if (event.skill === 'cloud' && event.outcome === 'struck') return [['thunder', 0], ['splash', .2]]; // the rain cloud's closing bolt
     if (event.type !== 'skill' || !V2_SKILLS.has(event.skill)) return [];
-    const skill = event.skill === 'copycat' ? event.copied : event.skill, o = event.outcome; // a copycat sounds like what it copied
+    if (event.outcome === 'confiscated') return [['sad', 0]]; // chaos-v9: taken by a speed camera
+    // a copycat sounds like what it copied, a pickpocket like what it stole
+    const skill = event.skill === 'copycat' ? event.copied : event.skill === 'pickpocket' && event.stolen ? event.stolen : event.skill, o = event.outcome;
     if (!BY_SKILL[skill]) return [];
     if (o === 'reflected') return [['ding', 0]];
     if (o === 'blocked' || o === 'immune') return [[skill === 'buoy' ? 'boing' : 'pop', 0]];

@@ -144,6 +144,19 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 
 Có 18 đặc tính; mỗi trận 7 vịt nhận 7 cái khác nhau. Đo 40.000 trận 7 vịt × 40 giây: người có đặc tính nào cũng thắng trong khoảng 0,85–1,14 lần mức công bằng (test giữ mốc 0,7–1,3).
 
+### `chaos-v9`: 6 skill có luật mới, người vắng mặt hên hơn
+
+Trận mới chạy `chaos-v9`: giữ nguyên `chaos-v8` và thêm 6 skill có luật chơi mới (không chỉ tăng tốc, làm choáng hay đổi chỗ). Trận `chaos-v8` (và cũ hơn) vẫn dựng lại bằng engine của nó.
+
+- 🚧 **Bẫy liên hoàn** (nhắm được): thả 3 chướng ngại vào làn con dẫn đầu, xen kẽ cao thấp, cách nhau 1,5 giây; cái đầu tới sau khoảng 3 giây. Chủ vịt đó phải bấm ↑ ↓ đúng từng cái; trượt cái nào thì bị đẩy lùi 1,3% và quay 0,5 giây (đang choáng vẫn mất đất). Vịt không ai điều khiển né được mỗi cái 40%. Bẫy chỉ hiện trong làn từ lúc được thả, có viền cam. Gương phản đòn dội bẫy về làn người tung.
+- ❓ **Đố mẹo** (nhắm được): con dẫn đầu phải giải một câu đố trong 4 giây trên máy của mình (như câu đố thường: bấm nút hoặc phím 1, 2, 3). Sai hoặc hết giờ: nó bị trời phạt (sét, mây mưa hoặc sóng). **Đúng thì đòn dội ngược:** người tung bị trời phạt. Vịt không ai điều khiển đoán trúng 40%. Con đang giải đố hoặc sắp tới câu đố của mình thì được bỏ qua, câu đố mẹo sang con kế tiếp. Câu trả lời đi lên máy chủ như câu đố thường (`lineup.riddles`, mỗi vịt một danh sách vì có thể bị đố nhiều lần).
+- 📸 **Camera phạt nguội**: 8 giây, mọi máy hiện đếm ngược trên mặt sông. Skill của con khác nổ trong lúc đó bị tịch thu (không có tác dụng), chủ của nó khựng 1 giây, còn chủ camera được đẩy lên 1,5% mỗi lần phạt. Skill tự tung rơi vào lúc đó cũng bị tịch thu; skill bị động (gương, phao) thì không. Nút tung skill của người chơi báo khi camera đang quay.
+- 🦹 **Móc túi** (nhắm được): lấy skill chủ động chưa dùng của con gần nhất phía trên (đang dẫn đầu thì của con gần nhất phía sau), hoặc của con mình nhắm, rồi tung luôn cho mình. Con bị móc mất skill: nút của chủ nó hiện "bị móc mất". Không ai còn skill để móc thì móc ví: lướt lên 2%.
+- 🚏 **Trạm BOT**: trạm thu phí mọc ngay chỗ mình đứng trong 6 giây, vẽ thành rào chắn ngang các làn. Con nào đang ở phía sau mà bơi qua trạm thì bị thu 0,7% đường đua (lùi lại), phí đẩy chủ trạm lên; mỗi con trả một lần, đang bay hoặc tàng hình thì qua miễn phí.
+- 🙃 **Thế giới đảo ngược**: 4 giây, tốc độ theo hạng lúc tung: con chót nhanh hơn 60%, con dẫn đầu chậm 30%, các con giữa theo thứ tự hạng. Vịt trên sông lộn ngược trong lúc đó.
+- **Người không vào phòng:** vịt không ai điều khiển giờ qua được 75% chướng ngại trong làn và đoán trúng 75% câu đố (trước là 60%), gần bằng người chơi thật, để người vắng mặt không bị bỏ xa.
+- Cân bằng (6.000 trận 7 vịt, mỗi skill thắng 0,7–1,3 lần mức công bằng): Trạm BOT 1,15, Camera 1,05, Móc túi 1,02, Thế giới đảo ngược 0,99, Đố mẹo 0,94, Bẫy liên hoàn 0,86.
+
 ### `chaos-v8`: câu đố cho từng người
 
 Trận mới chạy `chaos-v8`: giữ nguyên `chaos-v7` và thêm câu đố khi chơi có phòng. Trận `chaos-v7` (và cũ hơn) vẫn dựng lại bằng engine của nó.
@@ -394,7 +407,8 @@ Tên người chơi và tổng điểm ngày không thay đổi xác suất sự
 
 ## Đồ họa và chuyển động
 
-- Bộ vịt dùng chung một ảnh sprite trong `dist/assets/duck-atlas.png`; tên, số vịt và màu nhận diện giữ nguyên. Cảnh sông có nền `river-garden.png`, vùng xuất phát, đích và thứ hạng trực tiếp cạnh từng vịt.
+- **Vịt kiểu mới** (mặc định, `dist/duck-art.js`): 8 chú vịt cao su vẽ bằng SVG, cùng tên và màu như cũ, mỗi con một phụ kiện: vương miện, nơ chấm bi, mũ bảo hiểm, tai nghe, nón lá, khăn rằn, mũ đầu bếp, kính râm (từ vịt thứ 9 trở đi đổi phụ kiện khác cho dễ phân biệt). Trên sông mặt vịt đổi theo trạng thái: chớp mắt khi bơi, vỗ cánh và nhíu mày khi tăng tốc, mắt xoắn ốc khi choáng hay lật, nhắm mắt khi ngủ, toát mồ hôi khi bị làm chậm, lấp lánh khi dẫn đầu, phủ băng khi đóng băng. Nút **🎨** trên thanh trên cùng đổi qua lại với vịt cổ điển (lưu riêng từng trình duyệt, không đổi giữa trận).
+- Vịt cổ điển dùng chung một ảnh sprite trong `dist/assets/duck-atlas.png`; tên, số vịt và màu nhận diện giữ nguyên. Cảnh sông có nền `river-garden.png`, vùng xuất phát, đích và thứ hạng trực tiếp cạnh từng vịt.
 - Khi đua, đường đua mở rộng; thân vịt nổi nhẹ trên nước, nhãn tên và hạng tách khỏi chuyển động của thân để dễ đọc. Vị trí theo `requestAnimationFrame` và nội suy sẵn có của engine, không thêm độ trễ vào quãng đường hay đổi kết quả.
 - Lớp `race-visuals.js` chỉ vẽ hiệu ứng: gợn nước, vệt tăng tốc, bom bay, cổng swap, nhặt rune, khiên và pháo giấy cuối lượt. Canvas giới hạn theo vùng nhìn thấy; tạm dừng không tiếp tục chạy hiệu ứng. Khôi phục trận không phát lại các hiệu ứng ngắn đã qua.
 - Trình duyệt bật giảm chuyển động sẽ bỏ các hoạt ảnh trang trí; không hỗ trợ Canvas 2D vẫn đua và tính điểm bình thường.
