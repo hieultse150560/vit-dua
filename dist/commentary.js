@@ -98,6 +98,12 @@
     'rune:down:grabbed': ['{a} lặn xuống nhặt được {o}!', '{a} ngụp sâu, vớt gọn {o}!'],
     'rune:lucky': ['Hên quá! {a} vớ được {o}!'],
     'rune:missed': ['{a} để tuột mất {o}!', 'Tiếc quá! Viên {o} trôi qua mặt {a}!'],
+    // chaos-v8 quizzes (read on the owner's page only).
+    'quiz:right': ['{a} trả lời đúng, được thưởng tăng tốc!', 'Chuẩn không cần chỉnh! {a} bơi vèo vèo!'],
+    'quiz:lucky': ['{a} đoán bừa mà trúng, hên ghê!'],
+    'quiz:lightning': ['Trời phạt! Sét đánh {a} lật thuyền!', 'Ông trời không tha, {a} bị sét đánh!'],
+    'quiz:cloud': ['Trời phạt! Mây đen kéo tới mưa xối xả lên đầu {a}!', 'Mưa trút xuống {a}, bơi lóp ngóp!'],
+    'quiz:wave': ['Trời phạt! Sóng lớn đẩy {a} lùi lại!', 'Một con sóng ập tới, {a} quay mòng mòng!'],
     // Race room: an area skill its owner aimed past the leaders ({c} = the ducks it struck).
     aimed: ['{a} chỉ mặt điểm tên, {c} lãnh trọn!', '{a} bỏ qua tốp đầu, nhắm thẳng {c}!', 'Có thù riêng chăng? {a} nhắm đúng {c}!']
   };
@@ -120,9 +126,16 @@
     const pool = LINES[`${kind}:${event.key}:${event.outcome}`] || LINES[`${kind}:${event.outcome}`] || [`${a} ${event.label || ''}`.trim()];
     return pool[hash(`${event.id}|${event.time}`) % pool.length].replaceAll('{a}', a).replaceAll('{o}', o);
   }
+  // A quiz: right or lucky, else the sky's punishment ('Sai rồi!' or 'Hết giờ!' first).
+  function quizLine(event, a) {
+    const pool = LINES[`quiz:${event.penalty || event.outcome}`] || [`${a} ${event.label || ''}`.trim()];
+    const said = pool[hash(`${event.id}|${event.time}`) % pool.length].replaceAll('{a}', a);
+    return event.penalty ? `${event.outcome === 'late' ? 'Hết giờ!' : 'Sai rồi!'} ${said}` : said;
+  }
   function line(event, nameOf) {
     const id = event.skill || event.hazard, a = nameOf(event.actorId);
     if (event.type === 'obstacle') return laneLine(event, a);
+    if (event.type === 'quiz') return quizLine(event, a);
     const hasTarget = Number.isInteger(event.targetId) && event.targetId !== event.actorId;
     const fits = list => (list || []).filter(text => text.includes('{b}') === hasTarget);
     // Copycat: credit the thief, then call the move it copied.

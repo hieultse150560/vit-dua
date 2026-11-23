@@ -59,7 +59,7 @@ test('duck cards show the skill and trait dealt for this round; the race uses ex
     setup(game);
     const cards = [...game.$('duck-grid').querySelectorAll('button')];
     assert.equal(cards.length, 7);
-    const lineup = current(game).lineup, V3 = game.window.DuckChaosEngineV7;
+    const lineup = current(game).lineup, V3 = game.window.DuckChaosEngineV8;
     for (let id = 0; id < cards.length; id++) {
       assert.ok(cards[id].querySelector('.skill-tag').textContent.includes(V3.skills.find(s => s.id === lineup.skills[id]).name));
       assert.ok(cards[id].querySelector('.talent-tag').textContent.includes(V3.traits.find(t => t.id === lineup.traits[id]).name));
@@ -74,7 +74,7 @@ test('duck cards show the skill and trait dealt for this round; the race uses ex
     assert.equal(restored.$('skill-reveal').querySelectorAll('[data-skill-id]').length, 0);
     assert.equal(restored.$('start').disabled, true);
     chooseAll(restored); restored.click('start');
-    assert.equal(current(restored).active.engine, 'chaos-v7');
+    assert.equal(current(restored).active.engine, 'chaos-v8');
     assert.equal(restored.$('selection').hidden, true);
     assert.equal(restored.$('track').hidden, false);
     const revealed = [...restored.$('skill-reveal').querySelectorAll('[data-skill-id]')];
@@ -108,7 +108,7 @@ test('F5 mid-race preserves revealed skills, event chronology, result and one-ti
     assert.deepEqual(round.entries, current(game).session.rounds[0].entries);
     assert.deepEqual(round.entries.map(e => e.points), [7, 6, 5, 4, 3, 2, 1]);
     assert.equal(current(restored).raceReplays.length, 1);
-    assert.deepEqual(current(restored).raceReplays[0], { id: round.id, seed: original.seed, engine: 'chaos-v7', lineup: original.lineup });
+    assert.deepEqual(current(restored).raceReplays[0], { id: round.id, seed: original.seed, engine: 'chaos-v8', lineup: original.lineup });
     restored.advance(100000);
     assert.equal(current(restored).session.rounds.length, 1);
     after = loadGame(restored.storage());
@@ -133,7 +133,7 @@ test('pre-update active season race keeps legacy simulation, then next round opt
     assert.deepEqual(current(game).session.rounds[0].entries.map(e => e.duckId), expected.results.map(r => r.id));
     assert.equal(current(game).raceReplays?.length ?? 0, 0);
     game.click('result-next'); chooseAll(game); game.click('start');
-    assert.equal(current(game).active.engine, 'chaos-v7');
+    assert.equal(current(game).active.engine, 'chaos-v8');
     noErrors(game);
   } finally { await game.close(); }
 });
@@ -222,7 +222,7 @@ test('saved chaos-v1 active race restores with chaos-v1 and keeps its recap', as
     assert.ok(recap, 'older v1 replay still opens');
     assert.ok(recap.textContent.includes(C1.talentFor(0).name), 'v1 recap still lists talents');
     game.click('result-next'); game.click('next'); chooseAll(game); game.click('start');
-    assert.equal(current(game).active.engine, 'chaos-v7');
+    assert.equal(current(game).active.engine, 'chaos-v8');
     noErrors(game);
   } finally { await game.close(); }
 });
@@ -232,8 +232,8 @@ test('new races carry a weather that the river shows', async () => {
   try {
     setup(game); chooseAll(game); game.click('start');
     const active = current(game).active;
-    assert.equal(active.engine, 'chaos-v7');
-    const race = game.window.DuckChaosEngineV7.createRace(names.map((_, id) => A.name(id)), 55, active.seed, active.lineup); // the lineup carries the day rule, which can change the weather
+    assert.equal(active.engine, 'chaos-v8');
+    const race = game.window.DuckChaosEngineV8.createRace(names.map((_, id) => A.name(id)), 55, active.seed, active.lineup); // the lineup carries the day rule, which can change the weather
     assert.ok(game.$('weather-label').textContent.includes(race.weather.name));
     assert.ok(game.window.document.querySelector('.race-water').classList.contains(`weather-${race.weather.id}`));
     assert.ok(game.$('map-name').textContent.includes(race.map.name.toUpperCase()), 'the river header names the map');

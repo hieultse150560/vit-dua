@@ -15,9 +15,9 @@ const submit = (game, id) => game.$(id).dispatchEvent(new game.window.Event('sub
 const duck = (game, id) => game.window.document.querySelector(`#duck-grid [data-duck-id="${id}"]`);
 // Every duck deals the heat-seeking missile: an active skill that aims, so the cast tests never depend on the deal.
 const engine = readFileSync(new URL('../dist/chaos-engine-v2.js', import.meta.url), 'utf8');
-const missileDeal = 'return dealLineup(V7_RULES, count, seed);';
+const missileDeal = 'return dealLineup(V8_RULES, count, seed);';
 if (!engine.includes(missileDeal)) throw Error('the engine changed: update missileDeal');
-const dealing = skill => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V7_RULES, count, seed), skills: Array(count).fill('${skill}') };`) } });
+const dealing = skill => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V8_RULES, count, seed), skills: Array(count).fill('${skill}') };`) } });
 const missiles = dealing('missile');
 const key = (game, code, name = code) => game.window.document.body.dispatchEvent(new game.window.KeyboardEvent('keydown', { code, key: name, bubbles: true }));
 const order = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.children[1].textContent);
@@ -188,7 +188,7 @@ test('in a room each player casts their own skill from their page, aimed at any 
 
     const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
     assert.equal(replay.lineup.casts[binhDuck], null, "Bình's skill was never cast by hand");
-    const race = host.window.DuckChaosEngineV7.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
+    const race = host.window.DuckChaosEngineV8.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
     const fired = id => race.events.filter(e => e.type === 'skill' && e.activation && e.actorId === id);
     assert.ok(Math.abs(fired(anDuck)[0].time - cast) < 0.06, "the replay fires An's skill when An cast it");
     assert.equal(fired(anDuck)[0].targetId, other, 'at the rival An aimed at');
@@ -211,7 +211,7 @@ test('when nobody casts, every skill casts itself after the deadline, spread out
     for (let i = 0; i < 40 && !host.$('result-dialog').open; i++) host.advance(4000, 50);
     const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
     assert.ok(replay.lineup.casts.every(c => c === null), 'nobody cast by hand');
-    const race = host.window.DuckChaosEngineV7.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
+    const race = host.window.DuckChaosEngineV8.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
     const active = skills.map((s, i) => i).filter(i => !['mirror', 'buoy'].includes(skills[i]));
     const fired = race.events.filter(e => e.type === 'skill' && e.activation && e.scheduled && active.includes(e.actorId));
     assert.deepEqual(Array.from(fired, e => e.actorId).sort(), Array.from(active), 'every active skill fired, once');
@@ -340,7 +340,7 @@ test('lane obstacles and runes: in sight from the start; a player steers their o
     host.click('random-picks'); await sync(host, viewer);
     host.click('start'); await sync(host, viewer);
     const lineup = () => current(host).active.lineup, pad = viewer.$('dodge-pad');
-    assert.equal(current(host).active.engine, 'chaos-v7');
+    assert.equal(current(host).active.engine, 'chaos-v8');
     assert.deepEqual(lineup().pilots, [false, true, false], 'only the player who picked on their own page steers');
     assert.equal(pad.hidden, false, 'the player gets the pad');
     assert.equal(host.$('dodge-pad').hidden, true, 'the host does not');
@@ -398,6 +398,40 @@ test("commentator lines take turns, and each player hears their own duck's lane 
     // Lines only An's page read are An's own lane moments (the host's page reads none).
     const own = heard.viewer.slice(1, -2).filter(s => !heard.host.some(h => h.text === s.text));
     assert.ok(own.length >= 1 && own.every(s => s.text.includes('An')), `An hears their own duck's lane moments (${own.map(s => s.text).join(' | ')})`);
+    assert.deepEqual([...host.errors, ...viewer.errors].map(String), []);
+  } finally { await host.close(); await viewer?.close(); }
+});
+
+// chaos-v8: each player gets one quiz on their own page (5 s, keys 1–3); the answer goes to the host like a dodge key,
+// the host's page (the shared screen) shows the open question and then how it went.
+test("a player answers their own quiz from their page; the host gets the answer and shows the outcome", async () => {
+  const host = loadGame({}, withChannel); let viewer;
+  try {
+    host.fill('setup-season-name', 'Mùa phòng'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-23'); host.fill('setup-rounds', '2'); host.fill('setup-duration', '55');
+    submit(host, 'setup-form'); await settle();
+    const code = host.storage()['vit-dua-room'];
+    host.click('room-close'); host.click('skills-close');
+    viewer = loadGame({}, { ...withChannel, url: `http://localhost/?phong=${code}&ten=An` });
+    await sync(host, viewer);
+    duck(host, 0).click(); await sync(host, viewer);
+    duck(viewer, 1).click(); await sync(host, viewer);
+    host.click('random-picks'); await sync(host, viewer);
+    host.click('start'); await sync(host, viewer);
+    assert.equal(current(host).active.engine, 'chaos-v8');
+    const card = () => viewer.$('quiz-card'), board = () => host.$('quiz-board');
+    let sawBoard = false;
+    for (let i = 0; i < 260 && card()?.hidden !== false; i++) { await sync(host, viewer, 150); if (board()?.hidden === false && /An đang giải đố/.test(board().textContent)) sawBoard = true; }
+    assert.equal(card()?.hidden, false, 'the question opens on the player page');
+    assert.equal(card().querySelectorAll('.quiz-answer').length, 3);
+    assert.match(viewer.$('dodge-status').textContent, /giải đố/, 'the pad says so');
+    key(viewer, 'Digit2', '2'); await sync(host, viewer, 100);
+    const sent = current(host).active.lineup.answers[1];
+    assert.ok(Array.isArray(sent) && sent[1] === 1, `the host has the answer (${JSON.stringify(sent)})`);
+    assert.ok(card().querySelectorAll('.quiz-answer:disabled').length === 3 && card().querySelector('.quiz-verdict').textContent.length > 0, 'answered: right or wrong at once');
+    for (let i = 0; i < 60 && !/An:/.test(board()?.textContent || ''); i++) { await sync(host, viewer, 150); if (/An đang giải đố/.test(board()?.textContent || '')) sawBoard = true; }
+    assert.ok(sawBoard, 'the host showed An\'s open question');
+    assert.match(board().textContent, /An: (TRẢ LỜI ĐÚNG|TRỜI PHẠT)/, 'then how it went');
+    assert.ok(![...viewer.$('event-history').children].some(li => /TRỜI PHẠT|TRẢ LỜI ĐÚNG/.test(li.textContent)), 'quizzes stay out of the race log');
     assert.deepEqual([...host.errors, ...viewer.errors].map(String), []);
   } finally { await host.close(); await viewer?.close(); }
 });

@@ -414,6 +414,16 @@
   // chaos-v7: chaos-v6 with a longer time to cast. The skills nobody cast still cast themselves 3 s apart, from `autoFrom`
   // of the race, and each owner may cast until just before their own one (`castBy` only caps it at the calm finish).
   const V7_RULES = freeze({ ...V6_RULES, castBy: 0.85, autoFrom: 0.47 });
+  // chaos-v8: chaos-v7 with a quiz for every duck in race rooms. Each meets one question at its own moment, spread between
+  // `from` and `to` of the race, and has `time` s to pick one of three answers. Right (or, for a duck nobody steers, lucky
+  // at `luck`): a speed rune. Wrong or too late: punished from the sky, one of three, drawn per quiz: lightning (capsized
+  // `stun` s), a rain cloud (`slow` slower for `slowTime` s) or a wave (pushed back `knock`% and spun `spin` s). Its lane
+  // keeps quiet from `quiet` s before until just after, so nobody has to dodge while answering.
+  const TUNING_V8 = freeze(merged(TUNING_V6, { quiz: { from: 0.22, to: 0.66, time: 5, luck: 0.6, stun: 1.5, slow: 0.4, slowTime: 3, knock: 3, spin: 0.6, quiet: 1 } }));
+  const V8_RULES = freeze({ ...V7_RULES, tuning: TUNING_V8, quiz: true });
+  const QUIZ_PENALTIES = freeze(['lightning', 'cloud', 'wave']);
+  const QUIZ_LABEL = { right: 'TRẢ LỜI ĐÚNG!', lucky: 'ĐOÁN BỪA MÀ TRÚNG!', lightning: 'TRỜI PHẠT: SÉT ĐÁNH!', cloud: 'TRỜI PHẠT: MÂY MƯA!', wave: 'TRỜI PHẠT: SÓNG ĐẨY LÙI!' };
+  const QUIZ_ICON = { right: '✅', lucky: '🍀', lightning: '⚡', cloud: '🌧️', wave: '🌊' };
   // Skills and traits for each duck, dealt before the picks (chaos-v3); the same seed always deals the same lineup.
   function dealLineup(rules, count, seed) {
     const deckOf = (list, salt) => shuffled(Array.from({ length: Math.ceil(count / list.length) }, () => list).flat(), randomFor(seed, salt)).slice(0, count);
@@ -447,7 +457,12 @@
     if (dodges !== null && (!Array.isArray(dodges) || dodges.length !== count || dodges.some(list => list !== null && (!Array.isArray(list) || list.length > MAX_DODGES
       || list.some(p => !Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'number' || !Number.isFinite(p[0]) || p[0] < 0 || !['up', 'down'].includes(p[1]))))))
       throw new RangeError('Lệnh né chướng ngại không hợp lệ.');
-    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule, casts, targets, pilots, dodges };
+    // Race room (chaos-v8): each duck's answer to its quiz, [race time, choice 0–2] (null = none yet).
+    const answers = lineup.answers === undefined ? null : lineup.answers;
+    if (answers !== null && (!Array.isArray(answers) || answers.length !== count || answers.some(a => a !== null && (!Array.isArray(a) || a.length !== 2
+      || typeof a[0] !== 'number' || !Number.isFinite(a[0]) || a[0] < 0 || ![0, 1, 2].includes(a[1])))))
+      throw new RangeError('Câu trả lời đố vui không hợp lệ.');
+    return { skills: read(lineup.skills, rules.skills, 'skill'), traits: read(lineup.traits, rules.traits, 'đặc tính'), luck, rule, casts, targets, pilots, dodges, answers };
   }
   // Race room: the first moment from `earliest` that keeps `gap` from every busy moment. When the race is too full for
   // that before `limit`, the moment farthest from any of them (never before `earliest`, unless limit is earlier still).
@@ -554,6 +569,16 @@
       const free = O.to - O.from - (kinds.length - 1) * O.gap, spots = kinds.map(() => obstacleRng.unit() * free).sort((a, b) => a - b);
       kinds.forEach((kind, k) => items.push({ duck: id, kind, luck: obstacleRng.unit() < O.luck, met: false, at: (O.from + spots[k] + k * O.gap) * duration * MAP_COURSE }));
     }
+    // Race room (chaos-v8): one quiz per duck at its own moment, spread out so they open one after another. `pick` chooses
+    // the question (the app's bank), `right` where its right answer sits among the three. Its own stream: nothing shifts.
+    // Every quiz settles before the calm finish (short races squeeze the window; none at all if nothing fits).
+    const quizzes = [], QZ = tuning.quiz, quizTo = QZ ? Math.min(QZ.to, (calmFrom - QZ.time - .5) / duration) : 0;
+    if (lanes && rules.quiz && quizTo > QZ.from) {
+      const quizRng = randomFor(seed, 0x5155495a), order = shuffled(ids, quizRng);
+      order.forEach((id, k) => { quizzes[id] = { duck: id, at: tick(duration * (QZ.from + (quizTo - QZ.from) * (k + .2 + quizRng.unit() * .6) / count)) / HZ,
+        pick: quizRng.integer(1 << 30), right: quizRng.integer(3), luck: quizRng.unit() < QZ.luck, penalty: QUIZ_PENALTIES[quizRng.integer(3)], done: false }; });
+    }
+    const quizzing = id => quizzes.length > 0 && now >= quizzes[id].at - QZ.quiet - 1e-9 && now <= quizzes[id].at + QZ.time + .5 + 1e-9;
     const runeCount = lanes ? 0 : Math.max(3, Math.ceil(count / 3)) * (R.runeScale || 1);
     for (let i = 0; i < runeCount; i++) {
       // chaos-v3: lucky ducks find runes more often (all weights 1 without luck: the same draw as before).
@@ -1352,6 +1377,21 @@
       emit({ type: 'obstacle', ...(kind.rune ? { rune: kind.rune } : {}), actorId: racer.id, obstacle: kind.id, icon: kind.icon, key: kind.key, line: index, outcome,
         pressed: press ? press[1] : null, label: OBSTACLE_LABEL[kind.rune && outcome === 'lucky' ? 'luckyRune' : outcome], ranksBefore: ranks });
     }
+    // chaos-v8: when its time is up, a quiz counts the answer given in time (else luck, for a duck nobody steers).
+    function settleQuiz(q) {
+      const racer = racers[q.duck], ranks = ranksNow(), before = snapshot([racer]), a = dealt.answers?.[q.duck];
+      const answer = a && a[0] >= q.at - 1e-9 && a[0] <= q.at + QZ.time + 1e-9 ? a : null;
+      const outcome = answer ? (answer[1] === q.right ? 'right' : 'wrong') : !dealt.pilots?.[q.duck] && q.luck ? 'lucky' : 'late';
+      const good = outcome === 'right' || outcome === 'lucky', penalty = good ? null : q.penalty;
+      let effect = null;
+      if (good) racer.runeUntil = Math.max(racer.runeUntil, tick(now + tuning.rune.time) / HZ);
+      else if (penalty === 'lightning') effect = impair(racer, 'capsized', QZ.stun);
+      else if (penalty === 'cloud') { effect = now < racer.awakeUntil ? 'immune' : 'hit'; if (effect === 'hit') racer.slowMods.push({ from: now, until: tick(now + QZ.slowTime) / HZ, factor: 1 - QZ.slow }); }
+      else { jump(racer, racer.distance - pct(QZ.knock)); effect = impair(racer, 'spinning', QZ.spin); }
+      emit({ type: 'quiz', actorId: q.duck, outcome, penalty, effect, choice: answer ? answer[1] : null, right: q.right, icon: QUIZ_ICON[penalty || outcome],
+        label: QUIZ_LABEL[penalty || outcome], ranksBefore: ranks, before, after: snapshot([racer]) });
+      flush();
+    }
     function apply(item) {
       if (item.kind === 'skill') applySkill(racers[item.actorId]);
       else if (item.kind === 'hazard') (item.finale ? applyFinale : applyHazard)(item.hazard);
@@ -1425,7 +1465,9 @@
       for (const timer of [...timers]) if (now >= timer.at - 1e-9) { timers.splice(timers.indexOf(timer), 1); timer.run(); }
       for (const r of racers) lines.forEach((line, i) => { if (!line.met[r.id] && r.distance >= line.at) { line.met[r.id] = true; crossObstacle(r, i); } });
       // A duck that only gets to its next one in the calm finish just swims past it (nothing happens then).
-      items.forEach((item, i) => { if (!item.met && racers[item.duck].distance >= item.at) { item.met = true; if (now <= calmFrom + 1e-9) crossLane(racers[item.duck], i); } });
+      // ... and so does one that gets to it around its quiz (chaos-v8).
+      items.forEach((item, i) => { if (!item.met && racers[item.duck].distance >= item.at) { item.met = true; if (now <= calmFrom + 1e-9 && !quizzing(item.duck)) crossLane(racers[item.duck], i); } });
+      for (const q of quizzes) if (!q.done && now >= q.at + QZ.time - 1e-9) { q.done = true; settleQuiz(q); }
       while (cursor < schedule.length && schedule[cursor].tick === step) apply(schedule[cursor++]);
       record(step);
     }
@@ -1439,19 +1481,26 @@
     const courseDistance = dealt?.casts && scaled ? scaleAt(0) : finishDistance; // scenery stays put across casts
     function castScale() {
       const presses = (dealt.dodges || []).flatMap((list, id) => (list || []).map(press => ({ time: press[0], id, press })));
+      // An answer only acts when its quiz settles, so its leg starts then.
+      const answered = (dealt.answers || []).flatMap((a, id) => (a ? [{ time: quizzes[id] ? quizzes[id].at + QZ.time : a[0], id, answer: a }] : []));
       const timed = [...dealt.casts.map((time, id) => ({ time, id })).filter(c => c.time !== null && c.time < duration && !PASSIVE.has(racers[c.id].skill.id)),
-        ...presses.filter(p => p.time < duration)].sort((a, b) => a.time - b.time || a.id - b.id || !!a.press - !!b.press);
+        ...presses.filter(p => p.time < duration), ...answered.filter(a => a.time < duration)]
+        .sort((a, b) => a.time - b.time || a.id - b.id || !!a.press - !!b.press || !!a.answer - !!b.answer);
       const finishWith = k => {
         if (k === timed.length) return finishDistance;
-        const first = timed.slice(0, k), cast = new Set(first.filter(c => !c.press).map(c => c.id)), pressed = new Set(first.filter(c => c.press).map(c => c.press));
+        const first = timed.slice(0, k), cast = new Set(first.filter(c => !c.press && !c.answer).map(c => c.id)), pressed = new Set(first.filter(c => c.press).map(c => c.press));
+        const told = new Set(first.filter(c => c.answer).map(c => c.id));
         const partial = { ...lineup, casts: lineup.casts.map((time, id) => (cast.has(id) ? time : null)),
-          ...(lineup.dodges ? { dodges: lineup.dodges.map(list => list && list.filter(p => pressed.has(p))) } : {}) };
+          ...(lineup.dodges ? { dodges: lineup.dodges.map(list => list && list.filter(p => pressed.has(p))) } : {}),
+          ...(lineup.answers ? { answers: lineup.answers.map((a, id) => (told.has(id) ? a : null)) } : {}) };
         return remember(JSON.stringify([version, names, duration, seed, partial]), () => createRaceFor(version, rules, names, duration, seed, partial, false).results[0].finalDistance);
       };
       // The race being built is the next build's newest prefix: cache its finish now (only when every input of it is a leg,
       // so that prefix is exactly this race).
-      if (dealt.casts.every((time, id) => time === null || timed.some(c => !c.press && c.id === id)) && (dealt.dodges || []).every(list => !list || list.every(p => p[0] < duration)))
-        remember(JSON.stringify([version, names, duration, seed, { ...lineup, casts: [...lineup.casts], ...(lineup.dodges ? { dodges: lineup.dodges.map(list => list && [...list]) } : {}) }]), () => finishDistance);
+      if (dealt.casts.every((time, id) => time === null || timed.some(c => !c.press && !c.answer && c.id === id)) && (dealt.dodges || []).every(list => !list || list.every(p => p[0] < duration))
+        && (dealt.answers || []).every(a => !a || a[0] < duration))
+        remember(JSON.stringify([version, names, duration, seed, { ...lineup, casts: [...lineup.casts], ...(lineup.dodges ? { dodges: lineup.dodges.map(list => list && [...list]) } : {}),
+          ...(lineup.answers ? { answers: lineup.answers.map(a => a && [...a]) } : {}) }]), () => finishDistance);
       const legs = [];
       let from = finishWith(0);
       timed.forEach((c, k) => { const to = finishWith(k + 1), next = timed[k + 1]?.time ?? duration; legs.push({ at: c.time, from, to }); from += (to - from) * (next - c.time) / (duration - c.time); });
@@ -1474,6 +1523,8 @@
       // chaos-v5 race rooms: what lies in each lane (obstacles and runes) and where; an obstacle event's `line` is its index
       // here. From `calmFrom` s on nothing happens any more.
       ...(items.length ? { obstacles: freeze(items.map(it => freeze({ duck: it.duck, at: it.at / courseDistance, kind: it.kind.id }))), calmFrom } : {}),
+      // chaos-v8 race rooms: each duck's quiz (when it opens, the question pick, where the right answer sits) and its time.
+      ...(quizzes.length ? { quizzes: freeze(quizzes.map(q => freeze({ duck: q.duck, at: q.at, pick: q.pick, right: q.right }))), quizTime: QZ.time } : {}),
       sample(elapsedSeconds) {
         if (!Number.isFinite(elapsedSeconds)) throw new TypeError('Thời gian đã chạy phải hữu hạn.');
         const time = Math.max(0, Math.min(duration, elapsedSeconds));
@@ -1548,14 +1599,21 @@
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V6_RULES, count, seed);
     } });
-  // chaos-v7: what new races use. chaos-v6 with each owner casting until just before their own skill would cast itself.
+  // chaos-v7: chaos-v6 with each owner casting until just before their own skill would cast itself.
   const v7 = Object.freeze({ ...v6, version: 'chaos-v7',
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v7', V7_RULES, names, duration, seed, lineup),
     deal: (count, seed = newSeed()) => {
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V7_RULES, count, seed);
     } });
-  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5, v6, v7,
+  // chaos-v8: what new races use. chaos-v7 with a quiz for every duck in race rooms (lineup.answers).
+  const v8 = Object.freeze({ ...v7, version: 'chaos-v8', tuning: TUNING_V8,
+    createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v8', V8_RULES, names, duration, seed, lineup),
+    deal: (count, seed = newSeed()) => {
+      if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
+      return dealLineup(V8_RULES, count, seed);
+    } });
+  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5, v6, v7, v8,
     createRace: (names, duration, seed) => createRaceFor(VERSION, V2_RULES, names, duration, seed) });
   root.DuckChaosEngineV2 = api;
   root.DuckChaosEngineV3 = v3;
@@ -1563,5 +1621,6 @@
   root.DuckChaosEngineV5 = v5;
   root.DuckChaosEngineV6 = v6;
   root.DuckChaosEngineV7 = v7;
+  root.DuckChaosEngineV8 = v8;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

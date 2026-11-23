@@ -144,6 +144,17 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 
 Có 18 đặc tính; mỗi trận 7 vịt nhận 7 cái khác nhau. Đo 40.000 trận 7 vịt × 40 giây: người có đặc tính nào cũng thắng trong khoảng 0,85–1,14 lần mức công bằng (test giữ mốc 0,7–1,3).
 
+### `chaos-v8`: câu đố cho từng người
+
+Trận mới chạy `chaos-v8`: giữ nguyên `chaos-v7` và thêm câu đố khi chơi có phòng. Trận `chaos-v7` (và cũ hơn) vẫn dựng lại bằng engine của nó.
+
+- **Mỗi người 1 câu mỗi trận.** Câu đố mở ở thời điểm riêng của mỗi vịt, rải từ 22% đến 66% trận, lần lượt từng người. Người chơi có 5 giây để chọn 1 trong 3 đáp án trên máy của mình (bấm nút hoặc phím 1, 2, 3); chọn xong biết ngay đúng hay sai.
+- **Đúng:** được một rune tốc độ (nhanh hơn 40% trong 1,5 giây). **Sai hoặc hết giờ:** bị trời phạt, mỗi câu bốc một trong ba kiểu: sét đánh (lật thuyền 1,5 giây), mây mưa (chậm 40% trong 3 giây, đám mây bám trên vịt) hoặc sóng (bị đẩy lùi 3% và quay 0,6 giây). Vịt do máy chủ chọn hộ (người vắng mặt) trông vào may rủi: 60% đoán trúng.
+- Trong lúc giải đố (từ 1 giây trước đến ngay sau 5 giây đó), làn của người đó tạm không có chướng ngại hay rune, để khỏi vừa đố vừa né.
+- **Câu đố:** 90 câu trong `quiz-bank.js`, 30 câu mỗi chủ đề: chính tả tiếng Việt, thành ngữ và ca dao, kiến thức chung (không có câu chính trị, tôn giáo hay tên tỉnh dễ đổi). Engine chỉ chọn số câu và vị trí đáp án đúng; nội dung câu lấy từ bộ câu.
+- **Máy chủ (màn hình chiếu chung)** hiện câu đố đang mở của từng người ở góc phải trên mặt sông, kèm 3 đáp án và thanh thời gian, rồi hiện kết quả. Máy người chơi chỉ hiện câu của mình; bình luận viên đọc kết quả trên máy của người đó. Câu đố không vào nhật ký trận.
+- Câu trả lời đi từ máy người chơi lên máy chủ như phím né; máy chủ chỉ nhận câu trả lời đầu tiên, khi câu còn mở. Như mọi thao tác khác, nó chỉ đổi trận từ lúc chốt câu đố trở đi.
+
 ### `chaos-v7`: thêm thời gian tung skill
 
 Trận mới chạy `chaos-v7`: giữ nguyên `chaos-v6`, chỉ đổi thời gian tung skill khi chơi có phòng. Trận `chaos-v6` (và cũ hơn) vẫn dựng lại bằng engine của nó.
