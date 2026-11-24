@@ -1,12 +1,12 @@
 (() => {
   'use strict';
-  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV9, C3old=DuckChaosEngineV3, C3v4=DuckChaosEngineV4, C3v5=DuckChaosEngineV5, C3v6=DuckChaosEngineV6, C3v7=DuckChaosEngineV7, C3v8=DuckChaosEngineV8, SOUND_KEY='vit-dua-sound';
+  const $=id=>document.getElementById(id), T=DuckTournament, A=DuckArt, S=DuckSeasons, C=DuckChaosEngine, C2=DuckChaosEngineV2, C3=DuckChaosEngineV10, C3old=DuckChaosEngineV3, C3v4=DuckChaosEngineV4, C3v5=DuckChaosEngineV5, C3v6=DuckChaosEngineV6, C3v7=DuckChaosEngineV7, C3v8=DuckChaosEngineV8, C3v9=DuckChaosEngineV9, SOUND_KEY='vit-dua-sound';
   // Saved races replay with the engine version they were started on. New races run chaos-v4 (C3: it keeps every chaos-v3 skill).
-  const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3v4.version]:C3v4,[C3v5.version]:C3v5,[C3v6.version]:C3v6,[C3v7.version]:C3v7,[C3v8.version]:C3v8,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
+  const ENGINES={[C.version]:C,[C2.version]:C2,[C3old.version]:C3old,[C3v4.version]:C3v4,[C3v5.version]:C3v5,[C3v6.version]:C3v6,[C3v7.version]:C3v7,[C3v8.version]:C3v8,[C3v9.version]:C3v9,[C3.version]:C3}, engineFor=version=>Object.hasOwn(ENGINES,version)?ENGINES[version]:null;
   // Every page of a room must run the same code. BUILD matches the ?v= on index.html's scripts and styles (a test keeps
   // them equal), so a fresh index.html skips every cached file. The host's build rides in each snapshot: a player page on
   // an older one reloads once to fetch the new files.
-  const BUILD='20261123-02',newerBuild=b=>typeof b==='string'&&b>BUILD;let buildWarned=false;
+  const BUILD='20261124-01',newerBuild=b=>typeof b==='string'&&b>BUILD;let buildWarned=false;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
