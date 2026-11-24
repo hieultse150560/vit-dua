@@ -15,9 +15,9 @@ const submit = (game, id) => game.$(id).dispatchEvent(new game.window.Event('sub
 const duck = (game, id) => game.window.document.querySelector(`#duck-grid [data-duck-id="${id}"]`);
 // Every duck deals the heat-seeking missile: an active skill that aims, so the cast tests never depend on the deal.
 const engine = readFileSync(new URL('../dist/chaos-engine-v2.js', import.meta.url), 'utf8');
-const missileDeal = 'return dealLineup(V9_RULES, count, seed);';
+const missileDeal = 'return dealLineup(V10_RULES, count, seed);';
 if (!engine.includes(missileDeal)) throw Error('the engine changed: update missileDeal');
-const dealing = skill => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V9_RULES, count, seed), skills: Array(count).fill('${skill}') };`) } });
+const dealing = skill => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V10_RULES, count, seed), skills: Array(count).fill('${skill}') };`) } });
 const missiles = dealing('missile');
 const key = (game, code, name = code) => game.window.document.body.dispatchEvent(new game.window.KeyboardEvent('keydown', { code, key: name, bubbles: true }));
 const order = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.children[1].textContent);
@@ -188,7 +188,7 @@ test('in a room each player casts their own skill from their page, aimed at any 
 
     const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
     assert.equal(replay.lineup.casts[binhDuck], null, "Bình's skill was never cast by hand");
-    const race = host.window.DuckChaosEngineV9.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
+    const race = host.window.DuckChaosEngineV10.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
     const fired = id => race.events.filter(e => e.type === 'skill' && e.activation && e.actorId === id);
     assert.ok(Math.abs(fired(anDuck)[0].time - cast) < 0.06, "the replay fires An's skill when An cast it");
     assert.equal(fired(anDuck)[0].targetId, other, 'at the rival An aimed at');
@@ -211,7 +211,7 @@ test('when nobody casts, every skill casts itself after the deadline, spread out
     for (let i = 0; i < 40 && !host.$('result-dialog').open; i++) host.advance(4000, 50);
     const replay = current(host).raceReplays.at(-1), skills = replay.lineup.skills;
     assert.ok(replay.lineup.casts.every(c => c === null), 'nobody cast by hand');
-    const race = host.window.DuckChaosEngineV9.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
+    const race = host.window.DuckChaosEngineV10.createRace(skills.map((_, i) => host.window.DuckArt.name(i)), 55, replay.seed, replay.lineup);
     const active = skills.map((s, i) => i).filter(i => !['mirror', 'buoy'].includes(skills[i]));
     const fired = race.events.filter(e => e.type === 'skill' && e.activation && e.scheduled && active.includes(e.actorId));
     const robbed = race.events.filter(e => e.stolen).map(e => e.victimId); // chaos-v9: a pickpocket's victim casts nothing
@@ -341,7 +341,7 @@ test('lane obstacles and runes: in sight from the start; a player steers their o
     host.click('random-picks'); await sync(host, viewer);
     host.click('start'); await sync(host, viewer);
     const lineup = () => current(host).active.lineup, pad = viewer.$('dodge-pad');
-    assert.equal(current(host).active.engine, 'chaos-v9');
+    assert.equal(current(host).active.engine, 'chaos-v10');
     assert.deepEqual(lineup().pilots, [false, true, false], 'only the player who picked on their own page steers');
     assert.equal(pad.hidden, false, 'the player gets the pad');
     assert.equal(host.$('dodge-pad').hidden, true, 'the host does not');
@@ -418,7 +418,7 @@ test("a player answers their own quiz from their page; the host gets the answer 
     duck(viewer, 1).click(); await sync(host, viewer);
     host.click('random-picks'); await sync(host, viewer);
     host.click('start'); await sync(host, viewer);
-    assert.equal(current(host).active.engine, 'chaos-v9');
+    assert.equal(current(host).active.engine, 'chaos-v10');
     const card = () => viewer.$('quiz-card'), board = () => host.$('quiz-board');
     let sawBoard = false;
     for (let i = 0; i < 260 && card()?.hidden !== false; i++) { await sync(host, viewer, 150); if (board()?.hidden === false && /An đang giải đố/.test(board().textContent)) sawBoard = true; }
@@ -488,7 +488,7 @@ test("the host's result decides: a player page that missed the host's casts show
       viewer.window.lost = { states: true }; // from here the page hears nothing from the host until the end
       for (let i = 0; i < 40 && host.window.document.querySelector('#skill-reveal [data-duck-id="0"]')?.dataset.cast !== 'ready'; i++) await sync(host, viewer, 500);
       host.click('#skill-reveal [data-duck-id="0"]'); host.click('#skill-reveal [data-duck-id="2"]'); await sync(host, viewer);
-      const a = current(host).active, E = host.window.DuckChaosEngineV9, run = lineup => E.createRace(['a', 'b', 'c'], 55, a.seed, lineup).results.map(r => r.id).join();
+      const a = current(host).active, E = host.window.DuckChaosEngineV10, run = lineup => E.createRace(['a', 'b', 'c'], 55, a.seed, lineup).results.map(r => r.id).join();
       assert.ok([0, 2].every(d => Number.isFinite(a.lineup.casts[d])), 'the host cast for Phú and Bình');
       decisive = run(a.lineup) !== run({ ...a.lineup, casts: a.lineup.casts.map(() => null) });
       if (!decisive) continue;
@@ -523,12 +523,12 @@ test('every page of a room runs one build: index.html stamps it on each file; a 
   } finally { await host.close(); await viewer.close(); }
 });
 
-// ---- chaos-v9 skills in a room: Phú (the host's duck 0) uses them on An (the player's duck 1) ----
-const dealingList = skills => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V9_RULES, count, seed), skills: ${JSON.stringify(skills)}.slice(0, count) };`) } });
+// ---- chaos-v9/v10 skills in a room: Phú (the host's duck 0) uses them on An (the player's duck 1) ----
+const dealingList = skills => ({ ...withChannel, scripts: { 'chaos-engine-v2.js': engine.replace(missileDeal, `return { ...dealLineup(V10_RULES, count, seed), skills: ${JSON.stringify(skills)}.slice(0, count) };`) } });
 const chipOf = (game, id) => game.window.document.querySelector(`#skill-reveal [data-duck-id="${id}"]`);
 const raceTime = host => current(host).active?.elapsed ?? 0;
 
-test('chaos-v9: a riddle one player aims at another opens on that page; the answer reaches the host and how it went shows on both', async () => {
+test('chaos-v10: a riddle one player aims at another opens on that page; the answer reaches the host and how it went shows on both', async () => {
   // Bình (a second player page) throws the riddle at An.
   const deal = dealingList(['pho', 'pho', 'riddle']), host = loadGame({}, deal); const pages = [];
   try {
@@ -545,11 +545,11 @@ test('chaos-v9: a riddle one player aims at another opens on that page; the answ
       await sync3();
     }
     host.click('start'); await sync3();
-    assert.equal(current(host).active.engine, 'chaos-v9');
+    assert.equal(current(host).active.engine, 'chaos-v10');
     assert.deepEqual(current(host).active.lineup.pilots, [false, true, true]);
     for (let i = 0; i < 40 && binh.$('cast').disabled; i++) await sync3(500);
     // Bình throws it while An is clear of their own quiz (a duck about to answer one is skipped).
-    const a = current(host).active, quizAt = host.window.DuckChaosEngineV9.createRace(['a', 'b', 'c'], 55, a.seed, a.lineup).quizzes[1].at;
+    const a = current(host).active, quizAt = host.window.DuckChaosEngineV10.createRace(['a', 'b', 'c'], 55, a.seed, a.lineup).quizzes[1].at;
     if (quizAt <= 20) for (let i = 0; i < 80 && raceTime(host) < quizAt + 6; i++) await sync3(250);
     [...binh.window.document.querySelectorAll('#cast-targets .cast-target')].find(b => Number(b.dataset.duckId) === 1).click();
     binh.click('cast'); await sync3();
@@ -569,23 +569,8 @@ test('chaos-v9: a riddle one player aims at another opens on that page; the answ
   } finally { await host.close(); for (const g of pages) await g.close(); }
 });
 
-test('chaos-v9: a speed camera counts down on every page and takes a skill cast meanwhile; a pickpocket leaves its victim with nothing', async () => {
-  let { host, viewer } = await roomRace(withChannel, dealingList(['camera', 'missile', 'mirror']));
-  try {
-    for (let i = 0; i < 40 && chipOf(host, 0)?.dataset.cast !== 'ready'; i++) await sync(host, viewer, 500);
-    host.click('#skill-reveal [data-duck-id="0"]');
-    for (let i = 0; i < 40 && viewer.$('camera-pill')?.hidden !== false; i++) await sync(host, viewer, 200);
-    assert.match(viewer.$('camera-pill').textContent, /Camera phạt nguội của Phú · còn \d+s/, 'the player sees it');
-    assert.equal(host.$('camera-pill').hidden, false, 'so does the shared screen');
-    for (let i = 0; i < 20 && viewer.$('cast').disabled; i++) await sync(host, viewer, 200);
-    assert.match(viewer.$('cast').textContent, /📸 camera còn \d+s!/, 'the button warns');
-    viewer.click('cast'); await sync(host, viewer);
-    for (let i = 0; i < 30 && !/Đã tung/.test(viewer.$('cast').textContent); i++) await sync(host, viewer, 200);
-    const a = current(host).active, race = host.window.DuckChaosEngineV9.createRace(['a', 'b', 'c'], 55, a.seed, a.lineup);
-    assert.equal(race.events.find(e => e.type === 'skill' && e.actorId === 1).outcome, 'confiscated', "An's missile was taken");
-    assert.deepEqual([...host.errors, ...viewer.errors].map(String), []);
-  } finally { await host.close(); await viewer.close(); }
-  ({ host, viewer } = await roomRace(withChannel, dealingList(['pickpocket', 'missile', 'mirror'])));
+test('chaos-v10: a pickpocket leaves its victim with nothing', async () => {
+  const { host, viewer } = await roomRace(withChannel, dealingList(['pickpocket', 'missile', 'mirror']));
   try {
     for (let i = 0; i < 40 && chipOf(host, 0)?.dataset.cast !== 'ready'; i++) await sync(host, viewer, 500);
     host.click('#skill-reveal [data-duck-id="0"]');
@@ -597,7 +582,7 @@ test('chaos-v9: a speed camera counts down on every page and takes a skill cast 
   } finally { await host.close(); await viewer.close(); }
 });
 
-test('chaos-v9: a toll gate stands across every lane while it is open, and the upside-down world turns the ducks over', async () => {
+test('chaos-v10: a toll gate stands across every lane while it is open, and the upside-down world turns the ducks over', async () => {
   const { host, viewer } = await roomRace(withChannel, dealingList(['toll', 'pho', 'upside']));
   try {
     for (let i = 0; i < 40 && chipOf(host, 0)?.dataset.cast !== 'ready'; i++) await sync(host, viewer, 500);
@@ -614,4 +599,73 @@ test('chaos-v9: a toll gate stands across every lane while it is open, and the u
     assert.ok(!viewer.$('river').classList.contains('upside'), 'for 4 s');
     assert.deepEqual([...host.errors, ...viewer.errors].map(String), []);
   } finally { await host.close(); await viewer.close(); }
+});
+
+// ---- A slow network: every page ends every round on exactly the host's race and result ----
+// Each message hops with 40–260 ms of real delay, in order per page (like Firebase): with pages stepping 100 ms of race
+// time per 25 ms of real time, that is about 0.2–1 s of race time on the way. The players press keys, answer their
+// quizzes and riddles and cast their skills; the host casts for its own duck.
+const slowNet = rnd => ({ beforeScripts(window) {
+  let last = 0;
+  window.BroadcastChannel = class extends Channel {
+    postMessage(data) {
+      const due = Math.max(last, Date.now() + 40 + Math.floor(rnd() * 220)); last = due;
+      setTimeout(() => { try { super.postMessage(data); } catch {} }, due - Date.now());
+    }
+  };
+} });
+const tableOf = game => [...game.window.document.querySelectorAll('#result-content tbody tr')].map(r => r.textContent.replace(/\s+/g, ' ').trim());
+const sigOf = l => JSON.stringify([l?.casts, l?.targets, l?.dodges, l?.answers, l?.riddles]);
+
+test('over a slow network, with players pressing (and mashing), answering and casting, every page ends every round on the host\'s race and result', async () => {
+  let seed = 20261124; const rnd = () => { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 2 ** 32; };
+  const host = loadGame({}, slowNet(rnd)), pages = [];
+  try {
+    host.fill('setup-season-name', 'Mùa mạng chậm'); host.fill('setup-names', 'Phú\nAn\nBình'); host.fill('setup-date', '2026-11-24'); host.fill('setup-rounds', '3'); host.fill('setup-duration', '55');
+    submit(host, 'setup-form'); await settle();
+    const code = host.storage()['vit-dua-room'];
+    host.click('room-close'); host.click('skills-close');
+    for (const name of ['An', 'Bình']) pages.push(loadGame({}, { ...slowNet(rnd), url: `http://localhost/?phong=${code}&ten=${name}` }));
+    const all = [host, ...pages], wait = ms => new Promise(r => setTimeout(r, ms));
+    const step = async (ms = 100) => { for (const g of all) g.advance(ms, 50); await wait(25); };
+    for (let i = 0; i < 20; i++) await step();
+    for (let round = 0; round < 3; round++) {
+      // picks in turn: An and Bình on their own pages, Phú (and anyone left) on the host
+      for (let i = 0; i < 40 && host.$('start').disabled; i++) {
+        const next = current(host).session.players.find(p => current(host).picks?.[p.id] === undefined);
+        const page = pages.find((g, k) => next?.name === ['An', 'Bình'][k]);
+        const free = g => [...g.window.document.querySelectorAll('#duck-grid [data-duck-id]')].find(b => !b.disabled);
+        if (page) free(page)?.click(); else if (next) free(host)?.click();
+        for (let k = 0; k < 6; k++) await step();
+      }
+      host.click('start');
+      const id = current(host).active.id;
+      assert.equal(current(host).active.engine, 'chaos-v10');
+      for (let i = 0; i < 1400 && !all.every(g => g.$('result-dialog').open); i++) {
+        for (const g of pages) {
+          const doc = g.window.document, pad = doc.getElementById('dodge-pad');
+          if (rnd() < .3) key(g, rnd() < .5 ? 'ArrowUp' : 'ArrowDown'); // some players mash the keys (past the 60 a race the host keeps)
+          if (pad?.dataset.state === 'reveal' && rnd() < .5) { const k = rnd() < .8 ? (/nhảy/.test(doc.getElementById('dodge-status').textContent) ? 'ArrowUp' : 'ArrowDown') : 'ArrowUp'; key(g, k); }
+          if (doc.getElementById('quiz-card')?.hidden === false && !doc.querySelector('#quiz-card .quiz-answer:disabled') && rnd() < .3) { const d = String(1 + Math.floor(rnd() * 3)); key(g, 'Digit' + d, d); }
+          const cast = doc.getElementById('cast');
+          if (cast && !cast.hidden && !cast.disabled && rnd() < .04) cast.click();
+        }
+        const chip = host.window.document.querySelector('#skill-reveal [data-duck-id][data-cast="ready"]');
+        if (chip && rnd() < .02) chip.click();
+        await step();
+      }
+      for (let i = 0; i < 40; i++) await step(); // the host's record reaches every page
+      assert.ok(all.every(g => g.$('result-dialog').open), `round ${round + 1}: every page shows the result`);
+      const replay = current(host).raceReplays.find(r => r.id === id), table = tableOf(host);
+      assert.ok(table.length === 3, table.join(' / '));
+      pages.forEach((g, k) => {
+        assert.deepEqual(tableOf(g), table, `round ${round + 1}: ${['An', 'Bình'][k]} sees the host's ranks and points`);
+        assert.equal(g.$('river').dataset.lineup ?? sigOf(replay.lineup), sigOf(replay.lineup), `round ${round + 1}: ${['An', 'Bình'][k]}'s race ended on the host's inputs`);
+      });
+      const inputs = replay.lineup.dodges.filter(Boolean).flat().length + replay.lineup.answers.filter(Boolean).length + replay.lineup.casts.filter(c => c !== null).length;
+      assert.ok(inputs > 0, `round ${round + 1}: the players did something (${inputs} inputs)`);
+      if (round < 2) { host.click('result-next'); for (let i = 0; i < 10; i++) await step(); }
+    }
+    assert.deepEqual([...host.errors, ...pages.flatMap(g => g.errors)].map(String), []);
+  } finally { await host.close(); for (const g of pages) await g.close(); }
 });

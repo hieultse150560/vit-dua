@@ -454,6 +454,8 @@
     upside: { time: 4, fast: 0.6, slow: 0.3 }
   }));
   const V9_RULES = freeze({ ...V8_RULES, skills: freeze([...V8_RULES.skills, ...v9Skills.map(s => ({ ...s, tier: V9_TIER[s.id] }))]), tuning: TUNING_V9 });
+  // chaos-v10: chaos-v9 without the speed camera (taken out of the deck on 2026-11-24). chaos-v9 races still rebuild with it.
+  const V10_RULES = freeze({ ...V9_RULES, skills: freeze(V9_RULES.skills.filter(s => s.id !== 'camera')) });
   // Skills and traits for each duck, dealt before the picks (chaos-v3); the same seed always deals the same lineup.
   function dealLineup(rules, count, seed) {
     const deckOf = (list, salt) => shuffled(Array.from({ length: Math.ceil(count / list.length) }, () => list).flat(), randomFor(seed, salt)).slice(0, count);
@@ -1771,15 +1773,22 @@
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V8_RULES, count, seed);
     } });
-  // chaos-v9: what new races use. chaos-v8 with six skills that bring new rules (lineup.riddles: answers to riddles) and
-  // luckier ducks nobody steers.
+  // chaos-v9: chaos-v8 with six skills that bring new rules (lineup.riddles: answers to riddles) and luckier ducks nobody
+  // steers.
   const v9 = Object.freeze({ ...v8, version: 'chaos-v9', targeted: TARGETED_V9, skills: V9_RULES.skills, tuning: TUNING_V9,
     createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v9', V9_RULES, names, duration, seed, lineup),
     deal: (count, seed = newSeed()) => {
       if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
       return dealLineup(V9_RULES, count, seed);
     } });
-  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5, v6, v7, v8, v9,
+  // chaos-v10: what new races use. chaos-v9 without the speed camera.
+  const v10 = Object.freeze({ ...v9, version: 'chaos-v10', skills: V10_RULES.skills,
+    createRace: (names, duration, seed, lineup) => createRaceFor('chaos-v10', V10_RULES, names, duration, seed, lineup),
+    deal: (count, seed = newSeed()) => {
+      if (!Number.isInteger(count) || count < 2 || count > 100) throw new RangeError('Mỗi cuộc đua cần từ 2 đến 100 con vịt.');
+      return dealLineup(V10_RULES, count, seed);
+    } });
+  const api = Object.freeze({ version: VERSION, skills, hazards, runeTypes, tuning, v3, v4, v5, v6, v7, v8, v9, v10,
     createRace: (names, duration, seed) => createRaceFor(VERSION, V2_RULES, names, duration, seed) });
   root.DuckChaosEngineV2 = api;
   root.DuckChaosEngineV3 = v3;
@@ -1789,5 +1798,6 @@
   root.DuckChaosEngineV7 = v7;
   root.DuckChaosEngineV8 = v8;
   root.DuckChaosEngineV9 = v9;
+  root.DuckChaosEngineV10 = v10;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

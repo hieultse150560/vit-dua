@@ -144,6 +144,10 @@ Mỗi trận còn có 2–4 **sự kiện sông nước** (nhân theo `ceil(N / 
 
 Có 18 đặc tính; mỗi trận 7 vịt nhận 7 cái khác nhau. Đo 40.000 trận 7 vịt × 40 giây: người có đặc tính nào cũng thắng trong khoảng 0,85–1,14 lần mức công bằng (test giữ mốc 0,7–1,3).
 
+### `chaos-v10`: bỏ Camera phạt nguội
+
+Trận mới chạy `chaos-v10`: giống hệt `chaos-v9` nhưng bộ bài không còn 📸 Camera phạt nguội (còn 5 skill luật mới: Bẫy liên hoàn, Đố mẹo, Móc túi, Trạm BOT, Thế giới đảo ngược). Trận `chaos-v9` đã chơi (có camera) vẫn dựng lại bằng engine của nó. Cân bằng vẫn trong khoảng 0,7–1,3 lần mức công bằng cho mọi skill.
+
 ### `chaos-v9`: 6 skill có luật mới, người vắng mặt hên hơn
 
 Trận mới chạy `chaos-v9`: giữ nguyên `chaos-v8` và thêm 6 skill có luật chơi mới (không chỉ tăng tốc, làm choáng hay đổi chỗ). Trận `chaos-v8` (và cũ hơn) vẫn dựng lại bằng engine của nó.
