@@ -6,7 +6,7 @@
   // Every page of a room must run the same code. BUILD matches the ?v= on index.html's scripts and styles (a test keeps
   // them equal), so a fresh index.html skips every cached file. The host's build rides in each snapshot: a player page on
   // an older one reloads once to fetch the new files.
-  const BUILD='20261125-01',newerBuild=b=>typeof b==='string'&&b>BUILD;let buildWarned=false;
+  const BUILD='20261125-02',newerBuild=b=>typeof b==='string'&&b>BUILD;let buildWarned=false;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
@@ -206,7 +206,7 @@
     $('duck-grid').replaceChildren(...players.map((_,id)=>{
       const owner=players.find(p=>current.picks[p.id]===id);
       const b=node('button',`duck-card${owner?' claimed':''}${viewer&&owner?.id===meId?' mine':''}`);b.dataset.duckId=String(id);b.disabled=!picking||!!owner||!selected||(viewer&&selected!==meId);b.setAttribute('aria-label',`${A.name(id)} số ${id+1}${owner?` — ${owner.name} đã chọn`:' — còn trống'}`);b.setAttribute('aria-pressed',String(!!owner));
-      const art=node('span');art.innerHTML=A.svg(id);b.append(node('span','duck-number',`#${String(id+1).padStart(2,'0')}`),art,node('strong','',A.name(id)),node('small','',owner?`${owner.name} ✓`:'Chọn vịt này'));
+      const art=node('span','duck-pond');art.innerHTML=A.svg(id);b.style.setProperty('--duck-color',A.colors[id%A.colors.length]);b.style.setProperty('--i',String(id));b.append(node('span','duck-number',`#${String(id+1).padStart(2,'0')}`),art,node('strong','',A.name(id)),node('small','',owner?`${owner.name} ✓`:'Chọn vịt này'));
       const sk=!isLegacy()&&current.lineup&&skillOf(current.lineup.skills[id]),tr=sk&&traitOf(current.lineup.traits[id]);
       if(sk){const tag=node('small','skill-tag',`${sk.icon} ${sk.name} `);tag.append(tierBadge(sk.tier));b.append(tag,node('small','skill-detail',sk.description),node('small','talent-tag',`${tr.icon} ${tr.name}`),node('small','talent-detail',tr.description));b.setAttribute('aria-label',`${b.getAttribute('aria-label')} · Skill ${sk.name} hạng ${sk.tier}: ${sk.description} · Đặc tính ${tr.name}: ${tr.description}`);}
       b.onclick=()=>pick(id);return b;
