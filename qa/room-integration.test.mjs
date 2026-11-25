@@ -660,7 +660,7 @@ test('over a slow network, with players pressing (and mashing), answering and ca
       assert.ok(table.length === 3, table.join(' / '));
       pages.forEach((g, k) => {
         assert.deepEqual(tableOf(g), table, `round ${round + 1}: ${['An', 'Bình'][k]} sees the host's ranks and points`);
-        assert.equal(g.$('river').dataset.lineup ?? sigOf(replay.lineup), sigOf(replay.lineup), `round ${round + 1}: ${['An', 'Bình'][k]}'s race ended on the host's inputs`);
+        assert.equal(g.$('river').dataset.ended, sigOf(replay.lineup), `round ${round + 1}: ${['An', 'Bình'][k]}'s race ended on the host's inputs`);
       });
       const inputs = replay.lineup.dodges.filter(Boolean).flat().length + replay.lineup.answers.filter(Boolean).length + replay.lineup.casts.filter(c => c !== null).length;
       assert.ok(inputs > 0, `round ${round + 1}: the players did something (${inputs} inputs)`);

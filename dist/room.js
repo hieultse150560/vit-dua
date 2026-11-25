@@ -52,7 +52,8 @@
   async function joinFirebase(code, { onState }) {
     const { fb, db, now } = await firebaseDb();
     const room = db.ref(`rooms/${code}`);
-    const onValue = snap => { const v = snap.val(); try { onState(v ? JSON.parse(v.json) : null); } catch { onState(null); } };
+    // Only a snapshot that does not parse counts as no room; an error in the page's own handling must surface, not hide.
+    const onValue = snap => { const v = snap.val(); let state = null; try { state = v ? JSON.parse(v.json) : null; } catch {} onState(state); };
     room.child('state').on('value', onValue);
     return {
       now,
