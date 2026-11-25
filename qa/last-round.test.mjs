@@ -61,9 +61,12 @@ async function playDay({ host: hostOptions = {}, hiddenHost = false, rounds = 2 
       });
       host.click('result-next'); for (let i = 0; i < 10; i++) await step();
     }
-    const final = tableOf(host);
-    assert.match(host.$('result-label').textContent, /TỔNG KẾT NGÀY/);
-    pages.forEach((g, k) => assert.deepEqual(tableOf(g), final, `day summary: ${['An', 'Bình'][k]} sees the host's totals`));
+    // A tie at the bottom sends the day to a tiebreak race instead of its summary (how the race went depends on timing).
+    if (current(host).stage === 'complete') {
+      const final = tableOf(host);
+      assert.match(host.$('result-label').textContent, /TỔNG KẾT NGÀY/);
+      pages.forEach((g, k) => assert.deepEqual(tableOf(g), final, `day summary: ${['An', 'Bình'][k]} sees the host's totals`));
+    } else assert.equal(current(host).type, 'tie', 'after the last round: the day summary or a tiebreak');
     assert.deepEqual([...host.errors, ...pages.flatMap(g => g.errors)].map(String), []);
   } finally { await host.close(); for (const g of pages) await g.close(); }
 }

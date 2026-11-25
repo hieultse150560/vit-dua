@@ -411,7 +411,7 @@ Tên người chơi và tổng điểm ngày không thay đổi xác suất sự
 
 ## Đồ họa và chuyển động
 
-- Vịt dùng chung một ảnh sprite trong `dist/assets/duck-atlas.png`; tên, số vịt và màu nhận diện giữ nguyên. Cảnh sông có nền `river-garden.png`, vùng xuất phát, đích và thứ hạng trực tiếp cạnh từng vịt. (Bộ vịt SVG vẽ bằng code từng thử ở bản 20261123-02 đã bỏ ngày 2026-11-25: người chơi thấy vịt cũ đẹp hơn.)
+- Vịt dùng chung một ảnh sprite trong `dist/assets/duck-atlas-v2.png` (bản đã làm sạch quầng nhiễu quanh vịt); trên sông vịt chìm nhẹ dưới mặt nước và có gợn sóng loang quanh mình, trên thẻ chọn vịt bập bềnh trên vũng nước mang màu của chính nó; tên, số vịt và màu nhận diện giữ nguyên. Cảnh sông có nền `river-garden.png`, vùng xuất phát, đích và thứ hạng trực tiếp cạnh từng vịt. (Bộ vịt SVG vẽ bằng code từng thử ở bản 20261123-02 đã bỏ ngày 2026-11-25: người chơi thấy vịt cũ đẹp hơn.)
 - Khi đua, đường đua mở rộng; thân vịt nổi nhẹ trên nước, nhãn tên và hạng tách khỏi chuyển động của thân để dễ đọc. Vị trí theo `requestAnimationFrame` và nội suy sẵn có của engine, không thêm độ trễ vào quãng đường hay đổi kết quả.
 - Lớp `race-visuals.js` chỉ vẽ hiệu ứng: gợn nước, vệt tăng tốc, bom bay, cổng swap, nhặt rune, khiên và pháo giấy cuối lượt. Canvas giới hạn theo vùng nhìn thấy; tạm dừng không tiếp tục chạy hiệu ứng. Khôi phục trận không phát lại các hiệu ứng ngắn đã qua.
 - Trình duyệt bật giảm chuyển động sẽ bỏ các hoạt ảnh trang trí; không hỗ trợ Canvas 2D vẫn đua và tính điểm bình thường.
