@@ -6,7 +6,7 @@
   // Every page of a room must run the same code. BUILD matches the ?v= on index.html's scripts and styles (a test keeps
   // them equal), so a fresh index.html skips every cached file. The host's build rides in each snapshot: a player page on
   // an older one reloads once to fetch the new files.
-  const BUILD='20261124-01',newerBuild=b=>typeof b==='string'&&b>BUILD;let buildWarned=false;
+  const BUILD='20261125-01',newerBuild=b=>typeof b==='string'&&b>BUILD;let buildWarned=false;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
@@ -95,7 +95,10 @@
   }
   // chaos-v3 lineup: one skill and one trait per duck, dealt before the picks and shown on the duck cards.
   const duckNo=(t,count)=>Number.isInteger(t)&&t>=0&&t<count;
-  const lineupOk=(l,count)=>!!l&&typeof l==='object'&&['skills','traits'].every(k=>Array.isArray(l[k])&&l[k].length===count)&&l.skills.every(id=>C3.skills.some(s=>s.id===id))&&l.traits.every(id=>C3.traits.some(t=>t.id===id))
+  // Skills and traits are checked against the deck of the race's own engine: chaos-v10 dropped the speed camera, and a
+  // host on an older build still races chaos-v9 (a page that checked against its newest deck would drop that race's every input).
+  const deckOf=version=>{const E=engineFor(version);return E?.skills&&E.traits?E:C3;};
+  const lineupOk=(l,count,E=C3)=>!!l&&typeof l==='object'&&['skills','traits'].every(k=>Array.isArray(l[k])&&l[k].length===count)&&l.skills.every(id=>E.skills.some(s=>s.id===id))&&l.traits.every(id=>E.traits.some(t=>t.id===id))
     &&(l.luck===undefined||Array.isArray(l.luck)&&l.luck.length===count&&l.luck.every(v=>Number.isInteger(v)&&v>=0&&v<=3))&&(l.rule===undefined||knownRule(l.rule))
     &&(l.casts===undefined||Array.isArray(l.casts)&&l.casts.length===count&&l.casts.every(t=>t===null||Number.isFinite(t)&&t>=0))
     &&(l.targets===undefined||Array.isArray(l.targets)&&l.targets.length===count&&l.targets.every(t=>t===null||duckNo(t,count)||Array.isArray(t)&&t.length>0&&t.every(x=>duckNo(x,count))&&new Set(t).size===t.length))
@@ -112,7 +115,7 @@
   // Luck works for the whole trailing half, but only the player(s) dead last get the visible clover.
   const lastPlaceIds=()=>{if(!current||current.type!=='regular'||isLegacy()||!current.session.rounds.length)return new Set();const table=T.standings(current.session),worst=Math.max(...table.map(r=>r.rank));return new Set(table.filter(r=>r.rank===worst).map(r=>r.playerId));};
   const luckByDuck=()=>{const levels=luckOf(),out=participants().map(()=>0);for(const [id,duck] of Object.entries(current.picks))out[duck]=levels[id]||0;return out;};
-  const skillOf=id=>C3.skills.find(s=>s.id===id), traitOf=id=>C3.traits.find(t=>t.id===id);
+  const skillOf=id=>C3.skills.find(s=>s.id===id)||C3v9.skills.find(s=>s.id===id), traitOf=id=>C3.traits.find(t=>t.id===id);
   // Skill table: built from the engine's own lists, so it can never drift from the game.
   const TIER_NOTE={S:'Đảo cục diện',A:'Đòn mạnh',B:'Ổn định',C:'Nhẹ, hên xui'};
   const tierBadge=t=>{const b=node('span',`tier tier-${t}`,t);b.title=`Hạng ${t}: ${TIER_NOTE[t]}`;return b;};
@@ -143,9 +146,9 @@
     if(clean.stage==='picking'&&lineupOk(raw.lineup,players.length))clean.lineup=plainLineup(raw.lineup); // invalid or missing: dealt again
     if(raw.active){const a=raw.active;T.validatePicks(players,clean.picks);if(clean.stage!=='picking'||!Number.isInteger(a.seed)||a.seed<0||a.seed>4294967295||typeof a.id!=='string'||!a.id||a.id.length>128||!Number.isFinite(a.elapsed)||a.elapsed<0||a.elapsed>clean.session.duration||!Number.isFinite(a.countdownLeft)||a.countdownLeft<0||a.countdownLeft>3)throw Error('Lượt đang đua không hợp lệ.');if(clean.type==='regular'&&clean.session.rounds.length>=clean.session.roundLimit)throw Error('Lượt đã hoàn tất.');if(clean.type==='tie'&&T.coffeeStatus(clean.session).status!=='tie')throw Error('Lượt phụ không hợp lệ.');if([...clean.session.rounds,...clean.session.tiebreaks].some(r=>r.id===a.id))throw Error('Lượt bị trùng.');clean.active={id:a.id,seed:a.seed,elapsed:a.elapsed,countdownLeft:a.countdownLeft};}
     if(raw.active?.engine!==undefined){if(!engineFor(raw.active.engine))throw Error('Phiên bản cuộc đua chưa được hỗ trợ.');clean.active.engine=raw.active.engine;}
-    if(raw.active?.lineup!==undefined){if(!lineupOk(raw.active.lineup,players.length))throw Error('Đội hình skill của lượt đang đua không hợp lệ.');clean.active.lineup=plainLineup(raw.active.lineup);}
+    if(raw.active?.lineup!==undefined){if(!lineupOk(raw.active.lineup,players.length,deckOf(raw.active.engine)))throw Error('Đội hình skill của lượt đang đua không hợp lệ.');clean.active.lineup=plainLineup(raw.active.lineup);}
     const recordSizes=new Map([...clean.session.rounds,...clean.session.tiebreaks].map(r=>[r.id,r.entries.length])),records=new Set(recordSizes.keys());
-    if(Array.isArray(raw.raceReplays)){const seen=new Set();for(const r of raw.raceReplays){if(r&&records.has(r.id)&&!seen.has(r.id)&&engineFor(r.engine)&&Number.isInteger(r.seed)&&r.seed>=0&&r.seed<=4294967295&&(r.lineup===undefined||lineupOk(r.lineup,recordSizes.get(r.id)))){clean.raceReplays.push({id:r.id,seed:r.seed,engine:r.engine,...(r.lineup?{lineup:plainLineup(r.lineup)}:{})});seen.add(r.id);}}}
+    if(Array.isArray(raw.raceReplays)){const seen=new Set();for(const r of raw.raceReplays){if(r&&records.has(r.id)&&!seen.has(r.id)&&engineFor(r.engine)&&Number.isInteger(r.seed)&&r.seed>=0&&r.seed<=4294967295&&(r.lineup===undefined||lineupOk(r.lineup,recordSizes.get(r.id),deckOf(r.engine)))){clean.raceReplays.push({id:r.id,seed:r.seed,engine:r.engine,...(r.lineup?{lineup:plainLineup(r.lineup)}:{})});seen.add(r.id);}}}
     if(clean.stage==='picking')T.selectionState(clean.session,clean.type,clean.picks);
     return clean;
   }
@@ -994,7 +997,7 @@
   }
   function viewerCasts(lineup){hostLineup={id:current.active.id,lineup};applyLineup(withPending(lineup,true));}
   function applyLineup(lineup){
-    const a=current.active;if(!lineupOk(lineup,participants().length)||a.lineup&&lineupSig(lineup)===lineupSig(a.lineup))return;
+    const a=current.active;if(!lineupOk(lineup,participants().length,deckOf(a.engine))||a.lineup&&lineupSig(lineup)===lineupSig(a.lineup))return;
     let next;try{next=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,lineup);}catch{return;}
     a.lineup=lineup;swapRace(next);$('river').dataset.lineup=lineupSig(lineup); // what this page's race holds (QA checks it against the host's)
   }
@@ -1135,11 +1138,11 @@
   }
   function startViewerRace(a,lead){
     try{race=engineFor(a.engine).createRace(participants().map((_,i)=>A.name(i)),current.session.duration,a.seed,a.lineup);}catch(e){toast(e.message);render();return;}
-    stop();current.active={id:a.id,seed:a.seed,elapsed:0,countdownLeft:Math.max(.05,Math.min(3,lead)),engine:a.engine,lineup:a.lineup,startAt:a.startAt,pausedMs:Number(a.pausedMs)||0};beginRace();
+    delete $('river').dataset.ended;stop();current.active={id:a.id,seed:a.seed,elapsed:0,countdownLeft:Math.max(.05,Math.min(3,lead)),engine:a.engine,lineup:a.lineup,startAt:a.startAt,pausedMs:Number(a.pausedMs)||0};beginRace();
   }
   let shownRound=null;const orderOf=record=>record.entries.map(e=>e.duckId).join();
   function viewerFinish(){
-    stop();const type=current.type,a=current.active;
+    stop();const type=current.type,a=current.active;$('river').dataset.ended=lineupSig(a.lineup); // what this page's race held at its end (QA checks it against the host's)
     const input={id:a.id,picks:{...current.picks},order:race.results.map(r=>r.id),completedAt:new Date().toISOString(),...(type==='regular'?{stars:starsOf()}:{})};
     let record=null;try{current.session=type==='tie'?T.recordTiebreak(current.session,input):T.recordRound(current.session,input);record=(type==='tie'?current.session.tiebreaks:current.session.rounds).at(-1);}catch{}
     current.raceReplays=[...(current.raceReplays||[]).filter(r=>r.id!==a.id),{id:a.id,seed:a.seed,engine:a.engine,...(a.lineup?{lineup:a.lineup}:{})}];
@@ -1174,10 +1177,6 @@
   $('cast').onclick=viewerCast;$('dodge-up').onclick=e=>{e.currentTarget.blur();viewerDodge('up');};$('dodge-down').onclick=e=>{e.currentTarget.blur();viewerDodge('down');};$('result-close').onclick=()=>close('result-dialog');$('result-next').onclick=()=>dialogAction();$('export').onclick=exportCsv;$('saved-games').onclick=showSessions;$('sessions-close').onclick=()=>close('sessions-dialog');
   $('final-summary').onclick=()=>{if(outcome().status==='tie'){if(current.stage==='picking'&&current.type==='tie'){toast('Chọn vịt cho nhóm đồng điểm ở bên dưới.');return;}next();}else{current.stage='complete';save();render();showFinal();}};
   $('slow-fx').onclick=()=>{slowFx=!slowFx;try{localStorage.setItem(SLOW_FX_KEY,slowFx?'1':'0');}catch{}setSlowFx();publishRoom();};
-  // Duck looks (duck-art.js): the new drawn ducks or the classic ones, saved per browser; never in the middle of a race.
-  function setDuckStyle(){const b=$('duck-style');if(!b)return;b.hidden=!A.setStyle;if(!A.setStyle)return;const isNew=A.style()==='new';b.querySelector('span').textContent=isNew?'Vịt mới':'Vịt cổ điển';b.title=isNew?'Bấm để dùng lại vịt cổ điển':'Bấm để dùng vịt kiểu mới';}
-  $('duck-style').onclick=()=>{if(!A.setStyle)return;if(current?.active){toast('Đổi kiểu vịt sau khi hết trận nhé.');return;}A.setStyle(A.style()==='new'?'classic':'new');setDuckStyle();render();};
-  setDuckStyle();
   $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem(SOUND_KEY,sound?'1':'0');}catch{}if(!sound){endAmbience();cancelSfx();window.speechSynthesis?.cancel?.();}setSound();activateAudio();tone(700);};
   $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.body.requestFullscreen)await document.body.requestFullscreen();else toast('Dùng phím F11 để mở toàn màn hình.');}catch{toast('Dùng phím F11 để mở toàn màn hình.');}};
   document.addEventListener('keydown',e=>{if(!viewer||$('cast').hidden||e.ctrlKey||e.altKey||e.metaKey||e.target.closest('input,textarea,select,a,button:not(.cast-target):not(#cast):not(.dodge-key)')||document.querySelector('dialog[open]'))return;
