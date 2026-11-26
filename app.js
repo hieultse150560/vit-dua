@@ -6,7 +6,7 @@
   // Every page of a room must run the same code. BUILD matches the ?v= on index.html's scripts and styles (a test keeps
   // them equal), so a fresh index.html skips every cached file. The host's build rides in each snapshot: a player page on
   // an older one reloads once to fetch the new files.
-  const BUILD='20261125-02',newerBuild=b=>typeof b==='string'&&b>BUILD;let buildWarned=false;
+  const BUILD='20261126-01',newerBuild=b=>typeof b==='string'&&b>BUILD;let buildWarned=false;
   let bannerUntil=0; // race-clock time the twist banner hides; pausing freezes it
   // Slow motion: each twist plays SLOWMO_WINDOW race-seconds over slowmoMs() of real time.
   // Only the display clock slows; the simulated result never changes.
@@ -175,7 +175,7 @@
   function tone(f,d=.12,delay=0){if(!sound||!audio||audio.state!=='running')return;const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime+delay;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.10,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+d+.02);o.onended=()=>{o.disconnect();g.disconnect();};}
   function stop(){if(raf!==null)cancelAnimationFrame(raf);raf=null;}
   function schedule(){raf=requestAnimationFrame(frame);}
-  function clearRace(){stop();cancelSfx();visuals?.destroy();visuals=null;race=null;phase='idle';eventCursor=0;runeMarkerKey='';obstacleNodes.clear();pendingDodges=[];pendingRiddles=[];quizAnswer=null;specialsKey='';$('river').classList.remove('upside');document.querySelectorAll('.toll-gate').forEach(e=>e.remove());['quiz-card','quiz-board','camera-pill'].forEach(id=>{const n=$(id);if(n){n.hidden=true;delete n.dataset.key;}});hostLineup=null;document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());skillNodes=[];if($('dodge-pad'))$('dodge-pad').hidden=true;racerViews=[];currentSample=[];checkpoint=null;lastTimerText='';lastSprintState=false;$('river').classList.remove('is-running');$('race-overlay').hidden=true;$('timer').classList.remove('sprint');$('skill-reveal').replaceChildren();$('event-history').replaceChildren();$('event-feed').replaceChildren();}
+  function clearRace(){stop();cancelSfx();visuals?.destroy();visuals=null;race=null;phase='idle';eventCursor=0;runeMarkerKey='';obstacleNodes.clear();pendingDodges=[];pendingRiddles=[];quizAnswer=null;specialsKey='';$('river').classList.remove('upside');document.querySelectorAll('.toll-gate').forEach(e=>e.remove());finaleKey='';document.querySelectorAll('.finale-rock').forEach(e=>e.remove());['quiz-card','quiz-board','camera-pill'].forEach(id=>{const n=$(id);if(n){n.hidden=true;delete n.dataset.key;}});hostLineup=null;document.querySelectorAll('.obstacle-marker').forEach(e=>e.remove());skillNodes=[];if($('dodge-pad'))$('dodge-pad').hidden=true;racerViews=[];currentSample=[];checkpoint=null;lastTimerText='';lastSprintState=false;$('river').classList.remove('is-running');$('race-overlay').hidden=true;$('timer').classList.remove('sprint');$('skill-reveal').replaceChildren();$('event-history').replaceChildren();$('event-feed').replaceChildren();}
 
   function render(){
     if(!current)return;
@@ -206,7 +206,7 @@
     $('duck-grid').replaceChildren(...players.map((_,id)=>{
       const owner=players.find(p=>current.picks[p.id]===id);
       const b=node('button',`duck-card${owner?' claimed':''}${viewer&&owner?.id===meId?' mine':''}`);b.dataset.duckId=String(id);b.disabled=!picking||!!owner||!selected||(viewer&&selected!==meId);b.setAttribute('aria-label',`${A.name(id)} số ${id+1}${owner?` — ${owner.name} đã chọn`:' — còn trống'}`);b.setAttribute('aria-pressed',String(!!owner));
-      const art=node('span','duck-pond');art.innerHTML=A.svg(id);b.style.setProperty('--duck-color',A.colors[id%A.colors.length]);b.style.setProperty('--i',String(id));b.append(node('span','duck-number',`#${String(id+1).padStart(2,'0')}`),art,node('strong','',A.name(id)),node('small','',owner?`${owner.name} ✓`:'Chọn vịt này'));
+      const art=node('span');art.innerHTML=A.svg(id);b.append(node('span','duck-number',`#${String(id+1).padStart(2,'0')}`),art,node('strong','',A.name(id)),node('small','',owner?`${owner.name} ✓`:'Chọn vịt này'));
       const sk=!isLegacy()&&current.lineup&&skillOf(current.lineup.skills[id]),tr=sk&&traitOf(current.lineup.traits[id]);
       if(sk){const tag=node('small','skill-tag',`${sk.icon} ${sk.name} `);tag.append(tierBadge(sk.tier));b.append(tag,node('small','skill-detail',sk.description),node('small','talent-tag',`${tr.icon} ${tr.name}`),node('small','talent-detail',tr.description));b.setAttribute('aria-label',`${b.getAttribute('aria-label')} · Skill ${sk.name} hạng ${sk.tier}: ${sk.description} · Đặc tính ${tr.name}: ${tr.description}`);}
       b.onclick=()=>pick(id);return b;
@@ -248,7 +248,7 @@
   }
   function makeTrack(){
     photoActive=false;document.querySelector('.race-water').classList.remove('photo-finish');endSlowmo();planSlowmo();glides={};gains=[];hitStop=0;cancelSfx();
-    bombHolder=-1;bombTickAt=0;bombEnds=(race.events||[]).filter(e=>e.outcome==='armed'&&e.fuse).map(e=>e.time+e.fuse);const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';skillNodes=[];obstacleNodes.clear();Object.assign(narration,{until:0,rank:0,pending:null});racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
+    bombHolder=-1;bombTickAt=0;bombEnds=(race.events||[]).filter(e=>e.outcome==='armed'&&e.fuse).map(e=>e.time+e.fuse);const players=participants();nodes=[];eventCursor=0;hideBanner();photoFinish=closeFinish(race);if($('commentary'))$('commentary').hidden=true;runeMarkerKey='';finaleKey='';skillNodes=[];obstacleNodes.clear();Object.assign(narration,{until:0,rank:0,pending:null});racerViews=[];currentSample=[];lastTimerText='';lastSprintState=false;
     owners=race.racers.map(r=>players.find(p=>current.picks[p.id]===r.id)?.name||A.name(r.id));
     runeSpawns=(race.events||[]).filter(e=>e.type==='rune-spawn');
     $('lanes').replaceChildren(...race.racers.map(r=>{
@@ -307,7 +307,7 @@
     // Keep the banner off the ducks involved: twists in the top half show it low, and vice versa.
     const ids=list.flatMap(e=>[e.actorId,e.targetId,...(e.affectedIds||[])]).filter(Number.isInteger),high=ids.length&&ids.reduce((a,b)=>a+b,0)/ids.length<(nodes.length-1)/2;
     const intro=!!star&&sIntro(star);
-    banner.replaceChildren(node('span','twist-icon',icon),letters);banner.className=`twist-banner ${gold?'gold':kind}${high?' low':''}${intro?' after-intro':''}`;void banner.offsetWidth;banner.hidden=false;bannerUntil=event.time+1.2;
+    banner.replaceChildren(node('span','twist-icon',icon),letters);banner.className=`twist-banner ${event.finale?'finale':gold?'gold':kind}${high?' low':''}${intro?' after-intro':''}`;void banner.offsetWidth;banner.hidden=false;bannerUntil=event.time+1.2;
     startSlowmo(list,kind,tier);
     if(!playSfx(list,[...(intro?[['drop',event.time]]:[]),...(gold?[['sparkle',event.time+.3*SLOWMO_WINDOW]]:[])]))tone(TONE_HZ[kind],.12);
     const talk=list.findLast(e=>e.type==='skill')||event;narrate(window.DuckCommentary?.line(talk,id=>owners[id]||A.name(id)),talk.type==='skill'?3:2);
@@ -462,7 +462,7 @@
     if(changed){const recent=race.events.slice(0,eventCursor).filter(e=>!LANE_FX[e.type]).slice(-3);$('event-feed').replaceChildren(...recent.map(e=>node('p','live-event',eventText(e))));}
     const visible=runeSpawns.filter(e=>e.time<=elapsed&&elapsed<e.pickupTime),key=visible.map(e=>e.id).join('|');
     if(key!==runeMarkerKey){runeMarkerKey=key;document.querySelectorAll('.rune-marker').forEach(e=>e.remove());for(const rune of visible){const runway=nodes[rune.actorId]?.parentElement;if(!runway)continue;const marker=node('span','rune-marker',rune.icon);marker.title=rune.label;marker.style.left=`${Math.max(0,Math.min(1,rune.progress))*100}%`;marker.style.translate=`0 ${bendAt(rune.progress).toFixed(1)}px`;runway.append(marker);}}
-    renderObstacles(elapsed);renderQuiz(elapsed);renderSpecials(elapsed);flushNarration();
+    renderObstacles(elapsed);renderQuiz(elapsed);renderSpecials(elapsed);renderFinaleRock(elapsed);flushNarration();
   }
   function measure(){runwayWidth=$('lanes').querySelector('.runway')?.getBoundingClientRect().width||0;visuals?.resize();if(race&&current?.active)draw(race.sample(current.active.elapsed));}
   function start(){
@@ -903,6 +903,18 @@
   const LANE_FX={obstacle:(e,t)=>obstacleFx(e,t),quiz:(e,t)=>quizFx(e,t),riddle:(e,t)=>riddleFx(e,t),toll:(e,t)=>tollFx(e,t)};
   // chaos-v9 on the river: a speed camera's countdown (every page), toll gates across the lanes, the upside-down world.
   const cameraAt=(elapsed,duck)=>(race?.events||[]).find(e=>e.type==='skill'&&e.outcome==='camera'&&e.actorId!==duck&&e.time<=elapsed+1e-8&&elapsed<e.until)||null;
+  // The finale rock (vấp đá sát đích) shows itself coming: ~2 s before the trip a rock rises in the leader's lane where
+  // the trip happens, so the trip reads as the rule it is, not a glitch. Drawn from the race's own event, the same on
+  // every page; it never moves the race clock or the result.
+  const FINALE_WARN=2;let finaleKey='';
+  function renderFinaleRock(elapsed){
+    const e=race.events?.find(x=>x.finale),show=!!e&&elapsed>=e.time-FINALE_WARN&&elapsed<e.time+.6,key=show?`${e.id}:${e.actorId}`:'';
+    if(key===finaleKey)return;finaleKey=key;document.querySelectorAll('.finale-rock').forEach(n=>n.remove());
+    const runway=show&&nodes[e.actorId]?.parentElement;if(!runway)return;
+    if(!document.querySelector('.lane-art-defs'))document.body.insertAdjacentHTML('beforeend',window.DuckLaneArt.defs);
+    const p=Math.max(0,Math.min(1,race.sample(e.time).find(r=>r.id===e.actorId)?.progress??1)),m=node('span','obstacle-marker rock low finale-rock');
+    m.innerHTML=window.DuckLaneArt.html('rock');m.append(node('span','finale-rock-label','⚠ Đá ngầm!'));m.title='Vấp đá sát đích';m.style.left=`${p*100}%`;m.style.translate=`0 ${bendAt(p).toFixed(1)}px`;runway.append(m);
+  }
   function renderSpecials(elapsed){
     const live=e=>e.until!==undefined&&e.time<=elapsed+1e-8&&elapsed<e.until,cam=cameraAt(elapsed,-1);
     $('river').classList.toggle('upside',race.events.some(e=>e.type==='skill'&&e.outcome==='upside'&&live(e)));
