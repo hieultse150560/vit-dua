@@ -147,7 +147,7 @@ body{background:radial-gradient(ellipse at 80% 0%,#e9f0df 0,transparent 38%),#fa
 .topbar{border-bottom-color:#dce2d4}
 .brand{color:#294636;letter-spacing:-1.2px}
 .brand-icon{width:52px;height:52px;border-radius:17px;background:linear-gradient(145deg,#ffe5a1,#ffce62);box-shadow:inset 0 1px 0 #fff7d1,0 4px 0 #e5bb58;transform:rotate(-5deg);overflow:hidden}
-.duck-sprite{display:block;width:96px;height:96px;flex:none;background-image:url('assets/duck-atlas-v2.png');background-size:400% 200%;background-position:var(--duck-x,0%) var(--duck-y,0%);background-repeat:no-repeat;pointer-events:none;user-select:none}
+.duck-sprite{display:block;width:96px;height:96px;flex:none;background-image:url('assets/duck-atlas.png');background-size:400% 200%;background-position:var(--duck-x,0%) var(--duck-y,0%);background-repeat:no-repeat;pointer-events:none;user-select:none}
 .brand-icon .duck-sprite{width:63px;height:63px;transform:translateY(1px) rotate(5deg)}
 .dialog-mascot{display:grid;place-items:center;width:108px;height:91px;margin:0 auto 15px;background:radial-gradient(ellipse at 50% 75%,#bfe9df 0,transparent 65%)}
 .dialog-mascot .duck-sprite{width:120px;height:120px;margin-top:-22px}
@@ -685,27 +685,11 @@ body.viewer.race-active .race-talk .commentary[hidden]{display:none}
 .quiz-row.riddle{border-color:#f3a3bd}
 @media(max-width:650px){.camera-pill{font-size:10px;white-space:normal;width:calc(100% - 40px);text-align:center}}
 @media (prefers-reduced-motion:reduce){.camera-pill,.toll-gate{animation:none}#river .duck-body>*{transition:none}}
-/* ---- Ducks on the water (2026-11-25) ----
-   The same atlas ducks, cleaned (duck-atlas-v2.png: no rainbow haze around them), now sitting in the water: the bottom
-   of each duck fades under the surface and a ripple rings it (rings spread while racing, faster on a boost). On a card
-   the duck bobs on a small pond lit in its own colour. Poses that lift or turn the duck over drop the water line. */
-.duck-card:before{top:22px;width:156px;height:124px;background:radial-gradient(ellipse at 50% 60%,color-mix(in srgb,var(--duck-color,#89d3c6) 45%,transparent),transparent 68%)}
-.duck-pond{position:relative;display:block;width:100%}
-.duck-pond:before{content:'';position:absolute;left:50%;bottom:4px;width:min(122px,86%);height:26px;translate:-50% 0;border-radius:50%;background:radial-gradient(ellipse,#2fa5b47a 0,#2fa5b440 46%,#2fa5b400 72%);box-shadow:inset 0 -2px 0 #ffffffd0,inset 0 3px 6px #ffffff40}
-.duck-pond:after{content:'';position:absolute;left:50%;bottom:9px;width:min(92px,66%);height:16px;translate:-50% 0;border-radius:50%;border:1.5px solid #ffffffe0;opacity:0;animation:pond-ring 3.6s ease-out infinite;animation-delay:calc(var(--i,0) * -.45s)}
-.duck-pond .duck-sprite{position:relative;-webkit-mask-image:linear-gradient(#000 78%,#000b 87%,#0006 96%);mask-image:linear-gradient(#000 78%,#000b 87%,#0006 96%);animation:pond-bob 3.6s ease-in-out infinite;animation-delay:calc(var(--i,0) * -.45s)}
-.duck-card:hover:not(:disabled) .duck-sprite{transform:none;animation-duration:1.3s}
-.duck-card:hover:not(:disabled) .duck-pond:after{animation-duration:1.3s}
-.duck-card:disabled .duck-sprite,.duck-card:disabled .duck-pond:after{animation-play-state:paused}
-@keyframes pond-bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}
-@keyframes pond-ring{0%{opacity:.9;scale:.7}70%,100%{opacity:0;scale:1.4}}
-.duck-body .duck-sprite{-webkit-mask-image:linear-gradient(#000 72%,#000c 82%,#0006 93%);mask-image:linear-gradient(#000 72%,#000c 82%,#0006 93%)}
-.duck-body:before,.duck-body:after{content:'';position:absolute;z-index:-1;border-radius:50%;pointer-events:none}
-.duck-body:before{left:14%;right:6%;bottom:5%;height:18%;background:radial-gradient(ellipse,#ffffff40,#ffffff00 70%);border:1.5px solid #ffffffb8;box-shadow:0 3px 7px #0b5f6a30}
-.duck-body:after{left:10%;right:2%;bottom:4%;height:20%;border:1.5px solid #ffffffe0;opacity:0}
-.is-running .duck-body:after{animation:river-ring 1.9s ease-out infinite;animation-delay:calc(var(--duck-id,0) * -.37s)}
-.is-running .racer.boosting .duck-body:after{animation-duration:.85s}
-@keyframes river-ring{0%{opacity:.85;scale:.75}80%,100%{opacity:0;scale:1.5 1.3}}
-.racer:is(.capsized,.spinning,.flying,.lifted,.grabbed,.ghost) .duck-body:is(:before,:after){display:none}
-.racer:is(.capsized,.spinning,.flying,.lifted,.grabbed) .duck-body .duck-sprite{-webkit-mask-image:none;mask-image:none}
-@media (prefers-reduced-motion:reduce){.duck-pond .duck-sprite,.duck-pond:after,.duck-body:after{animation:none!important}}
+/* The finale rock (vấp đá sát đích): the lane-art rock rises in the leader's lane ~2 s ahead (an .obstacle-marker, so it
+   sits on the water like the other lane things), glowing red under a warning; the trip gets its own banner. */
+.finale-rock{z-index:1}
+.finale-rock .thing-art{animation:finale-glow .5s ease-in-out infinite alternate}
+.finale-rock-label{position:absolute;left:50%;top:calc(var(--water-line) - 74px);translate:-50% 0;padding:2px 8px;border-radius:999px;background:#b3261e;border:2px solid #fff;color:#fff;font-size:10px;font-weight:800;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+@keyframes finale-glow{from{filter:drop-shadow(0 0 2px #ff5a3c)}to{filter:drop-shadow(0 0 9px #ff3b1f)}}
+.twist-banner.finale{background:linear-gradient(115deg,#6e130ef2,#c0392bf2 55%,#e8622cf2);border-color:#ffe0d2;box-shadow:0 0 0 6px rgba(192,57,43,.3),0 18px 50px rgba(0,0,0,.45)}
+@media (prefers-reduced-motion:reduce){.finale-rock .thing-art{animation:none}}
